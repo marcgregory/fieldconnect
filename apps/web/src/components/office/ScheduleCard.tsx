@@ -29,10 +29,15 @@ const STATUS_LABELS: Record<string, string> = {
 export function ScheduleCard({ schedule, compact = false, onClick }: ScheduleCardProps) {
   const style = STATUS_STYLES[schedule.status] || STATUS_STYLES.scheduled;
 
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    onClick?.();
+  }
+
   if (compact) {
     return (
       <button
-        onClick={onClick}
+        onClick={handleClick}
         className={`w-full text-left border rounded-lg px-2 py-1.5 ${style.bg} ${style.text} hover:shadow-sm transition-shadow`}
       >
         <p className="text-xs font-medium truncate">{schedule.project_name}</p>
@@ -43,7 +48,7 @@ export function ScheduleCard({ schedule, compact = false, onClick }: ScheduleCar
 
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       draggable
       className={`w-full text-left border rounded-lg px-3 py-2 ${style.bg} ${style.text} hover:shadow-sm transition-shadow cursor-pointer active:cursor-grabbing`}
     >
