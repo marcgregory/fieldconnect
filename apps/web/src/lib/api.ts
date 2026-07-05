@@ -31,12 +31,18 @@ async function bffFetch<T>(
 ): Promise<T> {
   const url = `/api/proxy${path}`;
 
+  // Only set Content-Type when there's a body to send
+  const hasBody = !!(options.method && options.method !== 'GET' && options.method !== 'HEAD' && options.body);
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (hasBody) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const res = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    },
+    headers,
   });
 
   if (!res.ok) {

@@ -101,12 +101,14 @@ async function proxyRequest(
       if (isMultipart) {
         // For multipart uploads, pass through the original body and content-type
         body = await request.blob();
-        // Pass through original Content-Type (with boundary) — do NOT override
         headers['Content-Type'] = contentType;
       } else {
-        // For JSON requests, set content-type and forward body as text
-        headers['Content-Type'] = 'application/json';
-        body = await request.text();
+        // For JSON requests, read body text
+        const requestText = await request.text();
+        if (requestText) {
+          headers['Content-Type'] = 'application/json';
+          body = requestText;
+        }
       }
     }
 
