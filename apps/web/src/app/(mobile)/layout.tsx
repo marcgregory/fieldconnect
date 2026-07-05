@@ -1,0 +1,29 @@
+import type { Viewport } from 'next';
+import { getServerSession } from 'next-auth';
+import { redirect } from 'next/navigation';
+import { authOptions } from '@/lib/auth';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
+export default async function MobileLayout({ children }: { children: React.ReactNode }) {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    redirect('/login');
+  }
+
+  if (!['field_technician', 'admin'].includes(session.user.role)) {
+    redirect('/dashboard');
+  }
+
+  return (
+    <div className="max-w-md mx-auto min-h-screen bg-gray-50" style={{ maxWidth: '430px' }}>
+      {children}
+    </div>
+  );
+}

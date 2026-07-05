@@ -1,0 +1,23 @@
+{
+  "name": "fieldconnect",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "turbo typecheck",
+    "db:migrate": "cd apps/api && pnpm db:migrate",
+    "db:rollback": "cd apps/api && pnpm db:rollback",
+    "db:seed": "cd apps/api && pnpm db:seed"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.0",
+    "turbo": "^1.13.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
