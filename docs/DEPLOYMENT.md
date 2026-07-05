@@ -64,8 +64,8 @@ After the Blueprint creates the services, set these **manually** in the Render d
 |---|---|
 | `NEXTAUTH_SECRET` | ✅ Same secret as API |
 | `NEXTAUTH_URL` | This service's own URL (e.g. `https://fieldconnect-web.onrender.com`) |
-| `API_URL` | API internal URL (e.g. `https://fieldconnect-api.onrender.com`) |
-| `NEXT_PUBLIC_API_URL` | Same as `API_URL` |
+| `API_URL` | API **internal** URL for server-side BFF proxy (e.g. `http://fieldconnect-api:3001`) |
+| `NEXT_PUBLIC_API_URL` | API **public** URL for browser WebSocket/fetch (e.g. `https://fieldconnect-api.onrender.com`) |
 
 ### Step 3: Verify Deployment
 
@@ -129,8 +129,8 @@ After deployment, verify the complete workflow:
 |---|---|---|
 | `NEXTAUTH_SECRET` | Manual (must match API) | JWT signing secret |
 | `NEXTAUTH_URL` | Manual after deploy | This service's own URL |
-| `API_URL` | Manual after deploy | API service URL (internal recommended) |
-| `NEXT_PUBLIC_API_URL` | Manual after deploy | Same as `API_URL` (used by WebSocket) |
+| `API_URL` | Manual after deploy | API **internal** URL for server-side BFF proxy calls |
+| `NEXT_PUBLIC_API_URL` | Manual after deploy | API **public** URL for browser WebSocket and fetch |
 | `PORT` | Render (auto-injected) or `3002` | Server port |
 
 ### Render Blueprint `sync: false` Variables

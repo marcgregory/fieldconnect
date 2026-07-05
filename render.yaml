@@ -67,8 +67,8 @@ services:
       - key: NEXTAUTH_URL
         sync: false # ⚠️ Set to this service's URL (e.g. https://fieldconnect-web.onrender.com)
       - key: API_URL
-        sync: false # ⚠️ Set to API internal URL (e.g. https://fieldconnect-api.onrender.com)
+        sync: false # ⚠️ Set to API INTERNAL URL for server-side BFF proxy (e.g. http://fieldconnect-api:3001)
       - key: NEXT_PUBLIC_API_URL
-        sync: false # ⚠️ Same as API_URL (public or internal — WebSocket connects via this)
+        sync: false # ⚠️ Set to API PUBLIC URL for browser WebSocket/fetch (e.g. https://fieldconnect-api.onrender.com)
       - key: PORT
         value: 3002
