@@ -10,5 +10,10 @@ export default async function DashboardPage() {
     redirect('/login');
   }
 
+  // Field technicians should not access the office dashboard
+  if (session.user.role === 'field_technician') {
+    redirect('/mobile');
+  }
+
   return <DashboardClient user={session.user} />;
 }
