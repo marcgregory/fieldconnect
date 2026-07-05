@@ -89,7 +89,11 @@ export async function findAll(filters?: {
   status?: string;
 }): Promise<ScheduleWithDetails[]> {
   let sql = `
-    SELECT s.*, p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+    SELECT s.id, s.project_id, s.technician_id,
+           s.scheduled_date::text AS scheduled_date,
+           s.start_time, s.end_time, s.status, s.notes,
+           s.created_by, s.created_at, s.updated_at,
+           p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
     FROM schedules s
     JOIN projects p ON p.id = s.project_id
     JOIN users u ON u.id = s.technician_id
@@ -123,7 +127,10 @@ export async function findAll(filters?: {
 
 export async function findById(id: string): Promise<ScheduleWithDetails | null> {
   const result = await query(
-    `SELECT s.*,
+    `SELECT s.id, s.project_id, s.technician_id,
+            s.scheduled_date::text AS scheduled_date,
+            s.start_time, s.end_time, s.status, s.notes,
+            s.created_by, s.created_at, s.updated_at,
             p.name AS project_name,
             p.address AS project_address,
             p.contact_name AS project_contact_name,
@@ -143,7 +150,11 @@ export async function findById(id: string): Promise<ScheduleWithDetails | null> 
 
 export async function findByDateRange(from: string, to: string): Promise<ScheduleWithDetails[]> {
   const result = await query(
-    `SELECT s.*, p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+    `SELECT s.id, s.project_id, s.technician_id,
+            s.scheduled_date::text AS scheduled_date,
+            s.start_time, s.end_time, s.status, s.notes,
+            s.created_by, s.created_at, s.updated_at,
+            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
@@ -156,7 +167,11 @@ export async function findByDateRange(from: string, to: string): Promise<Schedul
 
 export async function findUnassigned(): Promise<ScheduleWithDetails[]> {
   const result = await query(
-    `SELECT s.*, p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+    `SELECT s.id, s.project_id, s.technician_id,
+            s.scheduled_date::text AS scheduled_date,
+            s.start_time, s.end_time, s.status, s.notes,
+            s.created_by, s.created_at, s.updated_at,
+            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
@@ -169,7 +184,11 @@ export async function findUnassigned(): Promise<ScheduleWithDetails[]> {
 
 export async function findByTechnician(technicianId: string): Promise<ScheduleWithDetails[]> {
   const result = await query(
-    `SELECT s.*, p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+    `SELECT s.id, s.project_id, s.technician_id,
+            s.scheduled_date::text AS scheduled_date,
+            s.start_time, s.end_time, s.status, s.notes,
+            s.created_by, s.created_at, s.updated_at,
+            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
