@@ -75,7 +75,7 @@ async function proxyRequest(
     // Build the target URL
     const pathStr = path.join('/');
     const searchParams = request.nextUrl.searchParams.toString();
-    const targetUrl = `${API_URL}/api/v1/${pathStr}${searchParams ? `?${searchParams}` : ''}`;
+    const targetUrl = `${API_URL}/${pathStr}${searchParams ? `?${searchParams}` : ''}`;
 
     // Determine if this is a multipart/form-data request (file upload)
     const contentType = request.headers.get('content-type') || '';
