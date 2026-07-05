@@ -41,7 +41,7 @@ export function ScheduleForm({
   const [notes, setNotes] = useState(schedule?.notes || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const isEditing = !!schedule;
 
@@ -63,6 +63,19 @@ export function ScheduleForm({
     }
     load();
   }, []);
+
+  // When projects/technicians load, set selected values from schedule
+  useEffect(() => {
+    if (schedule && projects.length > 0) {
+      setProjectId(schedule.project_id);
+    }
+  }, [schedule?.project_id, projects.length]);
+
+  useEffect(() => {
+    if (schedule && technicians.length > 0) {
+      setTechnicianId(schedule.technician_id);
+    }
+  }, [schedule?.technician_id, technicians.length]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -94,20 +107,6 @@ export function ScheduleForm({
     } finally {
       setSaving(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-          {isEditing ? 'Edit Schedule' : 'New Schedule'}
-        </h2>
-        <div className="text-center py-8">
-          <div className="animate-spin h-6 w-6 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-2" />
-          <p className="text-sm text-gray-500">Loading...</p>
-        </div>
-      </div>
-    );
   }
 
   return (
