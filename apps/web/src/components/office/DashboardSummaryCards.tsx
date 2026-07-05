@@ -57,7 +57,7 @@ export function DashboardSummaryCards() {
   const cards = [
     {
       label: 'Hours This Week',
-      value: summary.hours_this_week.toFixed(1),
+      value: Number(summary.hours_this_week).toFixed(1),
       unit: 'hrs',
       color: 'bg-blue-50 border-blue-200 text-blue-700',
       icon: (
