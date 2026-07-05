@@ -17,16 +17,11 @@ services:
     env: node
     region: oregon
     plan: starter
-    nodeVersion: 20
-    buildCommand: >
-      pnpm install --frozen-lockfile &&
-      pnpm --filter @fieldconnect/shared build &&
+    buildCommand: |
+      pnpm install --frozen-lockfile
+      pnpm --filter @fieldconnect/shared build
       pnpm --filter @fieldconnect/api build
     startCommand: node apps/api/dist/index.js
-    preDeployCommand: >
-      npx --yes node-pg-migrate up
-      --migration-file-language sql
-      --migrations-dir apps/api/src/db/migrations
     healthCheckPath: /api/v1/health
     autoDeploy: true
     envVars:
@@ -35,17 +30,17 @@ services:
           name: fieldconnect-db
           property: connectionString
       - key: NEXTAUTH_SECRET
-        sync: false # ⚠️ Generate manually: openssl rand -base64 32
+        sync: false
       - key: NEXTAUTH_URL
-        sync: false # ⚠️ Set to web service URL after deploy
+        sync: false
       - key: CORS_ORIGIN
-        sync: false # ⚠️ Same as NEXTAUTH_URL (web service URL)
+        sync: false
       - key: PORT
-        value: 3001
+        value: "3001"
       - key: HOST
-        value: 0.0.0.0
+        value: "0.0.0.0"
       - key: UPLOAD_DIR
-        value: /var/data/uploads
+        value: "/var/data/uploads"
 
   # ─── Next.js Web ──────────────────────────────────────────────────────────
   - type: web
@@ -53,22 +48,21 @@ services:
     env: node
     region: oregon
     plan: starter
-    nodeVersion: 20
-    buildCommand: >
-      pnpm install --frozen-lockfile &&
-      pnpm --filter @fieldconnect/shared build &&
-      pnpm --filter @fieldconnect/ui build &&
+    buildCommand: |
+      pnpm install --frozen-lockfile
+      pnpm --filter @fieldconnect/shared build
+      pnpm --filter @fieldconnect/ui build
       pnpm --filter @fieldconnect/web build
     startCommand: cd apps/web && npx next start -p $PORT
     autoDeploy: true
     envVars:
       - key: NEXTAUTH_SECRET
-        sync: false # ⚠️ Must match API service NEXTAUTH_SECRET
+        sync: false
       - key: NEXTAUTH_URL
-        sync: false # ⚠️ Set to this service's URL (e.g. https://fieldconnect-web.onrender.com)
+        sync: false
       - key: API_URL
-        sync: false # ⚠️ Set to API INTERNAL URL for server-side BFF proxy (e.g. http://fieldconnect-api:3001)
+        sync: false
       - key: NEXT_PUBLIC_API_URL
-        sync: false # ⚠️ Set to API PUBLIC URL for browser WebSocket/fetch (e.g. https://fieldconnect-api.onrender.com)
+        sync: false
       - key: PORT
-        value: 3002
+        value: "3002"
