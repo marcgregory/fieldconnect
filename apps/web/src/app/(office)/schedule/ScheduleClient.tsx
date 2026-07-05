@@ -41,7 +41,7 @@ export function ScheduleClient() {
       setError('');
 
       if (viewMode === 'day') {
-        const dateStr = currentDate.toISOString().slice(0, 10);
+        const dateStr = currentDate.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
         const data = await getSchedules({ date: dateStr });
         setSchedules(data);
       } else {
@@ -51,8 +51,8 @@ export function ScheduleClient() {
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-        const from = startOfWeek.toISOString().slice(0, 10);
-        const to = endOfWeek.toISOString().slice(0, 10);
+        const from = startOfWeek.toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const to = endOfWeek.toLocaleDateString('en-CA');
         const data = await getCalendarSchedules(from, to);
         setSchedules(data);
       }

@@ -46,7 +46,7 @@ export function JobQueueClient() {
   // Categorize jobs
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD
 
   const activeStatuses = new Set(['scheduled', 'traveling', 'on_site']);
   const completedStatuses = new Set(['completed', 'office_review', 'closed']);

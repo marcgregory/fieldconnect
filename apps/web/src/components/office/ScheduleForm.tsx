@@ -32,7 +32,7 @@ export function ScheduleForm({
   const [projectId, setProjectId] = useState(schedule?.project_id || '');
   const [technicianId, setTechnicianId] = useState(schedule?.technician_id || '');
   const [date, setDate] = useState(
-    schedule?.scheduled_date || defaultDate || new Date().toISOString().slice(0, 10),
+    schedule?.scheduled_date || defaultDate || new Date().toLocaleDateString('en-CA'),
   );
   const [startTime, setStartTime] = useState(
     schedule?.start_time?.slice(0, 5) || defaultTime?.slice(0, 5) || '',
