@@ -23,6 +23,7 @@ import type {
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SignatureCanvas } from './SignatureCanvas';
 import { useSocket } from '@/hooks/useSocket';
+import { useOfflineSync } from '@/hooks/useOfflineSync';
 
 interface JobDetailClientProps {
   scheduleId: string;
@@ -123,6 +124,19 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedAttachmentType, setSelectedAttachmentType] = useState<string>('during');
 
+  // ─── Offline Sync ────────────────────────────────────────────────────────
+  const {
+    isOnline,
+    pendingCount,
+    isSyncing,
+    enqueueStatusTransition,
+    enqueueNote,
+    enqueuePhoto,
+    enqueueSignature,
+    processQueue,
+  } = useOfflineSync();
+  const [offlineToast, setOfflineToast] = useState('');
+
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
@@ -188,6 +202,24 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   async function handleStatusTransition(newStatus: JobStatus) {
     setTransitioning(true);
     setConfirmStatus(null);
+
+    if (!isOnline) {
+      try {
+        await enqueueStatusTransition(scheduleId, newStatus);
+        // Optimistically update local state
+        if (schedule) {
+          setSchedule({ ...schedule, status: newStatus });
+        }
+        setOfflineToast('Status change saved offline — will sync when connected');
+        setTimeout(() => setOfflineToast(''), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to queue status change');
+      } finally {
+        setTransitioning(false);
+      }
+      return;
+    }
+
     try {
       await updateScheduleStatus(scheduleId, newStatus);
       await fetchAll();
@@ -201,6 +233,32 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   async function handleAddNote() {
     if (!newNote.trim()) return;
     setSaving(true);
+
+    if (!isOnline) {
+      try {
+        await enqueueNote(scheduleId, newNote.trim(), 'technician');
+        // Optimistically add to local notes list
+        const optimisticNote: JobNote = {
+          id: `offline-${Date.now()}`,
+          schedule_id: scheduleId,
+          user_id: '',
+          user_name: 'You (offline)',
+          content: newNote.trim(),
+          note_type: 'technician',
+          created_at: new Date().toISOString(),
+        };
+        setNotes((prev) => [...prev, optimisticNote]);
+        setNewNote('');
+        setOfflineToast('Note saved offline — will sync when connected');
+        setTimeout(() => setOfflineToast(''), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to queue note');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     try {
       await addJobNote(scheduleId, { content: newNote.trim(), note_type: 'technician' });
       setNewNote('');
@@ -217,7 +275,54 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Client-side compression for images
+    // Offline upload handling
+    if (!isOnline) {
+      // Check size limit for offline queue (10 MB)
+      const MAX_OFFLINE_BYTES = 10 * 1024 * 1024;
+      if (file.size > MAX_OFFLINE_BYTES) {
+        setError(`Photo is too large for offline upload (${(file.size / (1024 * 1024)).toFixed(1)} MB). Max is 10 MB. Try uploading when online.`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      setUploading(true);
+      try {
+        let uploadFile = file;
+        if (file.type.startsWith('image/')) {
+          try {
+            uploadFile = await compressImage(file, 1200, 0.8);
+          } catch {
+            // Fall back to original if compression fails
+          }
+        }
+
+        await enqueuePhoto(scheduleId, uploadFile, selectedAttachmentType as any);
+        // Optimistically add to local attachments list
+        const optimisticAttachment: JobAttachment = {
+          id: `offline-${Date.now()}`,
+          schedule_id: scheduleId,
+          user_id: '',
+          user_name: 'You (offline — pending sync)',
+          file_name: uploadFile.name,
+          file_path: '',
+          mime_type: uploadFile.type || 'image/jpeg',
+          file_size: uploadFile.size,
+          attachment_type: selectedAttachmentType as any,
+          created_at: new Date().toISOString(),
+        };
+        setAttachments((prev) => [...prev, optimisticAttachment]);
+        setOfflineToast('Photo saved offline — will sync when connected');
+        setTimeout(() => setOfflineToast(''), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to queue photo');
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    // Client-side compression for images (online path)
     let uploadFile = file;
     if (file.type.startsWith('image/')) {
       try {
@@ -258,6 +363,32 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
 
   async function handleSignatureSave(dataUrl: string) {
     setSaving(true);
+
+    if (!isOnline) {
+      try {
+        await enqueueSignature(scheduleId, dataUrl);
+        // Optimistically add to local signatures list
+        const optimisticSignature: Signature = {
+          id: `offline-${Date.now()}`,
+          schedule_id: scheduleId,
+          user_id: '',
+          user_name: 'You (offline — pending sync)',
+          signature_data: dataUrl,
+          label: 'customer',
+          created_at: new Date().toISOString(),
+        };
+        setSignatures((prev) => [...prev, optimisticSignature]);
+        setShowSignaturePad(false);
+        setOfflineToast('Signature saved offline — will sync when connected');
+        setTimeout(() => setOfflineToast(''), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to queue signature');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     try {
       await addJobSignature(scheduleId, { signature_data: dataUrl });
       setShowSignaturePad(false);
@@ -386,6 +517,24 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           onCancel={() => setShowSignaturePad(false)}
           saving={saving}
         />
+      )}
+
+      {/* Offline Toast */}
+      {offlineToast && (
+        <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
+          <div className="bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-center">
+            {offlineToast}
+          </div>
+        </div>
+      )}
+
+      {/* Pending Sync Badge */}
+      {!isOnline && pendingCount > 0 && (
+        <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto mt-14">
+          <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-xl shadow text-sm font-medium text-center">
+            {pendingCount} action{pendingCount !== 1 ? 's' : ''} pending sync
+          </div>
+        </div>
       )}
 
       {/* Header */}
@@ -548,6 +697,9 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
                   <p className="text-xs text-gray-400 mt-1">
                     {note.user_name} • {formatDateTime(note.created_at)}
+                    {note.id.startsWith('offline-') && (
+                      <span className="ml-2 text-amber-600 font-medium">(pending sync)</span>
+                    )}
                   </p>
                 </div>
               ))}
@@ -603,7 +755,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                   {att.mime_type.startsWith('image/') ? (
                     <div className="relative">
                       <img
-                        src={getUploadUrl(att.file_path)}
+                        src={att.id.startsWith('offline-') ? att.file_path || '' : getUploadUrl(att.file_path)}
                         alt={att.file_name}
                         className="w-full h-32 object-cover"
                         loading="lazy"
@@ -615,6 +767,11 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                       >
                         &times;
                       </button>
+                      {att.id.startsWith('offline-') && (
+                        <div className="absolute bottom-1 left-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded">
+                          Pending
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="p-3 text-center">
@@ -665,6 +822,9 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                     <span className="text-xs text-gray-500 capitalize">{sig.label}</span>
                     <span className="text-xs text-gray-400">
                       {sig.user_name} • {formatDateTime(sig.created_at)}
+                      {sig.id.startsWith('offline-') && (
+                        <span className="ml-2 text-amber-600 font-medium">(pending sync)</span>
+                      )}
                     </span>
                   </div>
                 </div>

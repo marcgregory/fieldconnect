@@ -2,6 +2,7 @@ import type { Viewport } from 'next';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
+import { OfflineIndicator } from '@/components/mobile/OfflineIndicator';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -24,6 +25,7 @@ export default async function MobileLayout({ children }: { children: React.React
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gray-50" style={{ maxWidth: '430px' }}>
       {children}
+      <OfflineIndicator />
     </div>
   );
 }
