@@ -404,7 +404,10 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   function handleStartNavigation() {
     if (!schedule?.project_address) return;
     const encoded = encodeURIComponent(schedule.project_address);
-    const url = `maps://?daddr=${encoded}`;
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const url = isIOS
+      ? `maps://?daddr=${encoded}`
+      : `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
     window.open(url, '_blank');
   }
 
