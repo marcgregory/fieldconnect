@@ -92,3 +92,33 @@ All notable project changes should be documented here. Keep this file versioned 
 ### Fixed
 
 - (none)
+
+## v0.4.0 — 2026-07-05
+
+### Added
+
+- **Phase D1 — Job Notes**: `job_notes` table migration, API endpoints (list, create), mobile note input with offline queue, real-time `note:added` WebSocket events
+- **Phase D2 — Photo Upload**: `job_attachments` table migration, multipart upload API, client-side image compression (Canvas API, 1200px max, JPEG 0.7 quality), offline photo queue with IndexedDB blob storage, `attachment:update` WebSocket events
+- **Phase D3 — Customer Signature**: `signatures` table migration, base64 PNG capture API, `SignatureCanvas` Canvas drawing component, offline queue, `signature:captured` WebSocket events
+- **Phase E — Real-Time Updates**: Full WebSocket event coverage — `broadcastNoteEvent()`, `broadcastAttachmentEvent()`, `broadcastSignatureEvent()` for all field data types
+- **Phase F — Offline-First PWA**: IndexedDB wrapper (`db.ts`) with jobs cache, action queue, blob store; `useOfflineSync` hook with auto-sync on reconnect; `OfflineIndicator` component; connectivity probe; FIFO queue with 3-retry limit
+- **Phase G — Shared Types & Validation**: `JobNote`, `JobAttachment`, `Signature`, `AuditLog`, `JobEvent`, `NoteEvent`, `AttachmentEvent`, `SignatureEvent` types; `createJobNoteSchema`, `createJobAttachmentSchema`, `createSignatureSchema`, `updateScheduleStatusSchema` Zod schemas
+- **Phase I — Route Registration & Navigation**: Mobile bottom nav (Home | Jobs | History), office schedule page, `ScheduleReviewPanel`
+- Fastify multipart (`@fastify/multipart`) and static file serving (`@fastify/static`)
+- `useSocket` — listener system: `onJobUpdate`, `onNoteAdded`, `onAttachmentUpdate`, `onSignatureCaptured`
+- File storage service for disk-based attachment uploads
+
+### Changed
+
+- `JobDetailClient` — full field data sections (notes, photos, signatures), offline handling, confirmation dialogs, sticky bottom action bar
+- BFF proxy — fixed double `/api/v1/` prefix, empty JSON body error, and auth hook excluding `/auth/token`
+- `authHook` — narrowed public endpoints to only `/login` and `/register`
+- `bffFetch` — only sets `Content-Type: application/json` when body exists
+- `useSocket` — added listener registration pattern for targeted subscriptions
+- `LiveStatusFeed` — displays job events alongside clock events
+
+### Fixed
+
+- BFF proxy: double `/api/v1/` prefix in proxied requests
+- BFF proxy: empty JSON body error (`FST_ERR_CTP_EMPTY_JSON_BODY`) on bodiless POST requests
+- BFF proxy: `POST /auth/token` returning 401 due to overly broad auth hook exclusion of all `/api/v1/auth/*` routes

@@ -34,27 +34,41 @@ Last updated: 2026-07-05
   - BFF proxy route for token forwarding
   - All packages pass `pnpm build` and `pnpm typecheck` (11 routes)
 
+## Completed
+
+- **Sprint 3 — Scheduling & Field Operations** ✅
+  - Phase A: Office scheduling (calendar, drag-drop, forms, unassigned queue)
+  - Phase B: Technician mobile workflow (job queue, job detail, nav, contact)
+  - Phase C: Job status state machine (6-status lifecycle, audit logs, role enforcement)
+  - Phase D1: Job notes (API, migration, mobile UI, real-time events)
+  - Phase D2: Photo upload (multipart API, client-side compression, offline queue)
+  - Phase D3: Customer signature (Canvas capture, API, offline queue)
+  - Phase E: Real-time WebSocket events for all field data types
+  - Phase F: Offline-first PWA (IndexedDB cache, action queue, auto-sync, retry)
+  - Phase G: Shared types and Zod schemas for all new entities
+  - Phase H: Frontend API client for all endpoints
+  - Phase I: Route registration, office + mobile navigation
+  - BFF proxy fixes (double prefix, empty body, auth exclusion)
+  - All packages pass `pnpm typecheck` and `pnpm build` — 12 routes
+
 ## Sprint Queue
 
-### Sprint 3 — Scheduling & Reporting
-- Schedule management API
-- Calendar view for dispatcher
-- Technician schedule view (mobile)
-- Time report generation
+### Sprint 4 — Reporting & Analytics
+- Time report generation API
 - CSV export
-- Dashboard widgets and summaries
+- Dashboard summary widgets (hours this week, active techs, needs review count)
+- Schedule conflict detection UI
+- Technician performance summaries
+- Automated billing data preparation
 
 ## Future
 
-- Photo attachment to time entries
-- Offline time entry queue (IndexedDB + sync on reconnect)
 - GPS location stamping on clock-in
 - Advanced reporting (PDF export, charts)
 - Push notifications for schedule changes
-- Audit logs for admin
-- Technician performance dashboards
+- Audit log viewer UI for admin
 - Integration with existing tools data migration
-- Automated billing data export
+- File storage migration to S3-compatible cloud
 
 ## Blocked
 
