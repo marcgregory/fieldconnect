@@ -8,7 +8,7 @@ export async function healthRoutes(app: FastifyInstance) {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-      service: 'fieldconnect-api',
+      service: 'fieldconnect-backend',
     };
   });
 
