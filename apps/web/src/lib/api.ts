@@ -19,6 +19,11 @@ import type {
   JobAttachment,
   Signature,
   CreateSignatureInput,
+  TimeEntryReportRow,
+  HoursSummaryRow,
+  ProjectSummaryRow,
+  DashboardSummary,
+  ReportFilters,
 } from '@fieldconnect/shared';
 
 /**
@@ -310,4 +315,46 @@ export async function updateScheduleStatus(
     method: 'PATCH',
     body: JSON.stringify({ status, notes }),
   });
+}
+
+// ─── Report API ────────────────────────────────────────────────────────────
+
+export async function getReportTimeEntries(filters?: ReportFilters): Promise<TimeEntryReportRow[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  if (filters?.project_id) params.set('project_id', filters.project_id);
+  if (filters?.technician_id) params.set('technician_id', filters.technician_id);
+  const qs = params.toString();
+  return bffFetch(`/api/v1/reports/time-entries${qs ? `?${qs}` : ''}`);
+}
+
+export async function getReportTechnicians(filters?: { from?: string; to?: string }): Promise<HoursSummaryRow[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const qs = params.toString();
+  return bffFetch(`/api/v1/reports/technicians${qs ? `?${qs}` : ''}`);
+}
+
+export async function getReportProjects(filters?: { from?: string; to?: string }): Promise<ProjectSummaryRow[]> {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  const qs = params.toString();
+  return bffFetch(`/api/v1/reports/projects${qs ? `?${qs}` : ''}`);
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  return bffFetch('/api/v1/dashboard/summary');
+}
+
+export function getCsvExportUrl(filters?: ReportFilters): string {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  if (filters?.project_id) params.set('project_id', filters.project_id);
+  if (filters?.technician_id) params.set('technician_id', filters.technician_id);
+  const qs = params.toString();
+  return `/api/proxy/api/v1/reports/time-entries.csv${qs ? `?${qs}` : ''}`;
 }

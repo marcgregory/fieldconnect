@@ -6,7 +6,34 @@ This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 3 — Scheduling & Field Operations — ✅ Complete
+Sprint 4 — Reporting & Analytics — ✅ Complete
+
+## Current Progress
+
+**Sprint 4 — All deliverables complete.**
+
+### Reports API
+- Time entries report with filters (date range, project, technician) ✅
+- Hours by technician aggregation ✅
+- Hours by project aggregation ✅
+- Dashboard summary (hours this week, active techs, completed today, needs review, late jobs) ✅
+- CSV export endpoint ✅
+
+### Frontend
+- Dashboard summary cards — live-updating 5-card widget ✅
+- Reports page with tabbed view (Time Entries, By Technician, By Project) ✅
+- Date range picker with Apply button ✅
+- CSV download button ✅
+- Reports nav link in header ✅
+
+### Architecture Status
+
+| Component | Status |
+|---|---|
+| Monorepo structure | ✅ Complete |
+| Next.js frontend | ✅ Complete (13 routes) |
+| Fastify API | ✅ Complete (health, auth, projects, time-entries, technicians, schedules, notes, attachments, signatures, reports, dashboard) |
+| PostgreSQL on Neon | ✅ Connected, migrated, verified |
 
 ## Current Progress
 
@@ -102,7 +129,7 @@ Sprint 3 — Scheduling & Field Operations — ✅ Complete
 
 ## Next Milestone
 
-Infrastructure & Deployment (Option B) — Create GitHub repo, configure Render (PostgreSQL, API, Web), GitHub Actions CI, deploy staging environment, run end-to-end smoke tests.
+Sprint 5 — GPS & Field Operations — GPS location stamping on clock-in/out, route history, geofencing.
 
 ## Last Build
 
@@ -111,4 +138,4 @@ Infrastructure & Deployment (Option B) — Create GitHub repo, configure Render 
 - @fieldconnect/shared: tsc — passed
 - @fieldconnect/ui: tsc — passed
 - @fieldconnect/api: tsc — passed
-- @fieldconnect/web: Next.js 14.2.35 — passed (12 routes)
+- @fieldconnect/web: Next.js 14.2.35 — passed (13 routes)

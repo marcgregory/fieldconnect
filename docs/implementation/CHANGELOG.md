@@ -122,3 +122,24 @@ All notable project changes should be documented here. Keep this file versioned 
 - BFF proxy: double `/api/v1/` prefix in proxied requests
 - BFF proxy: empty JSON body error (`FST_ERR_CTP_EMPTY_JSON_BODY`) on bodiless POST requests
 - BFF proxy: `POST /auth/token` returning 401 due to overly broad auth hook exclusion of all `/api/v1/auth/*` routes
+
+## v0.5.0 — 2026-07-05
+
+### Added
+
+- **Sprint 4 — Reporting & Analytics** ✅
+  - Time entries report API: `GET /api/v1/reports/time-entries` with date range, project, and technician filters
+  - Hours by technician API: `GET /api/v1/reports/technicians` — aggregated hours per tech
+  - Hours by project API: `GET /api/v1/reports/projects` — aggregated hours per project with technician count
+  - Dashboard summary API: `GET /api/v1/dashboard/summary` — hours this week, active techs, completed today, needs review, late jobs
+  - CSV export endpoint: `GET /api/v1/reports/time-entries.csv` — downloadable CSV with same filters
+  - Dashboard summary cards: live-updating 5-card widget on office dashboard
+  - Reports page with tabbed view (Time Entries / By Technician / By Project) and date range picker
+  - CSV download button on reports page
+  - Shared types: `TimeEntryReportRow`, `HoursSummaryRow`, `ProjectSummaryRow`, `DashboardSummary`, `ReportFilters`
+  - Frontend API client functions for all report and dashboard endpoints
+
+### Changed
+
+- `DashboardClient` — added `DashboardSummaryCards` widget and Reports nav link
+- Office header nav — added Reports link

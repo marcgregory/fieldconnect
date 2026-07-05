@@ -355,3 +355,50 @@ export interface TimeEntryFilters {
   from?: string;
   to?: string;
 }
+
+// ─── Report Types ──────────────────────────────────────────────────────────
+
+export interface TimeEntryReportRow {
+  id: string;
+  technician_id: string;
+  technician_name: string;
+  project_id: string;
+  project_name: string;
+  project_address: string | null;
+  scheduled_date: string | null;
+  clock_in: string;
+  clock_out: string | null;
+  break_minutes: number;
+  duration_hours: number;
+  notes: string | null;
+}
+
+export interface HoursSummaryRow {
+  technician_id: string;
+  technician_name: string;
+  total_hours: number;
+  entry_count: number;
+}
+
+export interface ProjectSummaryRow {
+  project_id: string;
+  project_name: string;
+  total_hours: number;
+  entry_count: number;
+  technician_count: number;
+}
+
+export interface DashboardSummary {
+  hours_this_week: number;
+  active_technicians: number;
+  completed_today: number;
+  needs_review_count: number;
+  late_jobs_count: number;
+}
+
+export interface ReportFilters {
+  from?: string;
+  to?: string;
+  project_id?: string;
+  technician_id?: string;
+}

@@ -51,15 +51,25 @@ Last updated: 2026-07-05
   - BFF proxy fixes (double prefix, empty body, auth exclusion)
   - All packages pass `pnpm typecheck` and `pnpm build` — 12 routes
 
+## Completed
+
+- **Sprint 4 — Reporting & Analytics** ✅
+  - Time entries report API with filters (project, technician, date range)
+  - Hours by technician aggregation report
+  - Hours by project aggregation report
+  - Dashboard summary API (hours this week, active techs, completed today, needs review, late jobs)
+  - CSV export for time entries
+  - Dashboard summary cards widget on office dashboard
+  - Reports page with tabbed view and date range picker
+  - All packages pass `pnpm typecheck` and `pnpm build` — 13 routes
+
 ## Sprint Queue
 
-### Sprint 4 — Reporting & Analytics
-- Time report generation API
-- CSV export
-- Dashboard summary widgets (hours this week, active techs, needs review count)
-- Schedule conflict detection UI
-- Technician performance summaries
-- Automated billing data preparation
+### Sprint 5 — GPS & Field Operations
+- GPS location stamping on clock-in/out
+- Route history for technicians
+- Geofencing for job sites
+- Photo geo-tagging
 
 ## Future
 
