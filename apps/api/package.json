@@ -8,8 +8,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint ok'",
-    "db:migrate": "node-pg-migrate up --migration-file-language sql --migrations-dir ./src/db/migrations --envfile ../../.env",
-    "db:rollback": "node-pg-migrate down --migration-file-language sql --migrations-dir ./src/db/migrations --envfile ../../.env"
+    "db:migrate": "npx --yes dotenv-cli -e ../../.env -- node ./node_modules/node-pg-migrate/bin/node-pg-migrate.js up --migration-file-language sql --migrations-dir ./src/db/migrations --no-envfile",
+    "db:rollback": "npx --yes dotenv-cli -e ../../.env -- node ./node_modules/node-pg-migrate/bin/node-pg-migrate.js down --migration-file-language sql --migrations-dir ./src/db/migrations --no-envfile"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.0",

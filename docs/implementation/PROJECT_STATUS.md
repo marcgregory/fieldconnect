@@ -52,14 +52,13 @@ Sprint 3 — Scheduling & Field Operations (Phase C in progress)
 | Platform | Status |
 |---|---|
 | Render.com account | 🔧 Not yet configured (needs provisioning) |
-| PostgreSQL database | 🔧 Migrations ready — DB not yet created on Render |
+| PostgreSQL database | ✅ Native Windows PostgreSQL 18 — connected and migrated |
 | Domain name | ❌ Not yet configured |
 | GitHub repository | 🔧 Not yet created |
 
 ## Current Blockers
 
-- Render.com account and PostgreSQL database need to be provisioned for full end-to-end testing
-- No `.env` file set up locally — developers need to copy `.env.example` and fill in values
+- Render.com account needs to be provisioned for deployment
 
 ## Next Milestone
 
