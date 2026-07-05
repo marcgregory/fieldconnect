@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Card } from '@fieldconnect/ui';
 import { ClockInOut } from './ClockInOut';
 import { TimeHistory } from './TimeHistory';
@@ -18,6 +19,7 @@ interface MobileHomeClientProps {
 type MobileView = 'home' | 'history';
 
 export function MobileHomeClient({ user }: MobileHomeClientProps) {
+  const router = useRouter();
   const [view, setView] = useState<MobileView>('home');
 
   return (
@@ -53,10 +55,10 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
                   Time History
                 </button>
                 <button
+                  onClick={() => router.push('/jobs')}
                   className="w-full text-left px-4 py-3 rounded-lg bg-gray-50 text-gray-700 font-medium active:bg-gray-100 transition-colors"
-                  disabled
                 >
-                  My Schedule
+                  My Jobs
                 </button>
                 <button
                   className="w-full text-left px-4 py-3 rounded-lg bg-gray-50 text-gray-700 font-medium active:bg-gray-100 transition-colors"

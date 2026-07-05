@@ -178,6 +178,8 @@ export interface Schedule {
 export interface ScheduleWithDetails extends Schedule {
   project_name: string;
   project_address: string | null;
+  project_contact_name: string | null;
+  project_contact_phone: string | null;
   technician_name: string;
 }
 

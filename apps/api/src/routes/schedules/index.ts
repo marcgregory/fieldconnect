@@ -58,6 +58,18 @@ export async function scheduleRoutes(app: FastifyInstance) {
     },
   );
 
+  // ─── My Jobs (for logged-in field technician) ────────────────────────────
+  app.get(
+    '/api/v1/schedules/my-jobs',
+    { preHandler: [requireRole('field_technician', 'admin')] },
+    async (request, reply) => {
+      const schedules = await scheduleQueries.findByTechnician(
+        request.user!.id,
+      );
+      return { success: true, data: schedules };
+    },
+  );
+
   // ─── Get Single Schedule ──────────────────────────────────────────────────
   app.get('/api/v1/schedules/:id', async (request, reply) => {
     if (!request.user) {

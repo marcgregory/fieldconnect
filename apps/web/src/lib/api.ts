@@ -160,6 +160,10 @@ export async function getAvailableTechnicians(): Promise<User[]> {
   return bffFetch('/api/v1/technicians/available');
 }
 
+export async function getMyJobs(): Promise<ScheduleWithDetails[]> {
+  return bffFetch('/api/v1/schedules/my-jobs');
+}
+
 // ─── Schedule API ──────────────────────────────────────────────────────────
 
 export async function getSchedules(filters?: {
