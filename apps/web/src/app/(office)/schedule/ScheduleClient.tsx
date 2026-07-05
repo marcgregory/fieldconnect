@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSocket } from '@/hooks/useSocket';
 import { CalendarView } from '@/components/office/CalendarView';
 import { ScheduleForm } from '@/components/office/ScheduleForm';
 import { UnassignedQueue } from '@/components/office/UnassignedQueue';
@@ -73,6 +74,15 @@ export function ScheduleClient() {
   useEffect(() => {
     fetchSchedules();
   }, [fetchSchedules]);
+
+  // ─── Socket: refetch on any job update ─────────────────────────────────
+  const { onJobUpdate } = useSocket();
+  useEffect(() => {
+    const unsub = onJobUpdate(() => {
+      fetchSchedules();
+    });
+    return unsub;
+  }, [onJobUpdate, fetchSchedules]);
 
   function navigate(direction: 'prev' | 'next') {
     const newDate = new Date(currentDate);

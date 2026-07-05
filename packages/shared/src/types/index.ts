@@ -290,7 +290,7 @@ export interface CreateSignatureInput {
 // ─── Job Event (WebSocket payload) ──────────────────────────────────────────
 
 export interface JobEvent {
-  type: 'status_change' | 'assignment';
+  type: 'status_change' | 'assignment' | 'reassigned';
   schedule_id: string;
   project_name: string;
   technician_name: string;
@@ -298,7 +298,50 @@ export interface JobEvent {
   new_status: JobStatus;
   changed_by: string;
   timestamp: string;
+  technician_id?: string; // target technician for targeted delivery
 }
+
+// ─── Note Event (WebSocket payload) ─────────────────────────────────────────
+
+export interface NoteEvent {
+  type: 'note_added';
+  schedule_id: string;
+  project_name: string;
+  user_name: string;
+  note_type: string;
+  timestamp: string;
+  technician_id: string;
+}
+
+// ─── Attachment Event (WebSocket payload) ───────────────────────────────────
+
+export interface AttachmentEvent {
+  type: 'attachment_uploaded' | 'attachment_deleted';
+  schedule_id: string;
+  project_name: string;
+  user_name: string;
+  attachment_id: string;
+  file_name: string;
+  attachment_type: string;
+  timestamp: string;
+  technician_id: string;
+}
+
+// ─── Signature Event (WebSocket payload) ────────────────────────────────────
+
+export interface SignatureEvent {
+  type: 'signature_captured';
+  schedule_id: string;
+  project_name: string;
+  user_name: string;
+  label: string;
+  timestamp: string;
+  technician_id: string;
+}
+
+// ─── Union type for all real-time field events ──────────────────────────────
+
+export type FieldEvent = JobEvent | NoteEvent | AttachmentEvent | SignatureEvent;
 
 // ─── API Payload Types ─────────────────────────────────────────────────────
 

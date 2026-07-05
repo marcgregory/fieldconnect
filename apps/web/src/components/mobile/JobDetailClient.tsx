@@ -22,6 +22,7 @@ import type {
 } from '@fieldconnect/shared';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SignatureCanvas } from './SignatureCanvas';
+import { useSocket } from '@/hooks/useSocket';
 
 interface JobDetailClientProps {
   scheduleId: string;
@@ -146,6 +147,43 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  // ─── Socket Event Subscriptions ─────────────────────────────────────────
+  const { onJobUpdate, onNoteAdded, onAttachmentUpdate, onSignatureCaptured } = useSocket();
+
+  useEffect(() => {
+    // Refetch when a job update event arrives for this schedule
+    const unsubJob = onJobUpdate((event) => {
+      if (event.schedule_id === scheduleId) {
+        fetchAll();
+      }
+    });
+    // Refetch when a note is added to this schedule
+    const unsubNote = onNoteAdded((event) => {
+      if (event.schedule_id === scheduleId) {
+        getJobNotes(scheduleId).then(setNotes).catch(() => {});
+      }
+    });
+    // Refetch when an attachment is uploaded/deleted for this schedule
+    const unsubAttachment = onAttachmentUpdate((event) => {
+      if (event.schedule_id === scheduleId) {
+        getJobAttachments(scheduleId).then(setAttachments).catch(() => {});
+      }
+    });
+    // Refetch when a signature is captured for this schedule
+    const unsubSignature = onSignatureCaptured((event) => {
+      if (event.schedule_id === scheduleId) {
+        getJobSignatures(scheduleId).then(setSignatures).catch(() => {});
+      }
+    });
+
+    return () => {
+      unsubJob();
+      unsubNote();
+      unsubAttachment();
+      unsubSignature();
+    };
+  }, [scheduleId, fetchAll, onJobUpdate, onNoteAdded, onAttachmentUpdate, onSignatureCaptured]);
 
   async function handleStatusTransition(newStatus: JobStatus) {
     setTransitioning(true);

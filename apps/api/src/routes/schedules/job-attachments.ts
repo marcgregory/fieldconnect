@@ -6,6 +6,7 @@ import {
 import { requireRole } from '../../middleware/auth';
 import * as jobAttachmentQueries from '../../db/queries/job-attachments';
 import * as scheduleQueries from '../../db/queries/schedules';
+import { broadcastAttachmentEvent } from '../../websocket';
 import { saveUpload, deleteUpload } from '../../lib/file-storage';
 
 const MAX_ATTACHMENTS = 20;
@@ -98,6 +99,19 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           attachment_type: typeCheck.data.attachment_type,
         });
 
+        // Broadcast attachment uploaded event
+        broadcastAttachmentEvent({
+          type: 'attachment_uploaded',
+          schedule_id: id,
+          project_name: schedule.project_name,
+          user_name: request.user!.name,
+          attachment_id: attachment.id,
+          file_name: fileName,
+          attachment_type: typeCheck.data.attachment_type,
+          timestamp: new Date().toISOString(),
+          technician_id: schedule.technician_id,
+        });
+
         return reply.status(201).send({ success: true, data: attachment });
       } catch (err) {
         // Rollback file if DB insert fails
@@ -112,7 +126,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
     '/api/v1/schedules/:id/attachments/:attachmentId',
     { preHandler: [requireRole('field_technician', 'admin')] },
     async (request, reply) => {
-      const { attachmentId } = request.params as { attachmentId: string };
+      const { id, attachmentId } = request.params as { id: string; attachmentId: string };
 
       // Find attachment for ownership check
       const attachment = await jobAttachmentQueries.findById(attachmentId);
@@ -131,11 +145,29 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
         });
       }
 
+      // Get schedule for technician_id before deletion
+      const schedule = await scheduleQueries.findById(id).catch(() => null);
+
       // Delete from disk
       await deleteUpload(attachment.file_path);
 
       // Delete from database
       await jobAttachmentQueries.deleteById(attachmentId);
+
+      // Broadcast attachment deleted event
+      if (schedule) {
+        broadcastAttachmentEvent({
+          type: 'attachment_deleted',
+          schedule_id: id,
+          project_name: schedule.project_name,
+          user_name: request.user!.name,
+          attachment_id: attachmentId,
+          file_name: attachment.file_name,
+          attachment_type: attachment.attachment_type,
+          timestamp: new Date().toISOString(),
+          technician_id: schedule.technician_id,
+        });
+      }
 
       return { success: true, data: { deleted: true } };
     },

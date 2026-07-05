@@ -6,6 +6,7 @@ import {
 import { requireRole } from '../../middleware/auth';
 import * as jobNoteQueries from '../../db/queries/job-notes';
 import * as scheduleQueries from '../../db/queries/schedules';
+import { broadcastNoteEvent } from '../../websocket';
 
 export async function jobNoteRoutes(app: FastifyInstance) {
   // ─── List Notes ──────────────────────────────────────────────────────────
@@ -67,6 +68,17 @@ export async function jobNoteRoutes(app: FastifyInstance) {
         user_id: request.user!.id,
         content: parsed.data.content,
         note_type: parsed.data.note_type || 'technician',
+      });
+
+      // Broadcast note event
+      broadcastNoteEvent({
+        type: 'note_added',
+        schedule_id: id,
+        project_name: schedule.project_name,
+        user_name: request.user!.name,
+        note_type: parsed.data.note_type || 'technician',
+        timestamp: new Date().toISOString(),
+        technician_id: schedule.technician_id,
       });
 
       return reply.status(201).send({ success: true, data: note });

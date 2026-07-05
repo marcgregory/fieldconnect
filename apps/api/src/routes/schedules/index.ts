@@ -115,6 +115,21 @@ export async function scheduleRoutes(app: FastifyInstance) {
         created_by: request.user!.id,
       });
 
+      // Broadcast assignment event
+      // Fetch created schedule with details for the event payload
+      const createdWithDetails = await scheduleQueries.findById(schedule.id);
+      broadcastJobEvent({
+        type: 'assignment',
+        schedule_id: schedule.id,
+        project_name: createdWithDetails?.project_name || parsed.data.project_id,
+        technician_name: createdWithDetails?.technician_name || '',
+        old_status: null,
+        new_status: 'scheduled',
+        changed_by: request.user!.name,
+        timestamp: new Date().toISOString(),
+        technician_id: schedule.technician_id,
+      });
+
       return reply.status(201).send({ success: true, data: schedule });
     },
   );
@@ -140,6 +155,24 @@ export async function scheduleRoutes(app: FastifyInstance) {
       }
 
       const schedule = await scheduleQueries.update(id, parsed.data);
+
+      // If technician changed, broadcast reassignment event
+      const newTechnicianId = parsed.data.technician_id;
+      if (newTechnicianId && newTechnicianId !== existing.technician_id) {
+        const updatedWithDetails = await scheduleQueries.findById(id);
+        broadcastJobEvent({
+          type: 'reassigned',
+          schedule_id: id,
+          project_name: existing.project_name,
+          technician_name: updatedWithDetails?.technician_name || '',
+          old_status: existing.status,
+          new_status: existing.status,
+          changed_by: request.user!.name,
+          timestamp: new Date().toISOString(),
+          technician_id: newTechnicianId,
+        });
+      }
+
       return { success: true, data: schedule };
     },
   );
@@ -185,6 +218,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
           new_status: result.schedule.status,
           changed_by: request.user!.name,
           timestamp: new Date().toISOString(),
+          technician_id: result.schedule.technician_id,
         });
 
         return { success: true, data: result };

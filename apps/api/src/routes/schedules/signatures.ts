@@ -3,6 +3,7 @@ import { createSignatureSchema } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as signatureQueries from '../../db/queries/signatures';
 import * as scheduleQueries from '../../db/queries/schedules';
+import { broadcastSignatureEvent } from '../../websocket';
 
 export async function signatureRoutes(app: FastifyInstance) {
   // ─── List Signatures ────────────────────────────────────────────────────
@@ -53,6 +54,17 @@ export async function signatureRoutes(app: FastifyInstance) {
         user_id: request.user!.id,
         signature_data: parsed.data.signature_data,
         label: parsed.data.label || 'customer',
+      });
+
+      // Broadcast signature captured event
+      broadcastSignatureEvent({
+        type: 'signature_captured',
+        schedule_id: id,
+        project_name: schedule.project_name,
+        user_name: request.user!.name,
+        label: parsed.data.label || 'customer',
+        timestamp: new Date().toISOString(),
+        technician_id: schedule.technician_id,
       });
 
       return reply.status(201).send({ success: true, data: signature });

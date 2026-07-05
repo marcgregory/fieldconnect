@@ -1,7 +1,13 @@
 import { Server as HTTPServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { jwtVerify } from 'jose';
-import type { ClockEvent, JobEvent } from '@fieldconnect/shared';
+import type {
+  ClockEvent,
+  JobEvent,
+  NoteEvent,
+  AttachmentEvent,
+  SignatureEvent,
+} from '@fieldconnect/shared';
 
 let io: SocketServer | null = null;
 
@@ -95,5 +101,45 @@ export function broadcastClockEvent(event: ClockEvent): void {
  */
 export function broadcastJobEvent(event: JobEvent): void {
   if (!io) return;
+  // Office dashboard
   io.to('tech:status').emit('job:update', event);
+  // Targeted delivery to assigned technician
+  if (event.technician_id) {
+    io.to(`user:${event.technician_id}`).emit('job:update', event);
+  }
+}
+
+/**
+ * Broadcast a note added event to the office dashboard and the assigned technician.
+ */
+export function broadcastNoteEvent(event: NoteEvent): void {
+  if (!io) return;
+  io.to('tech:status').emit('note:added', event);
+  if (event.technician_id) {
+    io.to(`user:${event.technician_id}`).emit('note:added', event);
+  }
+}
+
+/**
+ * Broadcast an attachment uploaded/deleted event to the office dashboard and
+ * the assigned technician.
+ */
+export function broadcastAttachmentEvent(event: AttachmentEvent): void {
+  if (!io) return;
+  io.to('tech:status').emit('attachment:update', event);
+  if (event.technician_id) {
+    io.to(`user:${event.technician_id}`).emit('attachment:update', event);
+  }
+}
+
+/**
+ * Broadcast a signature captured event to the office dashboard and the
+ * assigned technician.
+ */
+export function broadcastSignatureEvent(event: SignatureEvent): void {
+  if (!io) return;
+  io.to('tech:status').emit('signature:captured', event);
+  if (event.technician_id) {
+    io.to(`user:${event.technician_id}`).emit('signature:captured', event);
+  }
 }

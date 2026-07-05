@@ -6,6 +6,7 @@ import { Spinner } from '@fieldconnect/ui';
 import { getMyJobs } from '@/lib/api';
 import { JobCard } from './JobCard';
 import type { ScheduleWithDetails } from '@fieldconnect/shared';
+import { useSocket } from '@/hooks/useSocket';
 
 type JobTab = 'today' | 'upcoming' | 'completed';
 
@@ -32,6 +33,15 @@ export function JobQueueClient() {
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
+
+  // ─── Socket: refetch on job update (status change, reassignment) ──────
+  const { onJobUpdate } = useSocket();
+  useEffect(() => {
+    const unsub = onJobUpdate(() => {
+      fetchJobs();
+    });
+    return unsub;
+  }, [onJobUpdate, fetchJobs]);
 
   // Categorize jobs
   const today = new Date();
@@ -166,14 +176,11 @@ export function JobQueueClient() {
         )}
       </div>
 
-      {/* Refresh indicator */}
+      {/* Auto-refreshes via WebSocket — pull down to force refresh */}
       <div className="px-4 pb-4">
-        <button
-          onClick={fetchJobs}
-          className="w-full py-2 text-xs text-blue-600 font-medium active:text-blue-800"
-        >
-          Refresh Jobs
-        </button>
+        <p className="text-center text-xs text-gray-400">
+          Updates arrive in real-time
+        </p>
       </div>
     </div>
   );

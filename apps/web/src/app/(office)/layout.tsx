@@ -2,6 +2,7 @@ import type { Viewport } from 'next';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
+import { OfficeClientWrapper } from '@/components/office/OfficeClientWrapper';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -22,7 +23,9 @@ export default async function OfficeLayout({ children }: { children: React.React
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {children}
+      <OfficeClientWrapper>
+        {children}
+      </OfficeClientWrapper>
     </div>
   );
 }
