@@ -2,9 +2,26 @@
 
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@fieldconnect/ui';
-import { getSchedule, updateScheduleStatus } from '@/lib/api';
-import type { ScheduleWithDetails, JobStatus } from '@fieldconnect/shared';
-import { useState, useEffect, useCallback } from 'react';
+import {
+  getSchedule,
+  updateScheduleStatus,
+  getJobNotes,
+  addJobNote,
+  getJobAttachments,
+  uploadJobAttachment,
+  deleteJobAttachment,
+  getJobSignatures,
+  addJobSignature,
+} from '@/lib/api';
+import type {
+  ScheduleWithDetails,
+  JobStatus,
+  JobNote,
+  JobAttachment,
+  Signature,
+} from '@fieldconnect/shared';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { SignatureCanvas } from './SignatureCanvas';
 
 interface JobDetailClientProps {
   scheduleId: string;
@@ -24,7 +41,6 @@ const STATUS_CONFIG: Record<
 
 const STATUS_STEPS = ['scheduled', 'traveling', 'on_site', 'completed', 'office_review', 'closed'];
 
-// Status progression config for workflow buttons
 const NEXT_STATUS: Record<string, { status: JobStatus; label: string; color: string; confirm: string } | null> = {
   scheduled: { status: 'traveling', label: 'Start Traveling', color: 'bg-blue-600', confirm: 'Start traveling to this job?' },
   traveling: { status: 'on_site', label: 'Arrived On Site', color: 'bg-green-600', confirm: 'Mark yourself as on site?' },
@@ -32,6 +48,20 @@ const NEXT_STATUS: Record<string, { status: JobStatus; label: string; color: str
   completed: null,
   office_review: null,
   closed: null,
+};
+
+const ATTACHMENT_LABELS: Record<string, string> = {
+  before: 'Before',
+  during: 'During',
+  after: 'After',
+  document: 'Document',
+};
+
+const ATTACHMENT_COLORS: Record<string, string> = {
+  before: 'bg-blue-100 text-blue-700',
+  during: 'bg-amber-100 text-amber-700',
+  after: 'bg-green-100 text-green-700',
+  document: 'bg-gray-100 text-gray-700',
 };
 
 function formatTime(time: string | null): string {
@@ -53,6 +83,26 @@ function formatDate(date: string): string {
   });
 }
 
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getUploadUrl(filePath: string): string {
+  return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/uploads/${filePath}`;
+}
+
 export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const router = useRouter();
   const [schedule, setSchedule] = useState<ScheduleWithDetails | null>(null);
@@ -61,12 +111,31 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const [transitioning, setTransitioning] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState<JobStatus | null>(null);
 
-  const fetchSchedule = useCallback(async () => {
+  // Field data state
+  const [notes, setNotes] = useState<JobNote[]>([]);
+  const [attachments, setAttachments] = useState<JobAttachment[]>([]);
+  const [signatures, setSignatures] = useState<Signature[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedAttachmentType, setSelectedAttachmentType] = useState<string>('during');
+
+  const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const data = await getSchedule(scheduleId);
-      setSchedule(data);
+      const [scheduleData, notesData, attachmentsData, signaturesData] = await Promise.all([
+        getSchedule(scheduleId),
+        getJobNotes(scheduleId),
+        getJobAttachments(scheduleId),
+        getJobSignatures(scheduleId),
+      ]);
+      setSchedule(scheduleData);
+      setNotes(notesData);
+      setAttachments(attachmentsData);
+      setSignatures(signaturesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load job details');
     } finally {
@@ -75,19 +144,91 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   }, [scheduleId]);
 
   useEffect(() => {
-    fetchSchedule();
-  }, [fetchSchedule]);
+    fetchAll();
+  }, [fetchAll]);
 
   async function handleStatusTransition(newStatus: JobStatus) {
     setTransitioning(true);
     setConfirmStatus(null);
     try {
       await updateScheduleStatus(scheduleId, newStatus);
-      await fetchSchedule();
+      await fetchAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
     } finally {
       setTransitioning(false);
+    }
+  }
+
+  async function handleAddNote() {
+    if (!newNote.trim()) return;
+    setSaving(true);
+    try {
+      await addJobNote(scheduleId, { content: newNote.trim(), note_type: 'technician' });
+      setNewNote('');
+      const updated = await getJobNotes(scheduleId);
+      setNotes(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add note');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Client-side compression for images
+    let uploadFile = file;
+    if (file.type.startsWith('image/')) {
+      try {
+        uploadFile = await compressImage(file, 1200, 0.8);
+      } catch {
+        // Fall back to original if compression fails
+      }
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('attachment_type', selectedAttachmentType);
+      await uploadJobAttachment(scheduleId, formData);
+      const updated = await getJobAttachments(scheduleId);
+      setAttachments(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload file');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }
+
+  async function handleDeleteAttachment(attachmentId: string) {
+    if (!confirm('Delete this attachment?')) return;
+    try {
+      await deleteJobAttachment(scheduleId, attachmentId);
+      const updated = await getJobAttachments(scheduleId);
+      setAttachments(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete attachment');
+    }
+  }
+
+  async function handleSignatureSave(dataUrl: string) {
+    setSaving(true);
+    try {
+      await addJobSignature(scheduleId, { signature_data: dataUrl });
+      setShowSignaturePad(false);
+      const updated = await getJobSignatures(scheduleId);
+      setSignatures(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save signature');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -104,6 +245,49 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   }
 
   const nextAction = schedule ? NEXT_STATUS[schedule.status] : null;
+
+  // ─── Compress Image Client-Side ──────────────────────────────────────────
+  async function compressImage(
+    file: File,
+    maxDimension: number,
+    quality: number,
+  ): Promise<File> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          const ratio = Math.min(maxDimension / width, maxDimension / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to get canvas context'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+            } else {
+              reject(new Error('Compression failed'));
+            }
+          },
+          'image/jpeg',
+          quality,
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -122,7 +306,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
           <p className="text-red-700 text-sm mb-3">{error}</p>
           <button
-            onClick={fetchSchedule}
+            onClick={fetchAll}
             className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium"
           >
             Retry
@@ -157,6 +341,15 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Signature Canvas Overlay */}
+      {showSignaturePad && (
+        <SignatureCanvas
+          onSave={handleSignatureSave}
+          onCancel={() => setShowSignaturePad(false)}
+          saving={saving}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 pt-12 pb-4">
         <button
@@ -227,7 +420,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </div>
         )}
 
-        {/* Notes */}
+        {/* Schedule Notes */}
         {schedule.notes && (
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -249,7 +442,6 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               const isCurrent = index === currentStep;
               return (
                 <div key={status} className="flex items-start gap-3">
-                  {/* Step indicator */}
                   <div className="flex flex-col items-center">
                     <div
                       className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
@@ -268,7 +460,6 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                       />
                     )}
                   </div>
-                  {/* Label */}
                   <div className={`pb-5 ${index < currentStep ? 'text-gray-500' : index === currentStep ? 'text-blue-700 font-medium' : 'text-gray-400'}`}>
                     <span className="text-sm">{cfg.label}</span>
                   </div>
@@ -276,6 +467,172 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               );
             })}
           </div>
+        </div>
+
+        {/* ─── Technician Notes Section ─────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Technician Notes
+          </h2>
+
+          {/* Note Input */}
+          <div className="flex gap-2 mb-4">
+            <input
+              type="text"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Add a note..."
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAddNote();
+                }
+              }}
+              disabled={saving}
+            />
+            <button
+              onClick={handleAddNote}
+              disabled={!newNote.trim() || saving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed active:bg-blue-700 transition-colors"
+            >
+              {saving ? '...' : 'Add'}
+            </button>
+          </div>
+
+          {/* Notes List */}
+          {notes.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No notes yet</p>
+          ) : (
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {notes.map((note) => (
+                <div key={note.id} className="border-l-2 border-blue-300 pl-3">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {note.user_name} • {formatDateTime(note.created_at)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ─── Photos Section ──────────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Photos & Attachments
+          </h2>
+
+          {/* Upload controls */}
+          <div className="flex gap-2 mb-4">
+            <select
+              value={selectedAttachmentType}
+              onChange={(e) => setSelectedAttachmentType(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={uploading}
+            >
+              <option value="before">Before</option>
+              <option value="during">During</option>
+              <option value="after">After</option>
+              <option value="document">Document</option>
+            </select>
+            <label className="flex-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileUpload}
+                className="hidden"
+                disabled={uploading}
+              />
+              <div className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {uploading ? 'Uploading...' : 'Add Photo'}
+              </div>
+            </label>
+          </div>
+
+          {/* Attachments Grid */}
+          {attachments.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No photos or attachments yet</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {attachments.map((att) => (
+                <div key={att.id} className="border border-gray-200 rounded-xl overflow-hidden">
+                  {att.mime_type.startsWith('image/') ? (
+                    <div className="relative">
+                      <img
+                        src={getUploadUrl(att.file_path)}
+                        alt={att.file_name}
+                        className="w-full h-32 object-cover"
+                        loading="lazy"
+                      />
+                      <button
+                        onClick={() => handleDeleteAttachment(att.id)}
+                        className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/70 transition-colors"
+                        title="Delete"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3 text-center">
+                      <p className="text-xs text-gray-700 truncate">{att.file_name}</p>
+                      <p className="text-xs text-gray-400">{formatFileSize(att.file_size)}</p>
+                    </div>
+                  )}
+                  <div className="px-2 py-1 flex items-center justify-between bg-gray-50">
+                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${ATTACHMENT_COLORS[att.attachment_type] || ATTACHMENT_COLORS.document}`}>
+                      {ATTACHMENT_LABELS[att.attachment_type] || 'Document'}
+                    </span>
+                    <span className="text-xs text-gray-400">{att.user_name?.split(' ')[0]}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ─── Signatures Section ──────────────────────────────────────────── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Signatures
+          </h2>
+
+          <button
+            onClick={() => setShowSignaturePad(true)}
+            className="w-full mb-4 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl text-sm font-medium active:bg-gray-50 transition-colors hover:border-blue-400 hover:text-blue-600"
+          >
+            <svg className="h-5 w-5 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            Capture Signature
+          </button>
+
+          {signatures.length === 0 ? (
+            <p className="text-sm text-gray-400 italic">No signatures yet</p>
+          ) : (
+            <div className="space-y-3">
+              {signatures.map((sig) => (
+                <div key={sig.id} className="border border-gray-200 rounded-xl p-3">
+                  <img
+                    src={sig.signature_data}
+                    alt={`Signature (${sig.label})`}
+                    className="w-full h-16 object-contain bg-white"
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-gray-500 capitalize">{sig.label}</span>
+                    <span className="text-xs text-gray-400">
+                      {sig.user_name} • {formatDateTime(sig.created_at)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -311,7 +668,6 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
 
       {/* Action Buttons */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-4 space-y-3">
-        {/* Workflow status progression button */}
         {nextAction && nextAction.status === 'completed' && schedule.status === 'on_site' && (
           <button
             onClick={() => setConfirmStatus(nextAction.status)}
@@ -347,14 +703,12 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </button>
         )}
 
-        {/* Awaiting Office Review indicator when completed */}
         {schedule.status === 'completed' && (
           <div className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-4 text-base font-semibold text-center">
             Awaiting Office Review
           </div>
         )}
 
-        {/* Start Navigation */}
         {schedule.project_address && schedule.status !== 'completed' && schedule.status !== 'office_review' && schedule.status !== 'closed' && (
           <button
             onClick={handleStartNavigation}
@@ -367,7 +721,6 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </button>
         )}
 
-        {/* Contact Customer */}
         {schedule.project_contact_phone && (
           <button
             onClick={handleContactCustomer}

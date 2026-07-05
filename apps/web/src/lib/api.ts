@@ -14,6 +14,11 @@ import type {
   UpdateScheduleInput,
   JobStatus,
   AuditLog,
+  JobNote,
+  CreateJobNoteInput,
+  JobAttachment,
+  Signature,
+  CreateSignatureInput,
 } from '@fieldconnect/shared';
 
 /**
@@ -212,6 +217,81 @@ export async function updateSchedule(id: string, data: UpdateScheduleInput): Pro
 export async function deleteSchedule(id: string): Promise<void> {
   return bffFetch(`/api/v1/schedules/${id}`, {
     method: 'DELETE',
+  });
+}
+
+// ─── Field Data: Job Notes ─────────────────────────────────────────────────
+
+export async function getJobNotes(scheduleId: string): Promise<JobNote[]> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/notes`);
+}
+
+export async function addJobNote(
+  scheduleId: string,
+  data: CreateJobNoteInput,
+): Promise<JobNote> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/notes`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// ─── Field Data: Attachments ───────────────────────────────────────────────
+
+export async function getJobAttachments(
+  scheduleId: string,
+): Promise<JobAttachment[]> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/attachments`);
+}
+
+export async function uploadJobAttachment(
+  scheduleId: string,
+  formData: FormData,
+): Promise<JobAttachment> {
+  const url = `/api/proxy/api/v1/schedules/${scheduleId}/attachments`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    body: formData,
+    // Do NOT set Content-Type — the browser sets it with the boundary
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Upload failed: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return json.data as JobAttachment;
+}
+
+export async function deleteJobAttachment(
+  scheduleId: string,
+  attachmentId: string,
+): Promise<void> {
+  return bffFetch(
+    `/api/v1/schedules/${scheduleId}/attachments/${attachmentId}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+// ─── Field Data: Signatures ────────────────────────────────────────────────
+
+export async function getJobSignatures(
+  scheduleId: string,
+): Promise<Signature[]> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/signatures`);
+}
+
+export async function addJobSignature(
+  scheduleId: string,
+  data: CreateSignatureInput,
+): Promise<Signature> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/signatures`, {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
 }
 

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { USER_ROLES, PROJECT_STATUSES, JOB_STATUSES } from '../types';
+import { USER_ROLES, PROJECT_STATUSES, JOB_STATUSES, NOTE_TYPES, ATTACHMENT_TYPES } from '../types';
 
 // ─── Auth Validation ───────────────────────────────────────────────────────
 
@@ -81,4 +81,23 @@ export const updateScheduleStatusSchema = z.object({
 
 export const assignTechnicianSchema = z.object({
   user_id: z.string().uuid('Invalid user ID'),
+});
+
+// ─── Field Data Collection Validation ───────────────────────────────────────
+
+export const createJobNoteSchema = z.object({
+  content: z.string().min(1, 'Note content is required').max(5000),
+  note_type: z.enum(NOTE_TYPES as [string, ...string[]]).default('technician'),
+});
+
+export const createJobAttachmentSchema = z.object({
+  attachment_type: z.enum(ATTACHMENT_TYPES as [string, ...string[]]),
+});
+
+export const createSignatureSchema = z.object({
+  signature_data: z
+    .string()
+    .min(1, 'Signature data is required')
+    .max(524288, 'Signature data exceeds maximum size (512 KiB)'),
+  label: z.string().max(100).default('customer'),
 });

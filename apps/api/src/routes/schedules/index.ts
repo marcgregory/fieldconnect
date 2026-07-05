@@ -9,8 +9,15 @@ import { requireRole } from '../../middleware/auth';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { ValidationError } from '../../db/queries/schedules';
 import { broadcastJobEvent } from '../../websocket';
+import { jobNoteRoutes } from './job-notes';
+import { jobAttachmentRoutes } from './job-attachments';
+import { signatureRoutes } from './signatures';
 
 export async function scheduleRoutes(app: FastifyInstance) {
+  // ─── Register field data sub-routes ──────────────────────────────────────
+  await app.register(jobNoteRoutes);
+  await app.register(jobAttachmentRoutes);
+  await app.register(signatureRoutes);
   // ─── List Schedules ───────────────────────────────────────────────────────
   app.get('/api/v1/schedules', async (request, reply) => {
     if (!request.user) {

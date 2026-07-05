@@ -181,6 +181,9 @@ export interface ScheduleWithDetails extends Schedule {
   project_contact_name: string | null;
   project_contact_phone: string | null;
   technician_name: string;
+  note_count?: number;
+  attachment_count?: number;
+  signature_count?: number;
 }
 
 export interface CreateScheduleInput {
@@ -220,6 +223,68 @@ export interface AuditLog {
 
 export interface AuditLogWithUser extends AuditLog {
   user_name: string;
+}
+
+// ─── Field Data Collection ──────────────────────────────────────────────────
+
+export type NoteType = 'technician' | 'internal';
+
+export const NOTE_TYPES: NoteType[] = ['technician', 'internal'];
+
+export type AttachmentType = 'before' | 'during' | 'after' | 'document';
+
+export const ATTACHMENT_TYPES: AttachmentType[] = [
+  'before',
+  'during',
+  'after',
+  'document',
+];
+
+export interface JobNote {
+  id: string;
+  schedule_id: string;
+  user_id: string;
+  user_name: string;
+  content: string;
+  note_type: NoteType;
+  created_at: string;
+}
+
+export interface CreateJobNoteInput {
+  content: string;
+  note_type?: NoteType;
+}
+
+export interface JobAttachment {
+  id: string;
+  schedule_id: string;
+  user_id: string;
+  user_name: string;
+  file_name: string;
+  file_path: string;
+  mime_type: string;
+  file_size: number;
+  attachment_type: AttachmentType;
+  created_at: string;
+}
+
+export interface CreateJobAttachmentInput {
+  attachment_type: AttachmentType;
+}
+
+export interface Signature {
+  id: string;
+  schedule_id: string;
+  user_id: string;
+  user_name: string;
+  signature_data: string;
+  label: string;
+  created_at: string;
+}
+
+export interface CreateSignatureInput {
+  signature_data: string;
+  label?: string;
 }
 
 // ─── Job Event (WebSocket payload) ──────────────────────────────────────────

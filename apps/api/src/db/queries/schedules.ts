@@ -123,7 +123,15 @@ export async function findAll(filters?: {
 
 export async function findById(id: string): Promise<ScheduleWithDetails | null> {
   const result = await query(
-    `SELECT s.*, p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+    `SELECT s.*,
+            p.name AS project_name,
+            p.address AS project_address,
+            p.contact_name AS project_contact_name,
+            p.contact_phone AS project_contact_phone,
+            u.name AS technician_name,
+            (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
+            (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
+            (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id

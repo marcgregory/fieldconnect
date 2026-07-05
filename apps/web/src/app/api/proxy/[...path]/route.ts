@@ -77,16 +77,12 @@ async function proxyRequest(
     const searchParams = request.nextUrl.searchParams.toString();
     const targetUrl = `${API_URL}/api/v1/${pathStr}${searchParams ? `?${searchParams}` : ''}`;
 
-    // Forward the body if present
-    let body: string | undefined;
-    if (method !== 'GET' && method !== 'HEAD') {
-      body = await request.text();
-    }
+    // Determine if this is a multipart/form-data request (file upload)
+    const contentType = request.headers.get('content-type') || '';
+    const isMultipart = contentType.includes('multipart/form-data');
 
-    // Build headers
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
+    // Build headers and body
+    const headers: Record<string, string> = {};
 
     // Sign a backend JWT if the user is authenticated
     if (token?.sub && token?.role) {
@@ -97,6 +93,21 @@ async function proxyRequest(
         name: (token.name as string) || '',
       });
       headers['Authorization'] = `Bearer ${backendToken}`;
+    }
+
+    let body: BodyInit | undefined;
+
+    if (method !== 'GET' && method !== 'HEAD') {
+      if (isMultipart) {
+        // For multipart uploads, pass through the original body and content-type
+        body = await request.blob();
+        // Pass through original Content-Type (with boundary) — do NOT override
+        headers['Content-Type'] = contentType;
+      } else {
+        // For JSON requests, set content-type and forward body as text
+        headers['Content-Type'] = 'application/json';
+        body = await request.text();
+      }
     }
 
     // Make the request to the Fastify API
