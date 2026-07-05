@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "rootDirectory": "apps/web",
+  "buildCommand": "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @fieldconnect/shared build && pnpm --filter @fieldconnect/ui build && pnpm --filter @fieldconnect/web build",
+  "outputDirectory": ".next",
+  "installCommand": "cd ../.. && pnpm install"
+}
