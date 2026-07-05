@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { USER_ROLES, PROJECT_STATUSES } from '../types';
+import { USER_ROLES, PROJECT_STATUSES, JOB_STATUSES } from '../types';
 
 // ─── Auth Validation ───────────────────────────────────────────────────────
 
@@ -68,6 +68,13 @@ export const updateScheduleSchema = z.object({
   start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   notes: z.string().max(2000).optional(),
+});
+
+// ─── Status Transition Validation ──────────────────────────────────────────
+
+export const updateScheduleStatusSchema = z.object({
+  status: z.enum(JOB_STATUSES as [string, ...string[]]),
+  notes: z.string().max(500).optional(),
 });
 
 // ─── Technician Assignment Validation ──────────────────────────────────────

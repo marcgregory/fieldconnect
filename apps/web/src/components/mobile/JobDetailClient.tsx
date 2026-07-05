@@ -2,8 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@fieldconnect/ui';
-import { getSchedule } from '@/lib/api';
-import type { ScheduleWithDetails } from '@fieldconnect/shared';
+import { getSchedule, updateScheduleStatus } from '@/lib/api';
+import type { ScheduleWithDetails, JobStatus } from '@fieldconnect/shared';
 import { useState, useEffect, useCallback } from 'react';
 
 interface JobDetailClientProps {
@@ -23,6 +23,16 @@ const STATUS_CONFIG: Record<
 };
 
 const STATUS_STEPS = ['scheduled', 'traveling', 'on_site', 'completed', 'office_review', 'closed'];
+
+// Status progression config for workflow buttons
+const NEXT_STATUS: Record<string, { status: JobStatus; label: string; color: string; confirm: string } | null> = {
+  scheduled: { status: 'traveling', label: 'Start Traveling', color: 'bg-blue-600', confirm: 'Start traveling to this job?' },
+  traveling: { status: 'on_site', label: 'Arrived On Site', color: 'bg-green-600', confirm: 'Mark yourself as on site?' },
+  on_site: { status: 'completed', label: 'Mark Complete', color: 'bg-blue-600', confirm: 'Mark this job as completed?' },
+  completed: null,
+  office_review: null,
+  closed: null,
+};
 
 function formatTime(time: string | null): string {
   if (!time) return '';
@@ -48,6 +58,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const [schedule, setSchedule] = useState<ScheduleWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [transitioning, setTransitioning] = useState(false);
+  const [confirmStatus, setConfirmStatus] = useState<JobStatus | null>(null);
 
   const fetchSchedule = useCallback(async () => {
     try {
@@ -66,10 +78,22 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     fetchSchedule();
   }, [fetchSchedule]);
 
+  async function handleStatusTransition(newStatus: JobStatus) {
+    setTransitioning(true);
+    setConfirmStatus(null);
+    try {
+      await updateScheduleStatus(scheduleId, newStatus);
+      await fetchSchedule();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status');
+    } finally {
+      setTransitioning(false);
+    }
+  }
+
   function handleStartNavigation() {
     if (!schedule?.project_address) return;
     const encoded = encodeURIComponent(schedule.project_address);
-    // iPhone maps, with geo fallback
     const url = `maps://?daddr=${encoded}`;
     window.open(url, '_blank');
   }
@@ -78,6 +102,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     if (!schedule?.project_contact_phone) return;
     window.open(`tel:${schedule.project_contact_phone}`, '_blank');
   }
+
+  const nextAction = schedule ? NEXT_STATUS[schedule.status] : null;
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -253,9 +279,83 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         </div>
       </div>
 
+      {/* Confirmation Dialog Overlay */}
+      {confirmStatus && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-2xl w-full max-w-md mx-auto px-6 pt-6 pb-10">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Confirm Status Change
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              {NEXT_STATUS[schedule.status]?.confirm || 'Update job status?'}
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={() => handleStatusTransition(confirmStatus)}
+                disabled={transitioning}
+                className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {transitioning ? 'Updating...' : `Yes, ${NEXT_STATUS[schedule.status]?.label || 'Update'}`}
+              </button>
+              <button
+                onClick={() => setConfirmStatus(null)}
+                disabled={transitioning}
+                className="w-full bg-white border border-gray-300 text-gray-700 rounded-xl py-4 text-base font-semibold active:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-4 space-y-3">
-        {schedule.project_address && (
+        {/* Workflow status progression button */}
+        {nextAction && nextAction.status === 'completed' && schedule.status === 'on_site' && (
+          <button
+            onClick={() => setConfirmStatus(nextAction.status)}
+            disabled={transitioning}
+            className={`w-full ${nextAction.color} text-white rounded-xl py-4 text-base font-semibold shadow-lg active:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
+          >
+            {transitioning ? (
+              <>
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Updating...
+              </>
+            ) : (
+              <>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                {nextAction.label}
+              </>
+            )}
+          </button>
+        )}
+
+        {nextAction && nextAction.status !== 'completed' && (
+          <button
+            onClick={() => setConfirmStatus(nextAction.status)}
+            disabled={transitioning}
+            className={`w-full ${nextAction.color} text-white rounded-xl py-4 text-base font-semibold shadow-lg active:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {transitioning ? 'Updating...' : nextAction.label}
+          </button>
+        )}
+
+        {/* Awaiting Office Review indicator when completed */}
+        {schedule.status === 'completed' && (
+          <div className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-4 text-base font-semibold text-center">
+            Awaiting Office Review
+          </div>
+        )}
+
+        {/* Start Navigation */}
+        {schedule.project_address && schedule.status !== 'completed' && schedule.status !== 'office_review' && schedule.status !== 'closed' && (
           <button
             onClick={handleStartNavigation}
             className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors flex items-center justify-center gap-2"
@@ -266,6 +366,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             Start Navigation
           </button>
         )}
+
+        {/* Contact Customer */}
         {schedule.project_contact_phone && (
           <button
             onClick={handleContactCustomer}

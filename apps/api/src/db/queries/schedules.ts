@@ -1,5 +1,72 @@
-import { query } from '../index';
-import type { Schedule, ScheduleWithDetails } from '@fieldconnect/shared';
+import { query, pool } from '../index';
+import type { Schedule, ScheduleWithDetails, JobStatus, AuditLog } from '@fieldconnect/shared';
+
+export class ValidationError extends Error {
+  statusCode: number;
+  constructor(message: string, statusCode = 400) {
+    super(message);
+    this.name = 'ValidationError';
+    this.statusCode = statusCode;
+  }
+}
+
+// ─── Status Transition Rules ──────────────────────────────────────────────
+
+const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
+  scheduled: ['traveling'],
+  traveling: ['on_site'],
+  on_site: ['completed'],
+  completed: ['office_review'],
+  office_review: ['closed'],
+  closed: [],
+};
+
+/**
+ * Validate that a status transition is allowed based on role and ownership.
+ * Throws ValidationError if the transition is not allowed.
+ */
+export function validateTransition(
+  oldStatus: JobStatus,
+  newStatus: JobStatus,
+  userRole: string,
+  scheduleTechnicianId: string,
+  userId: string,
+): void {
+  // Admin can correct any status to any status
+  if (userRole === 'admin') return;
+
+  const allowed = VALID_TRANSITIONS[oldStatus];
+  if (!allowed || !allowed.includes(newStatus)) {
+    throw new ValidationError(
+      `Cannot transition from '${oldStatus}' to '${newStatus}'`,
+    );
+  }
+
+  // field_technician can only advance their own jobs
+  if (userRole === 'field_technician') {
+    if (scheduleTechnicianId !== userId) {
+      throw new ValidationError('You can only update your own jobs', 403);
+    }
+    const techAllowed: JobStatus[] = ['scheduled', 'traveling', 'on_site'];
+    if (!techAllowed.includes(oldStatus)) {
+      throw new ValidationError(
+        `Technicians can only advance jobs from scheduled, traveling, or on_site`,
+        403,
+      );
+    }
+  }
+
+  // office/dispatcher can only advance completed → office_review → closed
+  if (['office_manager', 'dispatcher'].includes(userRole)) {
+    const officeAllowed: JobStatus[] = ['completed', 'office_review'];
+    if (!officeAllowed.includes(oldStatus)) {
+      throw new ValidationError(
+        `Office staff can only advance jobs from completed or office_review`,
+        403,
+      );
+    }
+  }
+}
 
 export interface ScheduleRow {
   id: string;
@@ -188,4 +255,92 @@ export async function update(
 export async function deleteById(id: string): Promise<boolean> {
   const result = await query('DELETE FROM schedules WHERE id = $1', [id]);
   return (result.rowCount ?? 0) > 0;
+}
+
+// ─── Status Transition with Transaction ───────────────────────────────────
+
+export interface UpdateStatusResult {
+  schedule: ScheduleWithDetails;
+  audit: AuditLog;
+}
+
+export async function updateStatus(data: {
+  id: string;
+  status: JobStatus;
+  user_id: string;
+  user_role: string;
+  technician_id: string;
+  notes?: string;
+}): Promise<UpdateStatusResult> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Row-level lock on the schedule row
+    const lockResult = await client.query(
+      'SELECT status, technician_id FROM schedules WHERE id = $1 FOR UPDATE',
+      [data.id],
+    );
+
+    if (lockResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      throw new ValidationError('Schedule not found', 404);
+    }
+
+    const oldStatus = lockResult.rows[0].status as JobStatus;
+
+    // Validate the transition
+    validateTransition(
+      oldStatus,
+      data.status,
+      data.user_role,
+      data.technician_id,
+      data.user_id,
+    );
+
+    // Update the schedule status
+    const updateResult = await client.query(
+      `UPDATE schedules SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [data.status, data.id],
+    );
+
+    // Insert audit log entry
+    const metadata = data.notes ? JSON.stringify({ notes: data.notes }) : null;
+    const auditResult = await client.query(
+      `INSERT INTO audit_logs (schedule_id, user_id, action, old_status, new_status, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [data.id, data.user_id, 'status_change', oldStatus, data.status, metadata],
+    );
+
+    await client.query('COMMIT');
+
+    // Fetch the enriched schedule with project/technician details
+    const schedule = await findById(data.id);
+
+    return {
+      schedule: schedule!,
+      audit: auditResult.rows[0],
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ─── Audit Log Queries ────────────────────────────────────────────────────
+
+export async function findAuditLogsBySchedule(
+  scheduleId: string,
+): Promise<AuditLog[]> {
+  const result = await query(
+    `SELECT al.*, u.name AS user_name FROM audit_logs al
+     JOIN users u ON u.id = al.user_id
+     WHERE al.schedule_id = $1
+     ORDER BY al.created_at DESC`,
+    [scheduleId],
+  );
+  return result.rows;
 }

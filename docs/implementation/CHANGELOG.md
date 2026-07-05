@@ -69,3 +69,26 @@ All notable project changes should be documented here. Keep this file versioned 
 ### Fixed
 
 - (none)
+
+## v0.3.0 — 2026-07-05
+
+### Added
+
+- **Job status state machine**: `PATCH /api/v1/schedules/:id/status` with transaction-safe status transitions, row-level locking, and role enforcement
+- **audit_logs table migration**: `005_create-audit-logs.sql` — insert-only history for every status transition (schedule_id, user_id, old_status, new_status, metadata)
+- **Status transition validation**: strict rules — technician advances own jobs `scheduled → traveling → on_site → completed`, office advances `completed → office_review → closed`, admin can correct any status
+- **WebSocket job events**: `broadcastJobEvent()` emits `job:update` to `tech:status` room on every status change
+- **Workflow buttons on mobile job detail**: "Start Traveling", "Arrived On Site", "Mark Complete" with confirmation dialog, refetch after status change
+- **ScheduleReviewPanel component**: Office-side review controls — "Move to Office Review" and "Close Job" buttons with optional notes
+- **Socket.io hook update**: `useSocket` now subscribes to `job:update` events alongside `tech:status`
+- **Shared types**: `AuditLog`, `AuditLogWithUser`, `JobEvent` interfaces; `updateScheduleStatusSchema` Zod validation
+
+### Changed
+
+- `JobDetailClient` — added workflow progression buttons with loading states and confirmation overlay
+- `useSocket` — added `lastJobEvent` and `jobEvents` to returned interface
+- `ScheduleWithDetails` query — `findById` returns full enriched schedule including project contact info
+
+### Fixed
+
+- (none)

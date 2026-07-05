@@ -205,6 +205,36 @@ export interface UpdateScheduleStatusInput {
   notes?: string;
 }
 
+// ─── Audit Log ──────────────────────────────────────────────────────────────
+
+export interface AuditLog {
+  id: string;
+  schedule_id: string;
+  user_id: string;
+  action: string;
+  old_status: string | null;
+  new_status: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface AuditLogWithUser extends AuditLog {
+  user_name: string;
+}
+
+// ─── Job Event (WebSocket payload) ──────────────────────────────────────────
+
+export interface JobEvent {
+  type: 'status_change' | 'assignment';
+  schedule_id: string;
+  project_name: string;
+  technician_name: string;
+  old_status: JobStatus | null;
+  new_status: JobStatus;
+  changed_by: string;
+  timestamp: string;
+}
+
 // ─── API Payload Types ─────────────────────────────────────────────────────
 
 export interface ProjectListFilters {

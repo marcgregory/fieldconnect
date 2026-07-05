@@ -2,9 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import {
   createScheduleSchema,
   updateScheduleSchema,
+  updateScheduleStatusSchema,
+  type JobStatus,
 } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as scheduleQueries from '../../db/queries/schedules';
+import { ValidationError } from '../../db/queries/schedules';
+import { broadcastJobEvent } from '../../websocket';
 
 export async function scheduleRoutes(app: FastifyInstance) {
   // ─── List Schedules ───────────────────────────────────────────────────────
@@ -130,6 +134,62 @@ export async function scheduleRoutes(app: FastifyInstance) {
 
       const schedule = await scheduleQueries.update(id, parsed.data);
       return { success: true, data: schedule };
+    },
+  );
+
+  // ─── Update Status (Status Transition) ───────────────────────────────
+  app.patch(
+    '/api/v1/schedules/:id/status',
+    { preHandler: [requireRole('admin', 'office_manager', 'dispatcher', 'field_technician')] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = updateScheduleStatusSchema.safeParse(request.body);
+
+      if (!parsed.success) {
+        return reply.status(400).send({
+          success: false,
+          error: parsed.error.errors[0].message,
+        });
+      }
+
+      // Fetch existing to get technician_id for ownership check
+      const existing = await scheduleQueries.findById(id);
+      if (!existing) {
+        return reply.status(404).send({ success: false, error: 'Schedule not found' });
+      }
+
+      try {
+        const result = await scheduleQueries.updateStatus({
+          id,
+          status: parsed.data.status as JobStatus,
+          user_id: request.user!.id,
+          user_role: request.user!.role,
+          technician_id: existing.technician_id,
+          notes: parsed.data.notes,
+        });
+
+        // Broadcast WebSocket event
+        broadcastJobEvent({
+          type: 'status_change',
+          schedule_id: id,
+          project_name: result.schedule.project_name,
+          technician_name: result.schedule.technician_name,
+          old_status: existing.status,
+          new_status: result.schedule.status,
+          changed_by: request.user!.name,
+          timestamp: new Date().toISOString(),
+        });
+
+        return { success: true, data: result };
+      } catch (err) {
+        if (err instanceof ValidationError) {
+          return reply.status(err.statusCode).send({
+            success: false,
+            error: err.message,
+          });
+        }
+        throw err;
+      }
     },
   );
 

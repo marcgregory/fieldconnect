@@ -1,7 +1,7 @@
 import { Server as HTTPServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { jwtVerify } from 'jose';
-import type { ClockEvent } from '@fieldconnect/shared';
+import type { ClockEvent, JobEvent } from '@fieldconnect/shared';
 
 let io: SocketServer | null = null;
 
@@ -87,4 +87,13 @@ export function getIO(): SocketServer | null {
 export function broadcastClockEvent(event: ClockEvent): void {
   if (!io) return;
   io.to('tech:status').emit('tech:status', event);
+}
+
+/**
+ * Broadcast a job status change event to the office dashboard and the
+ * assigned technician.
+ */
+export function broadcastJobEvent(event: JobEvent): void {
+  if (!io) return;
+  io.to('tech:status').emit('job:update', event);
 }

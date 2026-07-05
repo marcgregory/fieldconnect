@@ -12,6 +12,8 @@ import type {
   ScheduleWithDetails,
   CreateScheduleInput,
   UpdateScheduleInput,
+  JobStatus,
+  AuditLog,
 } from '@fieldconnect/shared';
 
 /**
@@ -210,5 +212,16 @@ export async function updateSchedule(id: string, data: UpdateScheduleInput): Pro
 export async function deleteSchedule(id: string): Promise<void> {
   return bffFetch(`/api/v1/schedules/${id}`, {
     method: 'DELETE',
+  });
+}
+
+export async function updateScheduleStatus(
+  id: string,
+  status: JobStatus,
+  notes?: string,
+): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
+  return bffFetch(`/api/v1/schedules/${id}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, notes }),
   });
 }

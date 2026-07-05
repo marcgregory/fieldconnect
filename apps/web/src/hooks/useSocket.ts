@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useSession } from 'next-auth/react';
-import type { ClockEvent } from '@fieldconnect/shared';
+import type { ClockEvent, JobEvent } from '@fieldconnect/shared';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -11,6 +11,8 @@ interface UseSocketReturn {
   isConnected: boolean;
   lastEvent: ClockEvent | null;
   events: ClockEvent[];
+  lastJobEvent: JobEvent | null;
+  jobEvents: JobEvent[];
 }
 
 /**
@@ -23,6 +25,8 @@ export function useSocket(): UseSocketReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [lastEvent, setLastEvent] = useState<ClockEvent | null>(null);
   const [events, setEvents] = useState<ClockEvent[]>([]);
+  const [lastJobEvent, setLastJobEvent] = useState<JobEvent | null>(null);
+  const [jobEvents, setJobEvents] = useState<JobEvent[]>([]);
 
   useEffect(() => {
     // Don't connect unless we have a session
@@ -60,6 +64,11 @@ export function useSocket(): UseSocketReturn {
       setEvents((prev) => [event, ...prev].slice(0, 50)); // Keep last 50 events
     });
 
+    socket.on('job:update', (event: JobEvent) => {
+      setLastJobEvent(event);
+      setJobEvents((prev) => [event, ...prev].slice(0, 30)); // Keep last 30 job events
+    });
+
     socket.on('connect_error', (error) => {
       console.error('Socket connection error:', error.message);
     });
@@ -70,5 +79,5 @@ export function useSocket(): UseSocketReturn {
     };
   }, [session?.user?.id, session?.user?.role]);
 
-  return { isConnected, lastEvent, events };
+  return { isConnected, lastEvent, events, lastJobEvent, jobEvents };
 }
