@@ -79,6 +79,18 @@ export async function findAssignmentsByUser(
   return result.rows;
 }
 
+/**
+ * Return user_ids of all technicians assigned to a project team.
+ * Used by schedule routes to validate team membership.
+ */
+export async function findProjectTeamIds(projectId: string): Promise<string[]> {
+  const result = await query(
+    `SELECT user_id FROM technician_assignments WHERE project_id = $1`,
+    [projectId],
+  );
+  return result.rows.map((r: { user_id: string }) => r.user_id);
+}
+
 export async function findAvailableTechnicians(): Promise<UserRow[]> {
   const result = await query(
     `SELECT id, email, name, role FROM users WHERE role = 'field_technician' ORDER BY name`,

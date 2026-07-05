@@ -10,6 +10,7 @@ import {
   getAvailableTechnicians,
   assignTechnician,
   getProjectAssignments,
+  removeTeamMember,
 } from '@/lib/api';
 import type {
   Project,
@@ -95,6 +96,17 @@ export function ProjectsClient() {
     } catch (err) {
       alert('Failed to load technicians');
       setAssigningProject(null);
+    }
+  }
+
+  async function handleRemove(userId: string) {
+    if (!assigningProject) return;
+    try {
+      await removeTeamMember(assigningProject, userId);
+      const updated = await getProjectAssignments(assigningProject);
+      setAssignments((prev) => ({ ...prev, [assigningProject]: updated }));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to remove team member');
     }
   }
 
@@ -263,7 +275,7 @@ export function ProjectsClient() {
                         size="sm"
                         onClick={() => openAssignDialog(project.id)}
                       >
-                        Assign
+                        Manage Team
                       </Button>
                     </div>
                   </div>
@@ -294,31 +306,42 @@ export function ProjectsClient() {
         </div>
       )}
 
-      {/* Assign Modal */}
+      {/* Manage Team Modal */}
       {assigningProject && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              Assign Technician
+            <h2 className="text-xl font-semibold text-gray-900 mb-1">
+              Manage Project Team
             </h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Project team members are eligible to be scheduled. Actual work time is assigned in Schedule.
+            </p>
 
-            {/* Current Assignments */}
+            {/* Current Team Members */}
             {assignments[assigningProject]?.length > 0 && (
               <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">Currently Assigned:</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">Project Team Members:</p>
                 <div className="space-y-2">
                   {assignments[assigningProject].map((a) => (
                     <div key={a.id} className="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-lg">
-                      <span className="text-sm text-gray-700">{a.technician_name}</span>
-                      <span className="text-xs text-gray-500">{a.technician_role}</span>
+                      <div>
+                        <span className="text-sm text-gray-700">{a.technician_name}</span>
+                        <span className="text-xs text-gray-500 ml-2">{a.technician_role}</span>
+                      </div>
+                      <button
+                        onClick={() => handleRemove(a.user_id)}
+                        className="text-xs text-red-600 hover:text-red-800 font-medium"
+                      >
+                        Remove
+                      </button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Available Technicians */}
-            <p className="text-sm font-medium text-gray-700 mb-2">Available Technicians:</p>
+            {/* All Technicians */}
+            <p className="text-sm font-medium text-gray-700 mb-2">All Technicians:</p>
             {availableTechs.length === 0 ? (
               <p className="text-sm text-gray-400 py-4 text-center">
                 No technicians available. Create a field_technician user first.
@@ -342,7 +365,7 @@ export function ProjectsClient() {
                         size="sm"
                         onClick={() => handleAssign(tech.id)}
                       >
-                        Assign
+                        Add to Team
                       </Button>
                     </div>
                   ))}

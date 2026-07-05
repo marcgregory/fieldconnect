@@ -139,6 +139,13 @@ export async function getProjectAssignments(
   return bffFetch(`/api/v1/projects/${projectId}/assignments`);
 }
 
+export async function removeTeamMember(
+  projectId: string,
+  userId: string,
+): Promise<void> {
+  return unassignTechnician(projectId, userId);
+}
+
 // ─── Time Entry API ───────────────────────────────────────────────────────
 
 export async function clockIn(

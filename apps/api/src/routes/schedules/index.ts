@@ -8,6 +8,7 @@ import {
 import { requireRole } from '../../middleware/auth';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { ValidationError } from '../../db/queries/schedules';
+import * as technicianQueries from '../../db/queries/technicians';
 import { broadcastJobEvent } from '../../websocket';
 import { jobNoteRoutes } from './job-notes';
 import { jobAttachmentRoutes } from './job-attachments';
@@ -113,6 +114,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
 
       // Conflict check (skip if admin sent force: true)
       const { force, ...createData } = parsed.data;
+
+      // Validate technician is a member of the project team
+      const teamIds = await technicianQueries.findProjectTeamIds(createData.project_id);
+      if (!teamIds.includes(createData.technician_id)) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Technician is not a member of this project team. Add them to the team first.',
+        });
+      }
+
       if (!force && createData.start_time && createData.end_time) {
         const conflicts = await scheduleQueries.findConflicts(
           createData.technician_id,
@@ -179,6 +190,17 @@ export async function scheduleRoutes(app: FastifyInstance) {
       if (!force && updateData.start_time && updateData.end_time) {
         const effectiveTechnicianId = updateData.technician_id || existing.technician_id;
         const effectiveDate = updateData.scheduled_date || existing.scheduled_date;
+        const effectiveProjectId = updateData.project_id || existing.project_id;
+
+        // Validate technician is a member of the project team
+        const teamIds = await technicianQueries.findProjectTeamIds(effectiveProjectId);
+        if (!teamIds.includes(effectiveTechnicianId)) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Technician is not a member of this project team. Add them to the team first.',
+          });
+        }
+
         const conflicts = await scheduleQueries.findConflicts(
           effectiveTechnicianId,
           effectiveDate,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getProjects, getAvailableTechnicians } from '@/lib/api';
+import { getProjects, getAvailableTechnicians, getProjectAssignments } from '@/lib/api';
 import type {
   Project,
   User,
@@ -36,6 +36,7 @@ export function ScheduleForm({
 }: ScheduleFormProps) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [technicians, setTechnicians] = useState<TechnicianAvailability[]>([]);
+  const [projectTeamIds, setProjectTeamIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState(schedule?.project_id || '');
   const [technicianId, setTechnicianId] = useState(schedule?.technician_id || '');
   const [date, setDate] = useState(
@@ -73,6 +74,23 @@ export function ScheduleForm({
     }
     load();
   }, []);
+
+  // Load project team members when project changes
+  useEffect(() => {
+    if (!projectId) {
+      setProjectTeamIds([]);
+      return;
+    }
+    async function loadTeam() {
+      try {
+        const team = await getProjectAssignments(projectId);
+        setProjectTeamIds(team.map((m: any) => m.user_id));
+      } catch {
+        setProjectTeamIds([]);
+      }
+    }
+    loadTeam();
+  }, [projectId]);
 
   // Load technicians, optionally with availability when time slot is set
   useEffect(() => {
@@ -218,23 +236,36 @@ export function ScheduleForm({
 
         {/* Technician */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Technician</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Technician</label>
           <select
             value={technicianId}
             onChange={(e) => setTechnicianId(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            disabled={loadingTechs}
+            disabled={!projectId || loadingTechs}
           >
-            <option value="">Select a technician...</option>
-            {technicians.map((t) => {
-              const avail = AVAILABILITY_LABELS[t.availability] || AVAILABILITY_LABELS.available;
-              return (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({avail.label})
-                </option>
-              );
-            })}
+            <option value="">
+              {!projectId
+                ? 'Select a project first...'
+                : projectTeamIds.length === 0
+                  ? 'No technicians on project team'
+                  : 'Select a technician...'}
+            </option>
+            {technicians
+              .filter((t) => projectTeamIds.includes(t.id))
+              .map((t) => {
+                const avail = AVAILABILITY_LABELS[t.availability] || AVAILABILITY_LABELS.available;
+                return (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({avail.label})
+                  </option>
+                );
+              })}
           </select>
+          {projectId && projectTeamIds.length === 0 && (
+            <p className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mt-1">
+              No technicians assigned to this project team. Add team members first.
+            </p>
+          )}
           {technicianId && date && startTime && (
             (() => {
               const tech = technicians.find((t) => t.id === technicianId);
