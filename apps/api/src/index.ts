@@ -6,6 +6,7 @@ import { registerRoutes } from './routes/auth/register';
 import { projectRoutes } from './routes/projects';
 import { timeEntryRoutes } from './routes/time-entries';
 import { technicianRoutes } from './routes/technicians';
+import { scheduleRoutes } from './routes/schedules';
 import { registerAuth } from './middleware/auth';
 import { initWebSocket } from './websocket';
 
@@ -46,6 +47,9 @@ async function main() {
 
   // Technician routes
   await app.register(technicianRoutes);
+
+  // Schedule routes
+  await app.register(scheduleRoutes);
 
   // Start server
   try {

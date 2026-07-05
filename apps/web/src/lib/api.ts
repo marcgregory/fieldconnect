@@ -8,6 +8,10 @@ import type {
   TimeEntryWithProject,
   TechnicianAssignmentWithDetails,
   User,
+  Schedule,
+  ScheduleWithDetails,
+  CreateScheduleInput,
+  UpdateScheduleInput,
 } from '@fieldconnect/shared';
 
 /**
@@ -154,4 +158,53 @@ export async function getMyAssignments(): Promise<
 
 export async function getAvailableTechnicians(): Promise<User[]> {
   return bffFetch('/api/v1/technicians/available');
+}
+
+// ─── Schedule API ──────────────────────────────────────────────────────────
+
+export async function getSchedules(filters?: {
+  date?: string;
+  technician_id?: string;
+  project_id?: string;
+  status?: string;
+}): Promise<ScheduleWithDetails[]> {
+  const params = new URLSearchParams();
+  if (filters?.date) params.set('date', filters.date);
+  if (filters?.technician_id) params.set('technician_id', filters.technician_id);
+  if (filters?.project_id) params.set('project_id', filters.project_id);
+  if (filters?.status) params.set('status', filters.status);
+  const qs = params.toString();
+  return bffFetch(`/api/v1/schedules${qs ? `?${qs}` : ''}`);
+}
+
+export async function getCalendarSchedules(from: string, to: string): Promise<ScheduleWithDetails[]> {
+  return bffFetch(`/api/v1/schedules/calendar?from=${from}&to=${to}`);
+}
+
+export async function getUnassignedJobs(): Promise<ScheduleWithDetails[]> {
+  return bffFetch('/api/v1/schedules/unassigned');
+}
+
+export async function getSchedule(id: string): Promise<ScheduleWithDetails> {
+  return bffFetch(`/api/v1/schedules/${id}`);
+}
+
+export async function createSchedule(data: CreateScheduleInput): Promise<Schedule> {
+  return bffFetch('/api/v1/schedules', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateSchedule(id: string, data: UpdateScheduleInput): Promise<Schedule> {
+  return bffFetch(`/api/v1/schedules/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteSchedule(id: string): Promise<void> {
+  return bffFetch(`/api/v1/schedules/${id}`, {
+    method: 'DELETE',
+  });
 }

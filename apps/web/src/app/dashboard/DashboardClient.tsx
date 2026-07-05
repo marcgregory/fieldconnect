@@ -39,6 +39,11 @@ export function DashboardClient({ user }: DashboardClientProps) {
                 Projects
               </Button>
             </Link>
+            <Link href="/schedule">
+              <Button variant="secondary" size="sm">
+                Schedule
+              </Button>
+            </Link>
             <Button variant="ghost" onClick={() => signOut({ callbackUrl: '/login' })}>
               Sign Out
             </Button>
@@ -65,7 +70,7 @@ export function DashboardClient({ user }: DashboardClientProps) {
             </div>
           </Card>
 
-          <Card title="Quick Stats">
+          <Card title="Quick Links">
             <div className="space-y-3">
               <Link
                 href="/projects"
@@ -73,6 +78,13 @@ export function DashboardClient({ user }: DashboardClientProps) {
               >
                 <p className="text-sm font-medium text-gray-900">Manage Projects</p>
                 <p className="text-xs text-gray-500">Create, edit, and assign projects</p>
+              </Link>
+              <Link
+                href="/schedule"
+                className="block p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <p className="text-sm font-medium text-gray-900">Schedule</p>
+                <p className="text-xs text-gray-500">Assign technicians to jobs</p>
               </Link>
             </div>
           </Card>
@@ -88,8 +100,8 @@ export function DashboardClient({ user }: DashboardClientProps) {
                 <span className="text-sm text-gray-600">Time Tracking: Active</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-yellow-500" />
-                <span className="text-sm text-gray-600">Scheduling: Coming soon</span>
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                <span className="text-sm text-gray-600">Scheduling: Active</span>
               </div>
             </div>
           </Card>

@@ -50,6 +50,26 @@ export const clockOutSchema = z.object({
   notes: z.string().max(5000).optional(),
 });
 
+// ─── Schedule Validation ────────────────────────────────────────────────────
+
+export const createScheduleSchema = z.object({
+  project_id: z.string().uuid('Invalid project ID'),
+  technician_id: z.string().uuid('Invalid technician ID'),
+  scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export const updateScheduleSchema = z.object({
+  project_id: z.string().uuid('Invalid project ID').optional(),
+  technician_id: z.string().uuid('Invalid technician ID').optional(),
+  scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
+  notes: z.string().max(2000).optional(),
+});
+
 // ─── Technician Assignment Validation ──────────────────────────────────────
 
 export const assignTechnicianSchema = z.object({

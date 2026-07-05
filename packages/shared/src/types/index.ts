@@ -148,6 +148,61 @@ export interface ClockEvent {
   duration_hours?: number;
 }
 
+// ─── Schedule / Job Status ──────────────────────────────────────────────────
+
+export type JobStatus = 'scheduled' | 'traveling' | 'on_site' | 'completed' | 'office_review' | 'closed';
+
+export const JOB_STATUSES: JobStatus[] = [
+  'scheduled',
+  'traveling',
+  'on_site',
+  'completed',
+  'office_review',
+  'closed',
+];
+
+export interface Schedule {
+  id: string;
+  project_id: string;
+  technician_id: string;
+  scheduled_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  status: JobStatus;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleWithDetails extends Schedule {
+  project_name: string;
+  project_address: string | null;
+  technician_name: string;
+}
+
+export interface CreateScheduleInput {
+  project_id: string;
+  technician_id: string;
+  scheduled_date: string;
+  start_time?: string;
+  end_time?: string;
+  notes?: string;
+}
+
+export interface UpdateScheduleInput {
+  start_time?: string;
+  end_time?: string;
+  notes?: string;
+  technician_id?: string;
+  scheduled_date?: string;
+}
+
+export interface UpdateScheduleStatusInput {
+  status: JobStatus;
+  notes?: string;
+}
+
 // ─── API Payload Types ─────────────────────────────────────────────────────
 
 export interface ProjectListFilters {
