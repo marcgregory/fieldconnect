@@ -19,15 +19,20 @@ Last updated: 2026-07-05
   - Shared packages: @fieldconnect/shared (types, validation), @fieldconnect/ui (components)
   - All packages pass `pnpm build`, `pnpm typecheck` with zero errors
 
-## In Progress
+## Completed
 
-### Sprint 2 — Core Data Models & Time Tracking
-- Database schema migrations (projects, time_entries, technician_assignments) — partial (projects migrated)
-- Project CRUD API endpoints
-- Time tracking API (clock in/out, manual entry)
-- Mobile clock-in/out UI (iPhone-optimized)
-- Office dashboard — project list view
-- Real-time clock event push via WebSocket
+- **Sprint 2 — Core Data Models & Time Tracking** ✅
+  - Database schema migrations (time_entries, technician_assignments) — full
+  - Project CRUD API endpoints with Zod validation and role protection
+  - Time tracking API (clock in, clock out, current status, filtered listing)
+  - Technician assignment API (assign, unassign, list)
+  - Mobile clock-in/out UI with project selection, 1-tap actions, running timer (HH:MM:SS)
+  - Office projects page (CRUD, status management, technician assignments)
+  - Live status feed widget (Socket.io real-time clock events on dashboard)
+  - JWT auth middleware for Fastify with requireRole() guard
+  - Socket.io WebSocket server with JWT-authenticated handshake
+  - BFF proxy route for token forwarding
+  - All packages pass `pnpm build` and `pnpm typecheck` (11 routes)
 
 ## Sprint Queue
 

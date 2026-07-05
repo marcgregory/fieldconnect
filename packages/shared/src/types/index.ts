@@ -48,3 +48,115 @@ export interface HealthStatus {
   uptime: number;
   database: 'connected' | 'disconnected';
 }
+
+// ─── Project ───────────────────────────────────────────────────────────────
+
+export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'cancelled';
+
+export const PROJECT_STATUSES: ProjectStatus[] = [
+  'active',
+  'on_hold',
+  'completed',
+  'cancelled',
+];
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  address: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateProjectInput {
+  name: string;
+  description?: string;
+  address?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  notes?: string;
+}
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+  address?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  notes?: string;
+}
+
+// ─── Time Entry ────────────────────────────────────────────────────────────
+
+export interface TimeEntry {
+  id: string;
+  user_id: string;
+  project_id: string;
+  clock_in: string;
+  clock_out: string | null;
+  break_minutes: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ActiveTimeEntry extends TimeEntry {
+  project_name: string;
+  project_address: string | null;
+}
+
+export interface TimeEntryWithProject extends TimeEntry {
+  project_name: string;
+}
+
+export interface CreateTimeEntryInput {
+  project_id: string;
+  notes?: string;
+}
+
+// ─── Technician Assignment ─────────────────────────────────────────────────
+
+export interface TechnicianAssignment {
+  id: string;
+  project_id: string;
+  user_id: string;
+  assigned_at: string;
+}
+
+export interface TechnicianAssignmentWithDetails extends TechnicianAssignment {
+  project_name: string;
+  technician_name: string;
+  technician_role: string;
+}
+
+// ─── Clock Event (for real-time broadcast) ─────────────────────────────────
+
+export interface ClockEvent {
+  type: 'clock_in' | 'clock_out';
+  user_id: string;
+  user_name: string;
+  project_id: string;
+  project_name: string;
+  timestamp: string;
+  entry_id: string;
+  duration_hours?: number;
+}
+
+// ─── API Payload Types ─────────────────────────────────────────────────────
+
+export interface ProjectListFilters {
+  status?: ProjectStatus;
+  search?: string;
+}
+
+export interface TimeEntryFilters {
+  project_id?: string;
+  from?: string;
+  to?: string;
+}

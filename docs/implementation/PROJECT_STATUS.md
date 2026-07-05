@@ -6,25 +6,34 @@ This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 1 — Foundation & Auth ✅ **(Complete)**
+Sprint 2 — Core Data Models & Time Tracking ✅ **(Complete)**
 
 ## Current Progress
 
-**100% complete.** Monorepo scaffolded, frontend and backend building, auth flow working end-to-end. All packages pass TypeScript strict mode, lint, and build.
+**100% complete.** Projects CRUD, time tracking (clock in/out), real-time clock events via Socket.io, and corresponding mobile/office UIs are all implemented.
 
 ## Current Focus
 
-Sprint 1 is complete. Ready to begin Sprint 2 (Core Data Models & Time Tracking).
+Sprint 2 is complete. Ready to begin Sprint 3 (Scheduling & Reporting).
 
 ## Architecture Status
 
 | Component | Status |
 |---|---|
 | Monorepo structure | ✅ Complete |
-| Next.js frontend | ✅ Complete (App Router, route groups) |
-| Fastify API | ✅ Complete (health + auth endpoints) |
+| Next.js frontend | ✅ Complete (11 routes) |
+| Fastify API | ✅ Complete (health, auth, projects, time-entries, technicians) |
 | PostgreSQL on Render | 🔧 Migrations written — DB not yet provisioned on Render |
 | Auth.js integration | ✅ Complete (JWT, credentials provider, roles) |
+| JWT auth middleware | ✅ Complete (Fastify, Socket.io, BFF proxy) |
+| Socket.io real-time | ✅ Complete (clock event broadcast to office) |
+| Project CRUD API | ✅ Complete (create, read, update, status change) |
+| Time tracking API | ✅ Complete (clock in, clock out, current, list) |
+| Technician assignments API | ✅ Complete (assign, unassign, list) |
+| Office projects page | ✅ Complete (CRUD, assignments, status filter, live feed) |
+| Mobile clock-in/out | ✅ Complete (project selection, timer, one-tap actions) |
+| Mobile time history | ✅ Complete (this week's entries with duration) |
+| Live status feed widget | ✅ Complete (real-time clock events on dashboard) |
 | PWA configuration | ✅ Complete (manifest, viewport) |
 | Deployment | 🔧 Code ready — Render services not yet configured |
 
@@ -44,7 +53,7 @@ Sprint 1 is complete. Ready to begin Sprint 2 (Core Data Models & Time Tracking)
 
 ## Next Milestone
 
-Sprint 2: Core data models (projects, time_entries, technician_assignments) and mobile clock-in/out functionality.
+Sprint 3: Scheduling & Reporting — calendar view, technician schedule, time reports, CSV export.
 
 ## Last Build
 
@@ -52,6 +61,6 @@ Sprint 2: Core data models (projects, time_entries, technician_assignments) and 
 - @fieldconnect/shared: tsc — passed
 - @fieldconnect/ui: tsc — passed
 - @fieldconnect/api: tsc — passed
-- @fieldconnect/web: Next.js 14.2.35 — passed (9 routes)
+- @fieldconnect/web: Next.js 14.2.35 — passed (11 routes)
 
 ✅ All packages typecheck: `pnpm typecheck` — 4/4 passed

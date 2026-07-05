@@ -3,6 +3,11 @@ import cors from '@fastify/cors';
 import { healthRoutes } from './routes/health';
 import { loginRoutes } from './routes/auth/login';
 import { registerRoutes } from './routes/auth/register';
+import { projectRoutes } from './routes/projects';
+import { timeEntryRoutes } from './routes/time-entries';
+import { technicianRoutes } from './routes/technicians';
+import { registerAuth } from './middleware/auth';
+import { initWebSocket } from './websocket';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -23,6 +28,9 @@ async function main() {
     credentials: true,
   });
 
+  // Auth middleware (parses JWT, populates request.user)
+  registerAuth(app);
+
   // Health check routes
   await app.register(healthRoutes);
 
@@ -30,9 +38,23 @@ async function main() {
   await app.register(loginRoutes);
   await app.register(registerRoutes);
 
+  // Project routes
+  await app.register(projectRoutes);
+
+  // Time entry routes
+  await app.register(timeEntryRoutes);
+
+  // Technician routes
+  await app.register(technicianRoutes);
+
   // Start server
   try {
     await app.listen({ port: PORT, host: HOST });
+
+    // Initialize WebSocket after the server is listening
+    const httpServer = app.server;
+    initWebSocket(httpServer);
+
     console.log(`FieldConnect API running on http://${HOST}:${PORT}`);
   } catch (err) {
     app.log.error(err);

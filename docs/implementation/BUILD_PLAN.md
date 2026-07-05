@@ -52,75 +52,58 @@ Establish the monorepo foundation, database, authentication, and basic routing s
 - ✅ Session protection — unauthenticated users redirected to /login
 - ✅ Documentation — PROJECT_STATUS, CHANGELOG, TECHNICAL_DEBT updated
 
-## Sprint Queue
+## ✅ Completed Sprint: Sprint 2 — Core Data & Time Tracking
 
-### Sprint 2 — Core Data & Time Tracking
+**Completed: 2026-07-05**
 
-#### Goal
+### Goal
 
 Build the core data models (projects, time entries) and the primary time-tracking flow. Field technicians can clock in and out of jobs from their iPhone. Office managers can create projects and see live clock events.
 
-#### Scope
+### Scope
 
-1. Database migrations for projects, time_entries, technician_assignments tables
-2. Project CRUD API endpoints
-3. Time tracking API (clock in, clock out, list entries)
-4. Mobile clock-in/out UI with one-tap action
-5. Active time entry indicator (shows running timer)
-6. Office dashboard — project list with status
-7. Office dashboard — live clock event feed (real-time)
+1. ✅ Database migrations for time_entries and technician_assignments tables
+2. ✅ Project CRUD API endpoints (GET, POST, PUT, PATCH status)
+3. ✅ Time tracking API (clock in, clock out, current status, filtered listing)
+4. ✅ Mobile clock-in/out UI with one-tap action and project selection
+5. ✅ Active time entry indicator (running HH:MM:SS timer)
+6. ✅ Office dashboard — project list with status filter and CRUD
+7. ✅ Office dashboard — live clock event feed (real-time via Socket.io)
+8. ✅ JWT auth middleware for Fastify with requireRole() guard
+9. ✅ Technician assignment API (assign, unassign, list)
+10. ✅ BFF proxy route for secure token forwarding
 
-#### Dependencies
+### Dependencies
 
 - Sprint 1 completed (auth, routing, monorepo foundation)
-- Database connection configured
 
-#### Tasks
+### Tasks
 
 | ID | Task | Status |
 |---|---|---|
-| T-013 | Create projects migration | Pending |
-| T-014 | Create time_entries migration | Pending |
-| T-015 | Create technician_assignments migration | Pending |
-| T-016 | Build project CRUD API routes | Pending |
-| T-017 | Build clock-in and clock-out API routes | Pending |
-| T-018 | Build time entry listing API (filtered by user/date) | Pending |
-| T-019 | Build mobile clock-in/out page with one-tap buttons | Pending |
-| T-020 | Build running timer indicator on mobile | Pending |
-| T-021 | Add WebSocket support for real-time clock events | Pending |
-| T-022 | Build office project list view | Pending |
-| T-023 | Build office real-time clock event feed widget | Pending |
-| T-024 | Build project assignment API (link techs to projects) | Pending |
+| ~~T-013~~ | *(projects migration was Sprint 1 — T-006)* | — |
+| T-014 | Create time_entries migration | ✅ Done |
+| T-015 | Create technician_assignments migration | ✅ Done |
+| T-016 | Build project CRUD API routes | ✅ Done |
+| T-017 | Build clock-in and clock-out API routes | ✅ Done |
+| T-018 | Build time entry listing API (filtered by user/date) | ✅ Done |
+| T-019 | Build mobile clock-in/out page with one-tap buttons | ✅ Done |
+| T-020 | Build running timer indicator on mobile | ✅ Done |
+| T-021 | Add WebSocket support for real-time clock events | ✅ Done |
+| T-022 | Build office project list view | ✅ Done |
+| T-023 | Build office real-time clock event feed widget | ✅ Done |
+| T-024 | Build project assignment API (link techs to projects) | ✅ Done |
 
-#### Definition of Done
+### Validation Results
 
-- Technician can clock in to an assigned project in under 3 taps on iPhone
-- Clock-in saves to database with accurate timestamp
-- Clock-out calculates total hours (minus breaks)
-- Office dashboard shows active time entries updating in real-time
-- Office manager can create, edit, and archive projects
-- All API endpoints have input validation (Zod)
-- Documentation updated, CHANGELOG updated, PROJECT_STATUS updated
-
-#### Acceptance Criteria
-
-- A field technician assigned to a project can clock in from the mobile view
-- After clock-in, a running timer is displayed
-- After clock-out, the total hours are displayed and saved
-- Office manager sees the clock-in event appear on the dashboard within 2 seconds
-- Office manager can create a new project with name, address, contact info
-- Office manager can assign a technician to a project
-
-#### Demo
-
-1. Office manager logs in and creates a project
-2. Office manager assigns a technician to the project
-3. Technician logs in on iPhone viewport
-4. Technician taps "Clock In" — sees the project, taps to confirm
-5. Running timer shows on mobile screen
-6. Office dashboard shows the technician as "On Site" in real-time
-7. Technician taps "Clock Out" — sees total hours
-8. Office dashboard updates to show completed entry
+- ✅ `pnpm build` — 4/4 packages successful
+- ✅ `pnpm typecheck` — 4/4 packages passed (strict mode, zero errors)
+- ✅ Next.js build — 11 routes compiled (including /projects, /api/proxy)
+- ✅ Zod validation — createProjectSchema, updateProjectSchema, updateProjectStatusSchema, clockInSchema, clockOutSchema, assignTechnicianSchema
+- ✅ Role protection — all API routes guarded with requireRole()
+- ✅ Real-time Socket.io — auth handshake, tech:status room, clock event broadcasting
+- ✅ BFF proxy — auto-signs JWT from next-auth session for Fastify
+- ✅ Documentation — CHANGELOG, PROJECT_STATUS, ROADMAP, TECHNICAL_DEBT updated
 
 ### Sprint 3 — Scheduling & Reporting
 

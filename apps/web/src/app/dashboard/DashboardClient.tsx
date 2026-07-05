@@ -1,7 +1,9 @@
 'use client';
 
 import { signOut } from 'next-auth/react';
+import Link from 'next/link';
 import { Button, Card } from '@fieldconnect/ui';
+import { LiveStatusFeed } from '@/components/office/LiveStatusFeed';
 
 interface DashboardClientProps {
   user: {
@@ -31,9 +33,16 @@ export function DashboardClient({ user }: DashboardClientProps) {
               {user.name} &middot; {roleLabels[user.role] || user.role}
             </p>
           </div>
-          <Button variant="ghost" onClick={() => signOut({ callbackUrl: '/login' })}>
-            Sign Out
-          </Button>
+          <div className="flex items-center gap-3">
+            <Link href="/projects">
+              <Button variant="secondary" size="sm">
+                Projects
+              </Button>
+            </Link>
+            <Button variant="ghost" onClick={() => signOut({ callbackUrl: '/login' })}>
+              Sign Out
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -47,10 +56,25 @@ export function DashboardClient({ user }: DashboardClientProps) {
               Welcome to FieldConnect. Your role is{' '}
               <span className="font-medium text-gray-900">{roleLabels[user.role] || user.role}</span>.
             </p>
+            <div className="mt-4">
+              <Link href="/projects">
+                <Button variant="primary" size="sm">
+                  View Projects
+                </Button>
+              </Link>
+            </div>
           </Card>
 
           <Card title="Quick Stats">
-            <p className="text-gray-500 text-sm">No data yet. Complete Sprint 2 to enable time tracking.</p>
+            <div className="space-y-3">
+              <Link
+                href="/projects"
+                className="block p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                <p className="text-sm font-medium text-gray-900">Manage Projects</p>
+                <p className="text-xs text-gray-500">Create, edit, and assign projects</p>
+              </Link>
+            </div>
           </Card>
 
           <Card title="System Status">
@@ -60,8 +84,8 @@ export function DashboardClient({ user }: DashboardClientProps) {
                 <span className="text-sm text-gray-600">Authentication: Active</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-yellow-500" />
-                <span className="text-sm text-gray-600">Time Tracking: Coming soon</span>
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                <span className="text-sm text-gray-600">Time Tracking: Active</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-yellow-500" />
@@ -69,6 +93,11 @@ export function DashboardClient({ user }: DashboardClientProps) {
               </div>
             </div>
           </Card>
+
+          {/* Live Status Feed — takes full width on md+ */}
+          <div className="md:col-span-2 lg:col-span-3">
+            <LiveStatusFeed />
+          </div>
         </div>
       </main>
     </div>
