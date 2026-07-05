@@ -599,13 +599,17 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
               Contact
             </h2>
-            <p className="text-base font-medium text-gray-900">
+            <p className="text-sm text-gray-500 text-xs font-medium">Contact Person</p>
+            <p className="text-base font-medium text-gray-900 mb-2">
               {schedule.project_contact_name}
             </p>
             {schedule.project_contact_phone && (
-              <p className="text-sm text-gray-500 mt-0.5">
-                {schedule.project_contact_phone}
-              </p>
+              <>
+                <p className="text-sm text-gray-500 text-xs font-medium">Mobile</p>
+                <p className="text-sm text-gray-700">
+                  {schedule.project_contact_phone}
+                </p>
+              </>
             )}
           </div>
         )}
