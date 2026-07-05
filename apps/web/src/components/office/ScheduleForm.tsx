@@ -8,6 +8,7 @@ import type {
   ScheduleWithDetails,
   CreateScheduleInput,
   UpdateScheduleInput,
+  TechnicianAvailability,
 } from '@fieldconnect/shared';
 
 interface ScheduleFormProps {
@@ -19,6 +20,12 @@ interface ScheduleFormProps {
   onDelete?: (id: string) => void;
 }
 
+const AVAILABILITY_LABELS: Record<string, { label: string; class: string }> = {
+  available: { label: 'Available', class: 'text-green-700 bg-green-50' },
+  busy: { label: 'Busy', class: 'text-red-700 bg-red-50' },
+  buffer_conflict: { label: 'Buffer conflict', class: 'text-yellow-700 bg-yellow-50' },
+};
+
 export function ScheduleForm({
   schedule,
   defaultDate,
@@ -28,7 +35,7 @@ export function ScheduleForm({
   onDelete,
 }: ScheduleFormProps) {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [technicians, setTechnicians] = useState<User[]>([]);
+  const [technicians, setTechnicians] = useState<TechnicianAvailability[]>([]);
   const [projectId, setProjectId] = useState(schedule?.project_id || '');
   const [technicianId, setTechnicianId] = useState(schedule?.technician_id || '');
   const [date, setDate] = useState(
@@ -41,41 +48,68 @@ export function ScheduleForm({
   const [notes, setNotes] = useState(schedule?.notes || '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [loadingTechs, setLoadingTechs] = useState(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [techsLoaded, setTechsLoaded] = useState(false);
 
   const isEditing = !!schedule;
 
+  // Load projects once
   useEffect(() => {
     async function load() {
       try {
-        setLoading(true);
-        const [proj, techs] = await Promise.all([
+        setLoadingProjects(true);
+        const [proj] = await Promise.all([
           getProjects({ status: 'active' }),
-          getAvailableTechnicians(),
         ]);
         setProjects(proj);
-        setTechnicians(techs);
+        setProjectsLoaded(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
-        setLoading(false);
+        setLoadingProjects(false);
       }
     }
     load();
   }, []);
 
+  // Load technicians, optionally with availability when time slot is set
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoadingTechs(true);
+        // Pass date/time so backend returns availability status
+        const techs = await getAvailableTechnicians(
+          date || undefined,
+          startTime || undefined,
+          endTime || undefined,
+        );
+        setTechnicians(techs);
+        setTechsLoaded(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load technicians');
+      } finally {
+        setLoadingTechs(false);
+      }
+    }
+    load();
+  }, [date, startTime, endTime]);
+
   // When projects/technicians load, set selected values from schedule
   useEffect(() => {
-    if (schedule && projects.length > 0) {
+    if (schedule && projectsLoaded) {
       setProjectId(schedule.project_id);
     }
-  }, [schedule?.project_id, projects.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule?.project_id, projectsLoaded]);
 
   useEffect(() => {
-    if (schedule && technicians.length > 0) {
+    if (schedule && techsLoaded && technicians.length > 0) {
       setTechnicianId(schedule.technician_id);
     }
-  }, [schedule?.technician_id, technicians.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule?.technician_id, techsLoaded, technicians.length]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,7 +137,39 @@ export function ScheduleForm({
         await onSaved(payload as CreateScheduleInput);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
+      const msg = err instanceof Error ? err.message : 'Failed to save';
+
+      // Check if this is a conflict error with can_force_assign flag
+      const conflictErr = err as any;
+      if (conflictErr?.can_force_assign && conflictErr?.conflicts) {
+        // Admin: show confirmation dialog
+        if (confirm(
+          `Technician has schedule conflicts:\n${conflictErr.error}\n\nForce assign anyway?`,
+        )) {
+          // Resubmit with force: true
+          try {
+            const payload: any = {
+              project_id: projectId,
+              technician_id: technicianId,
+              scheduled_date: date,
+              start_time: startTime || undefined,
+              end_time: endTime || undefined,
+              notes: notes || undefined,
+              force: true,
+            };
+            if (isEditing) {
+              await onSaved({ id: schedule!.id, ...payload });
+            } else {
+              await onSaved(payload as CreateScheduleInput);
+            }
+            return;
+          } catch (innerErr) {
+            setError(innerErr instanceof Error ? innerErr.message : 'Failed to force save');
+          }
+        }
+      } else {
+        setError(msg);
+      }
     } finally {
       setSaving(false);
     }
@@ -126,7 +192,7 @@ export function ScheduleForm({
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4 whitespace-pre-line">
           {error}
         </div>
       )}
@@ -139,6 +205,7 @@ export function ScheduleForm({
             value={projectId}
             onChange={(e) => setProjectId(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            disabled={loadingProjects}
           >
             <option value="">Select a project...</option>
             {projects.map((p) => (
@@ -156,14 +223,41 @@ export function ScheduleForm({
             value={technicianId}
             onChange={(e) => setTechnicianId(e.target.value)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            disabled={loadingTechs}
           >
             <option value="">Select a technician...</option>
-            {technicians.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
+            {technicians.map((t) => {
+              const avail = AVAILABILITY_LABELS[t.availability] || AVAILABILITY_LABELS.available;
+              return (
+                <option key={t.id} value={t.id}>
+                  {t.name} ({avail.label})
+                </option>
+              );
+            })}
           </select>
+          {technicianId && date && startTime && (
+            (() => {
+              const tech = technicians.find((t) => t.id === technicianId);
+              if (tech && tech.availability !== 'available') {
+                const label = AVAILABILITY_LABELS[tech.availability]?.label || tech.availability;
+                return (
+                  <div className={`mt-1 px-2 py-1 rounded text-xs font-medium ${
+                    tech.availability === 'busy'
+                      ? 'text-red-700 bg-red-50'
+                      : 'text-yellow-700 bg-yellow-50'
+                  }`}>
+                    {label}
+                    {tech.conflict_schedule && (
+                      <span className="ml-1">
+                        — {tech.conflict_schedule.project_name} ({tech.conflict_schedule.start_time.slice(0, 5)} — {tech.conflict_schedule.end_time.slice(0, 5)})
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })()
+          )}
         </div>
 
         {/* Date */}
@@ -235,7 +329,7 @@ export function ScheduleForm({
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || loadingProjects || loadingTechs}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {saving ? 'Saving...' : isEditing ? 'Update Schedule' : 'Create Schedule'}

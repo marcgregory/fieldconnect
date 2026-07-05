@@ -59,6 +59,7 @@ export const createScheduleSchema = z.object({
   start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   notes: z.string().max(2000).optional(),
+  force: z.boolean().optional(),
 });
 
 export const updateScheduleSchema = z.object({
@@ -68,6 +69,7 @@ export const updateScheduleSchema = z.object({
   start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   notes: z.string().max(2000).optional(),
+  force: z.boolean().optional(),
 });
 
 // ─── Status Transition Validation ──────────────────────────────────────────

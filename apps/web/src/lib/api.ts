@@ -24,6 +24,7 @@ import type {
   ProjectSummaryRow,
   DashboardSummary,
   ReportFilters,
+  TechnicianAvailability,
 } from '@fieldconnect/shared';
 
 /**
@@ -52,6 +53,14 @@ async function bffFetch<T>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }));
+    // For conflict errors (409), preserve extra fields (can_force_assign, conflicts)
+    // so the UI can offer force-assign to admins
+    if (res.status === 409 && body.conflicts) {
+      const err = new Error(body.error || `Request failed: ${res.status}`) as any;
+      err.can_force_assign = body.can_force_assign;
+      err.conflicts = body.conflicts;
+      throw err;
+    }
     throw new Error(body.error || `Request failed: ${res.status}`);
   }
 
@@ -174,8 +183,17 @@ export async function getMyAssignments(): Promise<
   return bffFetch('/api/v1/technicians/assignments');
 }
 
-export async function getAvailableTechnicians(): Promise<User[]> {
-  return bffFetch('/api/v1/technicians/available');
+export async function getAvailableTechnicians(
+  date?: string,
+  startTime?: string,
+  endTime?: string,
+): Promise<TechnicianAvailability[]> {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  if (startTime) params.set('start_time', startTime);
+  if (endTime) params.set('end_time', endTime);
+  const qs = params.toString();
+  return bffFetch(`/api/v1/technicians/available${qs ? `?${qs}` : ''}`);
 }
 
 export async function getMyJobs(): Promise<ScheduleWithDetails[]> {

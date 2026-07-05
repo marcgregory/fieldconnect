@@ -14,8 +14,8 @@ import {
 import type {
   Project,
   ProjectStatus,
-  User,
   TechnicianAssignmentWithDetails,
+  TechnicianAvailability,
 } from '@fieldconnect/shared';
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string; color: string }[] = [
@@ -33,7 +33,7 @@ export function ProjectsClient() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
   const [assigningProject, setAssigningProject] = useState<string | null>(null);
-  const [availableTechs, setAvailableTechs] = useState<User[]>([]);
+  const [availableTechs, setAvailableTechs] = useState<TechnicianAvailability[]>([]);
   const [assignments, setAssignments] = useState<Record<string, TechnicianAssignmentWithDetails[]>>({});
 
   const fetchProjects = useCallback(async () => {

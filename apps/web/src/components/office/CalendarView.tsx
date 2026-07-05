@@ -13,6 +13,7 @@ interface CalendarViewProps {
 }
 
 const HOURS = Array.from({ length: 14 }, (_, i) => i + 6); // 6 AM to 8 PM
+const BUFFER_MINUTES = 30; // must match backend
 
 function formatDate(date: Date): string {
   const y = date.getFullYear();
@@ -36,6 +37,59 @@ function getSchedulesForDateAndHour(
     const entryHour = parseInt(s.start_time.split(':')[0], 10);
     return entryHour === hour;
   });
+}
+
+/**
+ * Detect conflicts among schedules for the same technician on the same date.
+ * Returns a map of schedule_id -> { hasConflict, conflictType }
+ */
+function detectConflicts(
+  schedules: ScheduleWithDetails[],
+  date: string,
+): Map<string, { hasConflict: boolean; conflictType: 'overlap' | 'buffer' | null }> {
+  const conflictMap = new Map<string, { hasConflict: boolean; conflictType: 'overlap' | 'buffer' | null }>();
+
+  // Group schedules by technician on this date
+  const dateSchedules = schedules.filter((s) => s.scheduled_date === date && s.start_time && s.end_time);
+  const byTechnician = new Map<string, ScheduleWithDetails[]>();
+  for (const s of dateSchedules) {
+    const techSchedules = byTechnician.get(s.technician_id) || [];
+    techSchedules.push(s);
+    byTechnician.set(s.technician_id, techSchedules);
+  }
+
+  for (const [, techSchedules] of byTechnician) {
+    for (const s of techSchedules) {
+      const sStart = timeToMinutes(s.start_time!);
+      const sEnd = timeToMinutes(s.end_time!);
+
+      for (const other of techSchedules) {
+        if (other.id === s.id) continue;
+        const oStart = timeToMinutes(other.start_time!);
+        const oEnd = timeToMinutes(other.end_time!);
+
+        // Conflict rule: existing.start_time < requested.end_time + buffer
+        //               AND existing.end_time + buffer > requested.start_time
+        if (oStart < sEnd + BUFFER_MINUTES && oEnd + BUFFER_MINUTES > sStart) {
+          const isOverlap = oStart < sEnd && oEnd > sStart;
+          const existing = conflictMap.get(s.id);
+          if (!existing || (existing.conflictType === 'buffer' && isOverlap)) {
+            conflictMap.set(s.id, {
+              hasConflict: true,
+              conflictType: isOverlap ? 'overlap' : 'buffer',
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return conflictMap;
+}
+
+function timeToMinutes(time: string): number {
+  const parts = time.split(':').map(Number);
+  return parts[0] * 60 + parts[1];
 }
 
 export function CalendarView({
@@ -78,6 +132,7 @@ function DayView({
   onScheduleClick: (schedule: ScheduleWithDetails) => void;
 }) {
   const dateStr = formatDate(currentDate);
+  const conflictMap = detectConflicts(schedules, dateStr);
 
   // Schedules without a time slot go in a "no time" section
   const noTimeSchedules = schedules.filter((s) => !s.start_time);
@@ -130,13 +185,18 @@ function DayView({
               >
                 {slotSchedules.length > 0 ? (
                   <div className="space-y-1">
-                    {slotSchedules.map((s) => (
-                      <ScheduleCard
-                        key={s.id}
-                        schedule={s}
-                        onClick={() => onScheduleClick(s)}
-                      />
-                    ))}
+                    {slotSchedules.map((s) => {
+                      const conflict = conflictMap.get(s.id);
+                      return (
+                        <ScheduleCard
+                          key={s.id}
+                          schedule={s}
+                          onClick={() => onScheduleClick(s)}
+                          hasConflict={conflict?.hasConflict}
+                          conflictType={conflict?.conflictType}
+                        />
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="h-full min-h-[40px] flex items-center">
@@ -184,6 +244,13 @@ function WeekView({
     return d;
   });
 
+  // Pre-compute conflict maps per day
+  const conflictMaps = new Map<string, Map<string, { hasConflict: boolean; conflictType: 'overlap' | 'buffer' | null }>>();
+  for (const day of days) {
+    const dateStr = formatDate(day);
+    conflictMaps.set(dateStr, detectConflicts(schedules, dateStr));
+  }
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
       <div className="min-w-[700px]">
@@ -230,6 +297,7 @@ function WeekView({
                 {days.map((day) => {
                   const dateStr = formatDate(day);
                   const slotSchedules = getSchedulesForDateAndHour(schedules, dateStr, hour);
+                  const conflictMap = conflictMaps.get(dateStr) || new Map();
 
                   return (
                     <div
@@ -239,14 +307,19 @@ function WeekView({
                     >
                       {slotSchedules.length > 0 ? (
                         <div className="space-y-0.5">
-                          {slotSchedules.map((s) => (
-                            <ScheduleCard
-                              key={s.id}
-                              schedule={s}
-                              compact
-                              onClick={() => onScheduleClick(s)}
-                            />
-                          ))}
+                          {slotSchedules.map((s) => {
+                            const conflict = conflictMap.get(s.id);
+                            return (
+                              <ScheduleCard
+                                key={s.id}
+                                schedule={s}
+                                compact
+                                onClick={() => onScheduleClick(s)}
+                                hasConflict={conflict?.hasConflict}
+                                conflictType={conflict?.conflictType}
+                              />
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="h-full min-h-[30px]" />

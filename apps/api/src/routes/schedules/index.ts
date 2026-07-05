@@ -14,11 +14,12 @@ import { jobAttachmentRoutes } from './job-attachments';
 import { signatureRoutes } from './signatures';
 
 export async function scheduleRoutes(app: FastifyInstance) {
-  // ─── Register field data sub-routes ──────────────────────────────────────
+  // --- Register field data sub-routes ----------------------------------------
   await app.register(jobNoteRoutes);
   await app.register(jobAttachmentRoutes);
   await app.register(signatureRoutes);
-  // ─── List Schedules ───────────────────────────────────────────────────────
+
+  // --- List Schedules ---------------------------------------------------------
   app.get('/api/v1/schedules', async (request, reply) => {
     if (!request.user) {
       return reply.status(401).send({ success: false, error: 'Authentication required' });
@@ -41,7 +42,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     return { success: true, data: schedules };
   });
 
-  // ─── Calendar Range ───────────────────────────────────────────────────────
+  // --- Calendar Range ---------------------------------------------------------
   app.get('/api/v1/schedules/calendar', async (request, reply) => {
     if (!request.user) {
       return reply.status(401).send({ success: false, error: 'Authentication required' });
@@ -59,7 +60,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     return { success: true, data: schedules };
   });
 
-  // ─── Unassigned Jobs Queue ────────────────────────────────────────────────
+  // --- Unassigned Jobs Queue --------------------------------------------------
   app.get(
     '/api/v1/schedules/unassigned',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
@@ -69,7 +70,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── My Jobs (for logged-in field technician) ────────────────────────────
+  // --- My Jobs (for logged-in field technician) ------------------------------
   app.get(
     '/api/v1/schedules/my-jobs',
     { preHandler: [requireRole('field_technician', 'admin')] },
@@ -81,7 +82,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── Get Single Schedule ──────────────────────────────────────────────────
+  // --- Get Single Schedule ----------------------------------------------------
   app.get('/api/v1/schedules/:id', async (request, reply) => {
     if (!request.user) {
       return reply.status(401).send({ success: false, error: 'Authentication required' });
@@ -97,7 +98,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     return { success: true, data: schedule };
   });
 
-  // ─── Create Schedule ──────────────────────────────────────────────────────
+  // --- Create Schedule --------------------------------------------------------
   app.post(
     '/api/v1/schedules',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
@@ -110,18 +111,37 @@ export async function scheduleRoutes(app: FastifyInstance) {
         });
       }
 
+      // Conflict check (skip if admin sent force: true)
+      const { force, ...createData } = parsed.data;
+      if (!force && createData.start_time && createData.end_time) {
+        const conflicts = await scheduleQueries.findConflicts(
+          createData.technician_id,
+          createData.scheduled_date,
+          createData.start_time,
+          createData.end_time,
+        );
+        if (conflicts.length > 0) {
+          const canForce = request.user!.role === 'admin';
+          return reply.status(409).send({
+            success: false,
+            error: scheduleQueries.formatConflictError(conflicts),
+            conflicts,
+            can_force_assign: canForce,
+          });
+        }
+      }
+
       const schedule = await scheduleQueries.create({
-        ...parsed.data,
+        ...createData,
         created_by: request.user!.id,
       });
 
       // Broadcast assignment event
-      // Fetch created schedule with details for the event payload
       const createdWithDetails = await scheduleQueries.findById(schedule.id);
       broadcastJobEvent({
         type: 'assignment',
         schedule_id: schedule.id,
-        project_name: createdWithDetails?.project_name || parsed.data.project_id,
+        project_name: createdWithDetails?.project_name || createData.project_id,
         technician_name: createdWithDetails?.technician_name || '',
         old_status: null,
         new_status: 'scheduled',
@@ -134,7 +154,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── Update Schedule ──────────────────────────────────────────────────────
+  // --- Update Schedule --------------------------------------------------------
   app.put(
     '/api/v1/schedules/:id',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
@@ -154,10 +174,33 @@ export async function scheduleRoutes(app: FastifyInstance) {
         return reply.status(404).send({ success: false, error: 'Schedule not found' });
       }
 
-      const schedule = await scheduleQueries.update(id, parsed.data);
+      // Conflict check on update (skip if admin sent force: true)
+      const { force, ...updateData } = parsed.data;
+      if (!force && updateData.start_time && updateData.end_time) {
+        const effectiveTechnicianId = updateData.technician_id || existing.technician_id;
+        const effectiveDate = updateData.scheduled_date || existing.scheduled_date;
+        const conflicts = await scheduleQueries.findConflicts(
+          effectiveTechnicianId,
+          effectiveDate,
+          updateData.start_time,
+          updateData.end_time,
+          id, // exclude this schedule from conflict check
+        );
+        if (conflicts.length > 0) {
+          const canForce = request.user!.role === 'admin';
+          return reply.status(409).send({
+            success: false,
+            error: scheduleQueries.formatConflictError(conflicts),
+            conflicts,
+            can_force_assign: canForce,
+          });
+        }
+      }
+
+      const schedule = await scheduleQueries.update(id, updateData);
 
       // If technician changed, broadcast reassignment event
-      const newTechnicianId = parsed.data.technician_id;
+      const newTechnicianId = updateData.technician_id;
       if (newTechnicianId && newTechnicianId !== existing.technician_id) {
         const updatedWithDetails = await scheduleQueries.findById(id);
         broadcastJobEvent({
@@ -177,7 +220,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── Update Status (Status Transition) ───────────────────────────────
+  // --- Update Status (Status Transition) ------------------------------------
   app.patch(
     '/api/v1/schedules/:id/status',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher', 'field_technician')] },
@@ -234,7 +277,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── Delete Schedule ──────────────────────────────────────────────────────
+  // --- Delete Schedule --------------------------------------------------------
   app.delete(
     '/api/v1/schedules/:id',
     { preHandler: [requireRole('admin')] },

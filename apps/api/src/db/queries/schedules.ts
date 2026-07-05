@@ -284,6 +284,105 @@ export async function deleteById(id: string): Promise<boolean> {
   return (result.rowCount ?? 0) > 0;
 }
 
+// ─── Conflict Detection ────────────────────────────────────────────────────
+
+export interface ConflictInfo {
+  id: string;
+  project_name: string;
+  start_time: string;
+  end_time: string;
+  conflict_type: 'overlap' | 'buffer';
+}
+
+const BUFFER_MINUTES = 30;
+
+/**
+ * Find schedule conflicts for a technician on a given date.
+ * Conflict rule: existing.start_time < requested.end_time + buffer
+ *                AND existing.end_time + buffer > requested.start_time
+ *
+ * Pass excludeScheduleId when updating an existing schedule to exclude it
+ * from the conflict check.
+ */
+export async function findConflicts(
+  technicianId: string,
+  scheduledDate: string,
+  startTime: string,
+  endTime: string,
+  excludeScheduleId?: string,
+): Promise<ConflictInfo[]> {
+  // Convert time strings to minutes-since-midnight for comparison
+  const startParts = startTime.split(':').map(Number);
+  const endParts = endTime.split(':').map(Number);
+  const requestedStart = startParts[0] * 60 + startParts[1];
+  const requestedEnd = endParts[0] * 60 + endParts[1];
+
+  // Fetch all schedules for this technician on this date with time slots
+  let sql = `
+    SELECT s.id, s.start_time, s.end_time, p.name AS project_name
+    FROM schedules s
+    JOIN projects p ON p.id = s.project_id
+    WHERE s.technician_id = $1
+      AND s.scheduled_date = $2
+      AND s.start_time IS NOT NULL
+      AND s.end_time IS NOT NULL
+  `;
+  const params: unknown[] = [technicianId, scheduledDate];
+  let paramIndex = 3;
+
+  if (excludeScheduleId) {
+    sql += ` AND s.id != $${paramIndex++}`;
+    params.push(excludeScheduleId);
+  }
+
+  sql += ' ORDER BY s.start_time';
+
+  const result = await query(sql, params);
+
+  const conflicts: ConflictInfo[] = [];
+  for (const row of result.rows) {
+    const existingParts = row.start_time.split(':').map(Number);
+    const existingEndParts = row.end_time.split(':').map(Number);
+    const existingStart = existingParts[0] * 60 + existingParts[1];
+    const existingEnd = existingEndParts[0] * 60 + existingEndParts[1];
+
+    // Conflict: existing.start_time < requested.end_time + buffer
+    //           AND existing.end_time + buffer > requested.start_time
+    const requestedEndWithBuffer = requestedEnd + BUFFER_MINUTES;
+    const existingEndWithBuffer = existingEnd + BUFFER_MINUTES;
+
+    if (existingStart < requestedEndWithBuffer && existingEndWithBuffer > requestedStart) {
+      // Determine if it's an actual overlap or just a buffer conflict
+      const isOverlap = existingStart < requestedEnd && existingEnd > requestedStart;
+      conflicts.push({
+        id: row.id,
+        project_name: row.project_name,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        conflict_type: isOverlap ? 'overlap' : 'buffer',
+      });
+    }
+  }
+
+  return conflicts;
+}
+
+/**
+ * Build a human-readable conflict error message.
+ */
+export function formatConflictError(conflicts: ConflictInfo[]): string {
+  const details = conflicts.map((c) => {
+    const start = c.start_time.slice(0, 5);
+    const end = c.end_time.slice(0, 5);
+    const reason =
+      c.conflict_type === 'overlap'
+        ? 'Overlaps with existing job'
+        : 'Within 30-minute buffer';
+    return `"${c.project_name}" (${start} — ${end}) — ${reason}`;
+  });
+  return `Technician has schedule conflicts:\n${details.join('\n')}\nMinimum 30-minute buffer required.`;
+}
+
 // ─── Status Transition with Transaction ───────────────────────────────────
 
 export interface UpdateStatusResult {

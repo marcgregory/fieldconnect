@@ -193,6 +193,7 @@ export interface CreateScheduleInput {
   start_time?: string;
   end_time?: string;
   notes?: string;
+  force?: boolean;
 }
 
 export interface UpdateScheduleInput {
@@ -201,6 +202,22 @@ export interface UpdateScheduleInput {
   notes?: string;
   technician_id?: string;
   scheduled_date?: string;
+  force?: boolean;
+}
+
+export interface ConflictSchedule {
+  project_name: string;
+  start_time: string;
+  end_time: string;
+}
+
+export interface TechnicianAvailability {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  availability: 'available' | 'busy' | 'buffer_conflict';
+  conflict_schedule: ConflictSchedule | null;
 }
 
 export interface UpdateScheduleStatusInput {

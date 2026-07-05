@@ -495,7 +495,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         <div className="text-center py-16">
           <h3 className="text-lg font-semibold text-gray-500 mb-1">Job Not Found</h3>
           <p className="text-sm text-gray-400 mb-4">
-            This job may have been removed or you don't have access.
+            This job may have been removed or you do not have access.
           </p>
           <button
             onClick={() => router.push('/jobs')}

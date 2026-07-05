@@ -6,6 +6,8 @@ interface ScheduleCardProps {
   schedule: ScheduleWithDetails;
   compact?: boolean;
   onClick?: () => void;
+  hasConflict?: boolean;
+  conflictType?: 'overlap' | 'buffer' | null;
 }
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
@@ -26,8 +28,14 @@ const STATUS_LABELS: Record<string, string> = {
   closed: 'Closed',
 };
 
-export function ScheduleCard({ schedule, compact = false, onClick }: ScheduleCardProps) {
+const CONFLICT_STYLES: Record<string, string> = {
+  overlap: 'border-red-400 !border-2 !border-red-400',
+  buffer: 'border-yellow-400 !border-2 !border-yellow-400',
+};
+
+export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, conflictType }: ScheduleCardProps) {
   const style = STATUS_STYLES[schedule.status] || STATUS_STYLES.scheduled;
+  const conflictStyle = hasConflict && conflictType ? CONFLICT_STYLES[conflictType] || '' : '';
 
   function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -38,9 +46,16 @@ export function ScheduleCard({ schedule, compact = false, onClick }: ScheduleCar
     return (
       <button
         onClick={handleClick}
-        className={`w-full text-left border rounded-lg px-2 py-1.5 ${style.bg} ${style.text} hover:shadow-sm transition-shadow`}
+        className={`w-full text-left border rounded-lg px-2 py-1.5 ${style.bg} ${style.text} hover:shadow-sm transition-shadow ${conflictStyle}`}
       >
-        <p className="text-xs font-medium truncate">{schedule.project_name}</p>
+        <div className="flex items-center gap-1">
+          {hasConflict && (
+            <span className={`text-[10px] ${conflictType === 'overlap' ? 'text-red-600' : 'text-yellow-600'}`}>
+              {conflictType === 'overlap' ? '⚠' : '⏳'}
+            </span>
+          )}
+          <p className="text-xs font-medium truncate">{schedule.project_name}</p>
+        </div>
         <p className="text-[10px] opacity-75 truncate">{schedule.technician_name}</p>
       </button>
     );
@@ -50,10 +65,20 @@ export function ScheduleCard({ schedule, compact = false, onClick }: ScheduleCar
     <button
       onClick={handleClick}
       draggable
-      className={`w-full text-left border rounded-lg px-3 py-2 ${style.bg} ${style.text} hover:shadow-sm transition-shadow cursor-pointer active:cursor-grabbing`}
+      className={`w-full text-left border rounded-lg px-3 py-2 ${style.bg} ${style.text} hover:shadow-sm transition-shadow cursor-pointer active:cursor-grabbing ${conflictStyle}`}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold truncate">{schedule.project_name}</p>
+        <div className="flex items-center gap-1 min-w-0">
+          {hasConflict && (
+            <span
+              className={`text-xs flex-shrink-0 ${conflictType === 'overlap' ? 'text-red-600' : 'text-yellow-600'}`}
+              title={conflictType === 'overlap' ? 'Overlaps with another job' : 'Within 30-minute buffer of another job'}
+            >
+              {conflictType === 'overlap' ? '⚠' : '⏳'}
+            </span>
+          )}
+          <p className="text-sm font-semibold truncate">{schedule.project_name}</p>
+        </div>
         <span className={`inline-flex items-center gap-1 text-[10px] font-medium whitespace-nowrap`}>
           <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
           {STATUS_LABELS[schedule.status] || schedule.status}
