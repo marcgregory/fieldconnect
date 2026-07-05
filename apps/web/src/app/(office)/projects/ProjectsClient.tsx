@@ -43,6 +43,18 @@ export function ProjectsClient() {
         statusFilter !== 'all' ? { status: statusFilter } : undefined,
       );
       setProjects(data);
+
+      // Load assignments for all projects
+      const allAssignments: Record<string, TechnicianAssignmentWithDetails[]> = {};
+      await Promise.all(data.map(async (project) => {
+        try {
+          const projectAssignments = await getProjectAssignments(project.id);
+          allAssignments[project.id] = projectAssignments;
+        } catch {
+          allAssignments[project.id] = [];
+        }
+      }));
+      setAssignments(allAssignments);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load projects');
     } finally {
@@ -313,11 +325,11 @@ export function ProjectsClient() {
               </p>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {availableTechs.map((tech) => {
-                  const isAlreadyAssigned = assignments[assigningProject]?.some(
+                {availableTechs
+                  .filter((tech) => !assignments[assigningProject]?.some(
                     (a) => a.user_id === tech.id,
-                  );
-                  return (
+                  ))
+                  .map((tech) => (
                     <div
                       key={tech.id}
                       className="flex justify-between items-center px-3 py-2 rounded-lg hover:bg-gray-50"
@@ -326,19 +338,14 @@ export function ProjectsClient() {
                         <p className="text-sm font-medium text-gray-900">{tech.name}</p>
                         <p className="text-xs text-gray-500">{tech.email}</p>
                       </div>
-                      {isAlreadyAssigned ? (
-                        <span className="text-xs text-green-600 font-medium">Assigned</span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          onClick={() => handleAssign(tech.id)}
-                        >
-                          Assign
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        onClick={() => handleAssign(tech.id)}
+                      >
+                        Assign
+                      </Button>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             )}
 
