@@ -2,6 +2,31 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.6.0 — 2026-07-06
+
+### Added
+
+- **Sprint 5 — GPS & Field Operations** ✅
+  - **Phase A — GPS Location Stamping**: GPS coordinates at clock in/out, customer site coords, Haversine distance calculation, Google Maps links, `geofence_radius` field
+  - **Phase B — Soft Geofencing**: Geofence status on every clock in/out, Inside/Outside badge on mobile, office geofence visibility in review, GPS accuracy (±N m) stored
+  - **Phase C — Photo Geotagging**: GPS metadata on uploaded photos, distance from site, EXIF + DB metadata, office review photo GPS badges
+  - **Phase D — Configurable Geofence Enforcement**: Per-project `geofence_radius`, `geofence_action` field (`warning` / `block_clock_in` / `require_override`), warning on outside-geofence clock-in, office override
+- **Multi-Technician Scheduling**: `schedule_technicians` junction table, conflict detection (overlap + 30-min buffer), team assignment before scheduling
+- **Persistent Auth Sessions**: Refresh token rotation (30-day), `/api/v1/auth/refresh`, `/api/v1/auth/logout` with token revocation
+- **Production migration runner**: Custom `migrate.ts` reads `DATABASE_URL` from Render env directly — no dotenv dependency, no timestamp-format requirement
+- **Restorative migration 017**: Idempotent catch-up that creates `schedule_technicians` and handles missing migrations gracefully
+
+### Changed
+
+- **render.yaml**: `startCommand` uses new `migrate.js` runner instead of `pnpm db:migrate` for reliable production migration
+- **Schedule API**: Now accepts `technician_ids[]` for multi-technician scheduling alongside legacy single-tech support
+- **Auth API**: Login returns `refresh_token` instead of JWT; client must exchange via `/auth/refresh` for JWT (access token)
+
+### Fixed
+
+- **Production migration gap**: Migrations 014–016 never applied on Render due to `node-pg-migrate` NNN_ naming issue and `.env` override of `DATABASE_URL`
+- **Schedule endpoint 500**: `relation "schedule_technicians" does not exist` resolved by restorative migration 017
+
 ## v0.5.2 — 2026-07-06
 
 ### Added

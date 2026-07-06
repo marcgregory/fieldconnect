@@ -73,42 +73,39 @@ Last updated: 2026-07-06
     - Distance calculation
     - Google Maps links
 
+## Completed
+
+- **Sprint 5 — GPS & Field Operations** ✅
+  - **Phase A — GPS Clock In/Out** ✅ — GPS coordinates captured at clock in/out, customer site coordinates, distance calculation (Haversine), Google Maps links
+  - **Phase B — Soft Geofencing** ✅ — Distance from site, Inside/Outside badge, office visibility, no blocking
+  - **Phase C — Photo Geotagging** ✅ — GPS on uploaded photos, distance from site, EXIF + DB metadata, review integration
+  - **Phase D — Configurable Geofence Enforcement** ✅ — Per-project radius, warning or block (configurable), office override
+  - **Multi-technician scheduling** ✅ — schedule_technicians junction table, conflict detection, team assignment
+  - **Persistent auth sessions** ✅ — Refresh token rotation, 30-day sessions, device tracking
+  - **Geo-action enforcement** ✅ — geofence_action field (warning / block_clock_in / require_override)
+
 ## Sprint Queue
 
-### Sprint 5 — GPS & Field Operations (🚧 Phase C In Progress)
+### Sprint 6 — Customer Completion Report PDF (🚧 In Progress)
 
-- **Phase B — Soft Geofencing** ✅
-  - Calculate distance from site
-  - Inside/Outside badge
-  - Office visibility
-  - No blocking
-
-### Sprint Queue
-
-- **Phase C — Photo Geotagging** 🚧
-  - GPS on uploaded photos
-  - Distance from site
-  - EXIF + DB metadata
-  - Review integration
-
-- **Phase D — Configurable Geofence Enforcement**
-  - Per-project radius
-  - Warning or block (configurable)
-  - Office override
-
-- **Phase E — Optional Route History**
-  - Opt-in
-  - Active jobs only
-  - Configurable interval
-  - Polyline map
+- Auto-generated PDF with all job evidence
+- Job summary with project info and schedule details
+- Technician name, dates, and signature
+- Before/after photos embedded in report
+- Customer signature page
+- GPS evidence (clock-in location, distance from site, geofence status)
+- Job notes included
+- PDF download link on office review page
+- Email delivery option
 
 ## Future
 
-- Advanced reporting (PDF export, charts)
-- Push notifications for schedule changes
-- Audit log viewer UI for admin
-- Integration with existing tools data migration
+- Sprint 7: Advanced reporting (PDF export, charts)
+- Sprint 8: Push notifications for schedule changes
+- Sprint 9: Audit log viewer UI for admin
+- Sprint 10: Integration with existing tools data migration
 - File storage migration to S3-compatible cloud
+- GPS Route History (Phase E — deferred, optional, expensive)
 
 ## Blocked
 
