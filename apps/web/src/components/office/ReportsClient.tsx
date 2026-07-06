@@ -79,15 +79,10 @@ export function ReportsClient() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-xl font-bold text-gray-900">Reports</h1>
-          <p className="text-sm text-gray-500">Time reports and summaries</p>
-        </div>
-      </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <h1 className="text-xl font-bold text-gray-900 mb-1">Reports</h1>
+        <p className="text-sm text-gray-500 mb-6">Time reports and summaries</p>
+
         {/* Date Filters */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
           <div className="flex items-end gap-4 flex-wrap">

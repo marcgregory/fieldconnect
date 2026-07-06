@@ -1,62 +1,13 @@
 'use client';
 
-import { signOut } from 'next-auth/react';
 import Link from 'next/link';
-import { Button, Card } from '@fieldconnect/ui';
+import { Card } from '@fieldconnect/ui';
 import { LiveStatusFeed } from '@/components/office/LiveStatusFeed';
 import { DashboardSummaryCards } from '@/components/office/DashboardSummaryCards';
 
-interface DashboardClientProps {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
-}
-
-export function DashboardClient({ user }: DashboardClientProps) {
-  const roleLabels: Record<string, string> = {
-    admin: 'Administrator',
-    office_manager: 'Office Manager',
-    dispatcher: 'Dispatcher',
-    field_technician: 'Field Technician',
-  };
-
+export function DashboardClient() {
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">FieldConnect</h1>
-            <p className="text-sm text-gray-500">
-              {user.name} &middot; {roleLabels[user.role] || user.role}
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/projects">
-              <Button variant="secondary" size="sm">
-                Projects
-              </Button>
-            </Link>
-            <Link href="/schedule">
-              <Button variant="secondary" size="sm">
-                Schedule
-              </Button>
-            </Link>
-            <Link href="/reports">
-              <Button variant="secondary" size="sm">
-                Reports
-              </Button>
-            </Link>
-            <Button variant="ghost" onClick={() => signOut({ callbackUrl: '/login' })}>
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
-
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h2 className="text-2xl font-semibold text-gray-900 mb-6">Dashboard</h2>

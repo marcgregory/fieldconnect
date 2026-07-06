@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
+import { useSession, signOut } from 'next-auth/react';
 
 interface NavItem {
   label: string;
@@ -57,7 +57,7 @@ export function OfficeNav() {
             })}
           </div>
 
-          {/* User Info */}
+          {/* User Info + Sign Out */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <span className="text-sm text-gray-500 hidden sm:block">
               {session.user.name}
@@ -65,6 +65,15 @@ export function OfficeNav() {
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 capitalize">
               {session.user.role.replace('_', ' ')}
             </span>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="text-sm text-gray-400 hover:text-red-600 transition-colors"
+              title="Sign Out"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

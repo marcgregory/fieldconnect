@@ -15,5 +15,5 @@ export default async function DashboardPage() {
     redirect('/mobile');
   }
 
-  return <DashboardClient user={session.user} />;
+  return <DashboardClient />;
 }

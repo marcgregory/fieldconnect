@@ -339,21 +339,11 @@ export function ReviewClient() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Work Review</h1>
-              <p className="text-sm text-gray-500">
-                {schedules.length} work completed job{schedules.length !== 1 ? 's' : ''} pending review
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <h1 className="text-xl font-bold text-gray-900 mb-1">Work Review</h1>
+        <p className="text-sm text-gray-500 mb-6">
+          {schedules.length} work completed job{schedules.length !== 1 ? 's' : ''} pending review
+        </p>
         {/* Error State */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-6">

@@ -191,22 +191,17 @@ export function ScheduleClient() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-900">Schedule</h1>
-            <button
-              onClick={handleCreateNew}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              + New Schedule
-            </button>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl font-bold text-gray-900">Schedule</h1>
+          <button
+            onClick={handleCreateNew}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            + New Schedule
+          </button>
+        </div>
+
         {/* Controls */}
         <div className="flex items-center justify-between mb-6 bg-white rounded-xl border border-gray-200 p-4">
           <div className="flex items-center gap-3">
