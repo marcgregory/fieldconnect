@@ -150,6 +150,7 @@ export interface TechnicianAssignment {
 
 export interface TechnicianAssignmentWithDetails extends TechnicianAssignment {
   project_name: string;
+  project_status: ProjectStatus;
   technician_name: string;
   technician_role: string;
   project_latitude?: number | null;

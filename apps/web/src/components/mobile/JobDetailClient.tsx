@@ -567,6 +567,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               className="w-full h-32 object-cover"
               loading="lazy"
             />
+            {!isClosed && (
             <button
               onClick={() => handleDeleteAttachment(att.id)}
               className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/70 transition-colors"
@@ -574,6 +575,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             >
               &times;
             </button>
+            )}
             {att.id.startsWith('offline-') && (
               <div className="absolute bottom-1 left-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded">
                 Pending
@@ -587,12 +589,14 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             </svg>
             <p className="text-xs text-gray-700 truncate">{att.file_name}</p>
             <p className="text-xs text-gray-400">{formatFileSize(att.file_size)}</p>
+            {!isClosed && (
             <button
               onClick={() => handleDeleteAttachment(att.id)}
               className="mt-1 text-xs text-red-500 hover:text-red-700"
             >
               Delete
             </button>
+            )}
           </div>
         )}
         <div className="px-2 py-1 flex items-center justify-between bg-gray-50">
@@ -654,6 +658,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
 
   const statusConfig = STATUS_CONFIG[schedule.status] || STATUS_CONFIG.scheduled;
   const currentStep = statusConfig.step;
+  const isClosed = schedule.status === 'closed';
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -813,7 +818,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             Technician Notes
           </h2>
 
-          {/* Note Input */}
+          {/* Note Input — hidden for closed (read-only) jobs */}
+          {!isClosed && (
           <div className="flex gap-2 mb-4">
             <input
               type="text"
@@ -837,6 +843,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               {saving ? '...' : 'Add'}
             </button>
           </div>
+          )}
 
           {/* Notes List */}
           {notes.length === 0 ? (
@@ -908,7 +915,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             })}
           </div>
 
-          {/* Upload button */}
+          {/* Upload button — hidden for closed (read-only) jobs */}
+          {!isClosed && (
           <div className="flex gap-2 mb-4">
             <label className="flex-1">
               <input
@@ -944,6 +952,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               </div>
             </label>
           </div>
+          )}
 
           {/* ── Photos (before & after) ────────────────────────────────────── */}
           {(() => {
@@ -985,6 +994,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             Signatures
           </h2>
 
+          {/* Capture Signature button — hidden for closed (read-only) jobs */}
+          {!isClosed && (
           <button
             onClick={() => setShowSignaturePad(true)}
             className="w-full mb-4 px-4 py-3 border-2 border-dashed border-gray-300 text-gray-500 rounded-xl text-sm font-medium active:bg-gray-50 transition-colors hover:border-blue-400 hover:text-blue-600"
@@ -994,6 +1005,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             </svg>
             Capture Signature
           </button>
+          )}
 
           {signatures.length === 0 ? (
             <p className="text-sm text-gray-400 italic">No signatures yet</p>
@@ -1105,6 +1117,9 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
 
       {/* Action Buttons */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-4 space-y-3">
+        {/* Status transition buttons — hidden for closed (read-only) jobs */}
+        {!isClosed && (
+          <>
         {nextAction && nextAction.status === 'completed' && schedule.status === 'on_site' && (
           <>
             <button
@@ -1157,6 +1172,21 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </button>
         )}
 
+        {!isClosed && nextAction == null && schedule.status !== 'completed' && (
+          <p className="text-center text-sm text-gray-400 italic">No further actions</p>
+        )}
+          </>
+        )}
+
+        {isClosed && (
+          <div className="w-full bg-green-50 border border-green-200 text-green-800 rounded-xl py-4 text-base font-semibold text-center">
+            ✓ Job Closed
+            <span className="block text-sm font-normal text-green-600 mt-0.5">
+              This work order has been completed and approved by the office. This page is read-only.
+            </span>
+          </div>
+        )}
+
         {schedule.status === 'completed' && (
           <div className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-4 text-base font-semibold text-center">
             Work Completed
@@ -1164,7 +1194,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </div>
         )}
 
-        {schedule.project_address && schedule.status !== 'completed' && schedule.status !== 'closed' && (
+        {schedule.project_address && schedule.status !== 'completed' && (
           <button
             onClick={handleStartNavigation}
             className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors flex items-center justify-center gap-2"

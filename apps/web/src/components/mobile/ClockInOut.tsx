@@ -76,6 +76,10 @@ function GeofenceBadge({ status }: { status: GeofenceStatus }) {
 export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
   const [assignments, setAssignments] = useState<TechnicianAssignmentWithDetails[]>([]);
+  // Filter to only clock-in-eligible projects (exclude completed/cancelled work)
+  const clockableAssignments = assignments.filter(
+    (a) => a.project_status !== 'completed' && a.project_status !== 'cancelled',
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
@@ -423,7 +427,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
         )}
 
         {/* Project Selection */}
-        {assignments.length === 0 ? (
+        {clockableAssignments.length === 0 ? (
           <div className="py-6">
             <p className="text-gray-400 text-sm mb-3">
               No active projects assigned yet.
@@ -434,7 +438,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
           </div>
         ) : (
           <div className="space-y-2 mb-4">
-            {assignments.map((assignment) => {
+            {clockableAssignments.map((assignment) => {
               const hasProjectCoords = assignment.project_latitude && assignment.project_longitude;
               return (
                 <button
@@ -474,7 +478,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
         {/* Clock In Button */}
         <button
           onClick={handleClockIn}
-          disabled={actionLoading || assignments.length === 0 || !selectedProjectId}
+          disabled={actionLoading || clockableAssignments.length === 0 || !selectedProjectId}
           className="w-full bg-blue-600 text-white rounded-xl py-5 text-xl font-bold shadow-lg active:bg-blue-700 transition-colors disabled:opacity-50 disabled:active:bg-blue-600"
         >
           {actionLoading ? (
