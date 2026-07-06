@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getDashboardSummary } from '@/lib/api';
+import { useSocket } from '@/hooks/useSocket';
 import type { DashboardSummary } from '@fieldconnect/shared';
 
 export function DashboardSummaryCards() {
@@ -27,6 +28,13 @@ export function DashboardSummaryCards() {
     const interval = setInterval(fetchSummary, 60000);
     return () => clearInterval(interval);
   }, [fetchSummary]);
+
+  // Refetch when a technician clocks in or out (real-time via socket)
+  const { lastEvent } = useSocket();
+  useEffect(() => {
+    if (!lastEvent) return;
+    fetchSummary();
+  }, [lastEvent, fetchSummary]);
 
   if (loading) {
     return (
