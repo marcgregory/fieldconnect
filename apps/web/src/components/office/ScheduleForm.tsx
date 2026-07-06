@@ -167,8 +167,9 @@ export function ScheduleForm({
       const conflictErr = err as any;
       if (conflictErr?.can_force_assign && conflictErr?.conflicts) {
         // Admin: show confirmation dialog
+        // Use .message (set by api.ts) not .error (undefined on Error objects)
         if (confirm(
-          `Technician(s) have schedule conflicts:\n${conflictErr.error}\n\nForce assign anyway?`,
+          `Schedule Conflicts\n\n${conflictErr.message}\n\nForce assign anyway?`,
         )) {
           // Resubmit with force: true
           try {

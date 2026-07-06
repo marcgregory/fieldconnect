@@ -375,6 +375,8 @@ export async function deleteById(id: string): Promise<boolean> {
 export interface ConflictInfo {
   id: string;
   project_name: string;
+  technician_id: string;
+  technician_name: string;
   start_time: string;
   end_time: string;
   conflict_type: 'overlap' | 'buffer';
@@ -400,10 +402,11 @@ export async function findConflicts(
 
   let sql = `
     SELECT s.id, s.start_time, s.end_time, p.name AS project_name,
-           st.technician_id
+           st.technician_id, u.name AS technician_name
     FROM schedules s
     JOIN projects p ON p.id = s.project_id
     JOIN schedule_technicians st ON st.schedule_id = s.id
+    JOIN users u ON u.id = st.technician_id
     WHERE st.technician_id = ANY($1::uuid[])
       AND s.scheduled_date = $2
       AND s.start_time IS NOT NULL
@@ -436,6 +439,8 @@ export async function findConflicts(
       conflicts.push({
         id: row.id,
         project_name: row.project_name,
+        technician_id: row.technician_id,
+        technician_name: row.technician_name,
         start_time: row.start_time,
         end_time: row.end_time,
         conflict_type: isOverlap ? 'overlap' : 'buffer',
@@ -457,9 +462,9 @@ export function formatConflictError(conflicts: ConflictInfo[]): string {
       c.conflict_type === 'overlap'
         ? 'Overlaps with existing job'
         : 'Within 30-minute buffer';
-    return `"${c.project_name}" (${start} — ${end}) — ${reason}`;
+    return `${c.technician_name}\n  "${c.project_name}" (${start} — ${end}) — ${reason}`;
   });
-  return `Technician has schedule conflicts:\n${details.join('\n')}\nMinimum 30-minute buffer required.`;
+  return `Technician(s) have schedule conflicts:\n${details.join('\n')}\n\nMinimum 30-minute buffer required.`;
 }
 
 // ─── Status Transition with Transaction ───────────────────────────────────
