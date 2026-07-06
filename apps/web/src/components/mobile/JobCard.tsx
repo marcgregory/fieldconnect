@@ -11,7 +11,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
   scheduled: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Scheduled' },
   traveling: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Traveling' },
   on_site: { bg: 'bg-green-100', text: 'text-green-800', label: 'On Site' },
-  completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Completed' },
+  completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Work Completed' },
   office_review: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Office Review' },
   closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed' },
 };

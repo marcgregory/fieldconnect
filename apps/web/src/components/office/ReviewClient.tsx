@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { useSocket } from '@/hooks/useSocket';
 import {
   getReviewQueue,
@@ -29,26 +30,85 @@ type ActionType = 'closed' | 'on_site' | 'traveling';
 interface ChecklistItem {
   label: string;
   present: boolean;
-  count?: number;
-  missing: boolean;
+  count: number;
+  required: boolean;
 }
 
+const REQUIRED_ITEMS: ChecklistItem[] = [
+  { label: 'Technician Notes', present: false, count: 0, required: true },
+  { label: 'Before Photo', present: false, count: 0, required: true },
+  { label: 'After Photo', present: false, count: 0, required: true },
+  { label: 'Customer Signature', present: false, count: 0, required: true },
+];
+
+const OPTIONAL_ITEMS: ChecklistItem[] = [
+  { label: 'During Photos', present: false, count: 0, required: false },
+  { label: 'Internal Notes', present: false, count: 0, required: false },
+  { label: 'Documents', present: false, count: 0, required: false },
+];
+
+function evaluateChecklist(notes: JobNote[], attachments: JobAttachment[], signatures: Signature[]) {
+  const techNotes = notes.filter((n) => n.note_type === 'technician');
+  const internalNotes = notes.filter((n) => n.note_type === 'internal');
+  const beforePhotos = attachments.filter((a) => a.attachment_type === 'before');
+  const duringPhotos = attachments.filter((a) => a.attachment_type === 'during');
+  const afterPhotos = attachments.filter((a) => a.attachment_type === 'after');
+  const documents = attachments.filter((a) => a.attachment_type === 'document');
+
+  const required = REQUIRED_ITEMS.map((item) => {
+    switch (item.label) {
+      case 'Technician Notes': return { ...item, present: techNotes.length > 0, count: techNotes.length };
+      case 'Before Photo': return { ...item, present: beforePhotos.length > 0, count: beforePhotos.length };
+      case 'After Photo': return { ...item, present: afterPhotos.length > 0, count: afterPhotos.length };
+      case 'Customer Signature': return { ...item, present: signatures.length > 0, count: signatures.length };
+      default: return item;
+    }
+  });
+
+  const optional = OPTIONAL_ITEMS.map((item) => {
+    switch (item.label) {
+      case 'During Photos': return { ...item, present: duringPhotos.length > 0, count: duringPhotos.length };
+      case 'Internal Notes': return { ...item, present: internalNotes.length > 0, count: internalNotes.length };
+      case 'Documents': return { ...item, present: documents.length > 0, count: documents.length };
+      default: return item;
+    }
+  });
+
+  const allRequired = required.every((r) => r.present);
+  const presentCount = [...required, ...optional].filter((r) => r.present).length;
+  const totalCount = [...required, ...optional].length;
+  const score = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+
+  return { required, optional, allRequired, score, presentCount, totalCount };
+}
 
 export function ReviewClient() {
+  const { data: session } = useSession();
   const [schedules, setSchedules] = useState<ScheduleWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Record<string, ExpandedData>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Rework modal
   const [reworkModal, setReworkModal] = useState<{
     schedule: ScheduleWithDetails;
     targetStatus: JobStatus;
   } | null>(null);
   const [reworkReason, setReworkReason] = useState('');
 
+  // Force Close modal
+  const [forceCloseModal, setForceCloseModal] = useState<ScheduleWithDetails | null>(null);
+  const [forceCloseReason, setForceCloseReason] = useState('');
+
+  const userRole = session?.user?.role || '';
+  const isAdmin = userRole === 'admin';
+  const isOfficeStaff = ['admin', 'office_manager', 'dispatcher'].includes(userRole);
+
   const { onJobUpdate } = useSocket();
 
   const fetchSchedules = useCallback(async () => {
+    if (!isOfficeStaff) return;
     try {
       setLoading(true);
       setError('');
@@ -59,7 +119,7 @@ export function ReviewClient() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isOfficeStaff]);
 
   useEffect(() => {
     fetchSchedules();
@@ -106,55 +166,53 @@ export function ReviewClient() {
     }
   }
 
-  function getChecklist(expandedData: ExpandedData | undefined, schedule: ScheduleWithDetails): ChecklistItem[] {
-    const notes = expandedData?.notes || [];
-    const attachments = expandedData?.attachments || [];
-    const signatures = expandedData?.signatures || [];
-
-    // Count attachments by type
-    const beforePhotos = attachments.filter((a) => a.attachment_type === 'before');
-    const duringPhotos = attachments.filter((a) => a.attachment_type === 'during');
-    const afterPhotos = attachments.filter((a) => a.attachment_type === 'after');
-    const documents = attachments.filter((a) => a.attachment_type === 'document');
-
-    return [
-      { label: 'Technician Notes', present: notes.length > 0, count: notes.length, missing: notes.length === 0 },
-      { label: 'Before Photos', present: beforePhotos.length > 0, count: beforePhotos.length, missing: beforePhotos.length === 0 },
-      { label: 'During Photos', present: duringPhotos.length > 0, count: duringPhotos.length, missing: duringPhotos.length === 0 },
-      { label: 'After Photos', present: afterPhotos.length > 0, count: afterPhotos.length, missing: afterPhotos.length === 0 },
-      { label: 'Documents', present: documents.length > 0, count: documents.length, missing: documents.length === 0 },
-      { label: 'Customer Signature', present: signatures.length > 0, count: signatures.length, missing: signatures.length === 0 },
-    ];
-  }
-
-  function buildChecklist(schedule: ScheduleWithDetails, data: ExpandedData | undefined): ChecklistItem[] {
-    // Use expanded data if loaded, otherwise use the schedule summary counts
+  function getChecklistData(schedule: ScheduleWithDetails, data: ExpandedData | undefined) {
     if (data && !data.loading) {
-      return getChecklist(data, schedule);
+      return evaluateChecklist(data.notes, data.attachments, data.signatures);
     }
-    // Show from schedule summary (counts from the findForReview query)
-    const items: ChecklistItem[] = [
-      { label: 'Technician Notes', present: (schedule.note_count ?? 0) > 0, count: schedule.note_count, missing: (schedule.note_count ?? 0) === 0 },
-      { label: 'Photos / Attachments', present: (schedule.attachment_count ?? 0) > 0, count: schedule.attachment_count, missing: (schedule.attachment_count ?? 0) === 0 },
-      { label: 'Customer Signature', present: (schedule.signature_count ?? 0) > 0, count: schedule.signature_count, missing: (schedule.signature_count ?? 0) === 0 },
-    ];
-    return items;
+    // Fallback: use summary counts from query
+    // We can't split by type from summary counts, so treat any attachment as at least
+    // having a before photo (optimistic for the collapsed state)
+    const hasNotes = (schedule.note_count ?? 0) > 0;
+    const hasAttachments = (schedule.attachment_count ?? 0) > 0;
+    const hasSig = (schedule.signature_count ?? 0) > 0;
+
+    const required = REQUIRED_ITEMS.map((item) => {
+      switch (item.label) {
+        case 'Technician Notes': return { ...item, present: hasNotes, count: schedule.note_count ?? 0 };
+        case 'Before Photo': return { ...item, present: hasAttachments, count: schedule.attachment_count ?? 0 };
+        case 'After Photo': return { ...item, present: hasAttachments, count: schedule.attachment_count ?? 0 };
+        case 'Customer Signature': return { ...item, present: hasSig, count: schedule.signature_count ?? 0 };
+        default: return item;
+      }
+    });
+    const optional = OPTIONAL_ITEMS.map(() => ({ ...OPTIONAL_ITEMS[0], present: false, count: 0 }));
+
+    const allRequired = required.every((r) => r.present);
+    const presentCount = [...required, ...optional].filter((r) => r.present).length;
+    const totalCount = [...required, ...optional].length;
+    const score = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+
+    return { required, optional, allRequired, score, presentCount, totalCount };
   }
 
-  async function handleAction(schedule: ScheduleWithDetails, action: ActionType) {
-    if (action === 'on_site' || action === 'traveling') {
-      // Open rework modal first
-      setReworkModal({ schedule, targetStatus: action });
-      return;
+  async function handleClose(schedule: ScheduleWithDetails) {
+    if (expanded[schedule.id] && !expanded[schedule.id].loading) {
+      // We have full data — check required items
+      const { allRequired } = getChecklistData(schedule, expanded[schedule.id]);
+      if (!allRequired && !isAdmin) return; // Block non-admins
+      if (!allRequired && isAdmin) {
+        // Show Force Close modal
+        setForceCloseModal(schedule);
+        return;
+      }
     }
 
+    // Normal close
     setActionLoading(schedule.id);
     setError('');
-
     try {
-      await updateScheduleStatus(schedule.id, action);
-      setReworkModal(null);
-      setReworkReason('');
+      await updateScheduleStatus(schedule.id, 'closed');
       fetchSchedules();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
@@ -163,16 +221,43 @@ export function ReviewClient() {
     }
   }
 
+  async function confirmForceClose() {
+    if (!forceCloseModal) return;
+    if (!forceCloseReason.trim()) {
+      setError('Please provide a reason for force close');
+      return;
+    }
+    setActionLoading(forceCloseModal.id);
+    setError('');
+    try {
+      await updateScheduleStatus(
+        forceCloseModal.id,
+        'closed',
+        `Force close: ${forceCloseReason.trim()}`,
+      );
+      setForceCloseModal(null);
+      setForceCloseReason('');
+      fetchSchedules();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to close job');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleRework(schedule: ScheduleWithDetails, targetStatus: JobStatus) {
+    setReworkModal({ schedule, targetStatus });
+    setReworkReason('');
+  }
+
   async function confirmRework() {
     if (!reworkModal) return;
     if (!reworkReason.trim()) {
       setError('Please provide a reason for rework');
       return;
     }
-
     setActionLoading(reworkModal.schedule.id);
     setError('');
-
     try {
       await updateScheduleStatus(
         reworkModal.schedule.id,
@@ -189,9 +274,68 @@ export function ReviewClient() {
     }
   }
 
-  const missingItemsExist = (schedule: ScheduleWithDetails, data: ExpandedData | undefined): boolean => {
-    return buildChecklist(schedule, data).some((item) => item.missing);
-  };
+  // ─── Render helpers ─────────────────────────────────────────────────────
+
+  function renderScoreBar(score: number) {
+    const segments = 10;
+    const filled = Math.round((score / 100) * segments);
+    const color =
+      score === 100
+        ? 'bg-green-500'
+        : score >= 60
+          ? 'bg-yellow-500'
+          : 'bg-red-500';
+
+    return (
+      <div className="flex items-center gap-3">
+        <div className="flex gap-0.5 flex-1">
+          {Array.from({ length: segments }, (_, i) => (
+            <div
+              key={i}
+              className={`h-2 flex-1 rounded-sm ${i < filled ? color : 'bg-gray-200'}`}
+            />
+          ))}
+        </div>
+        <span className={`text-sm font-semibold tabular-nums ${
+          score === 100 ? 'text-green-700' : score >= 60 ? 'text-yellow-700' : 'text-red-700'
+        }`}>
+          {score}%
+        </span>
+      </div>
+    );
+  }
+
+  function renderChecklistItem(item: ChecklistItem) {
+    return (
+      <div
+        key={item.label}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+          item.present
+            ? 'bg-green-50 text-green-700'
+            : item.required
+              ? 'bg-red-50 text-red-700'
+              : 'bg-gray-50 text-gray-500'
+        }`}
+      >
+        {item.present ? (
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        )}
+        <span className="font-medium">{item.label}</span>
+        {item.count > 0 && (
+          <span className="text-xs opacity-75">({item.count})</span>
+        )}
+        {item.required && !item.present && (
+          <span className="text-xs font-medium ml-auto text-red-600">Required</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -202,7 +346,7 @@ export function ReviewClient() {
             <div>
               <h1 className="text-xl font-bold text-gray-900">Work Review</h1>
               <p className="text-sm text-gray-500">
-                {schedules.length} completed job{schedules.length !== 1 ? 's' : ''} pending review
+                {schedules.length} work completed job{schedules.length !== 1 ? 's' : ''} pending review
               </p>
             </div>
           </div>
@@ -233,7 +377,7 @@ export function ReviewClient() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-gray-500 font-medium">All caught up!</p>
-            <p className="text-sm text-gray-400 mt-1">No completed jobs waiting for review.</p>
+            <p className="text-sm text-gray-400 mt-1">No work completed jobs waiting for review.</p>
           </div>
         )}
 
@@ -241,8 +385,12 @@ export function ReviewClient() {
         {!loading && schedules.map((schedule) => {
           const expandedData = expanded[schedule.id];
           const isActionLoading = actionLoading === schedule.id;
-          const checklist = buildChecklist(schedule, expandedData);
-          const hasMissing = missingItemsExist(schedule, expandedData);
+          const { required, optional, allRequired, score, presentCount, totalCount } =
+            getChecklistData(schedule, expandedData);
+
+          const canClose = expandedData && !expandedData.loading
+            ? allRequired
+            : false;
 
           return (
             <div key={schedule.id} className="bg-white rounded-xl border border-gray-200 mb-4 overflow-hidden">
@@ -258,7 +406,7 @@ export function ReviewClient() {
                     </h3>
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                       <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-                      Completed
+                      Work Completed
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
@@ -289,59 +437,60 @@ export function ReviewClient() {
                     </div>
                   ) : (
                     <div className="p-4 space-y-5">
-                      {/* ── Completion Checklist ─────────────────────────── */}
+                      {/* ── Completion Score ──────────────────────────────── */}
                       <div>
                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                          Completion Checklist
+                          Documentation
                         </h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {checklist.map((item) => (
-                            <div
-                              key={item.label}
-                              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
-                                item.present
-                                  ? 'bg-green-50 text-green-700'
-                                  : 'bg-red-50 text-red-700'
-                              }`}
-                            >
-                              {item.present ? (
-                                <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                              ) : (
-                                <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              )}
-                              <span className="font-medium">{item.label}</span>
-                              {item.count !== undefined && item.count > 0 && (
-                                <span className="text-xs opacity-75">({item.count})</span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-
-                        {hasMissing && (
-                          <div className="mt-3 flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                            <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                            <span>Missing documentation — verify before closing.</span>
-                          </div>
-                        )}
-
-                        {!hasMissing && (
-                          <div className="mt-3 flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-                            <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>All documentation present. Ready for close.</span>
-                          </div>
-                        )}
+                        {renderScoreBar(score)}
+                        <p className="text-xs text-gray-400 mt-1">
+                          {presentCount} / {totalCount} items — {allRequired ? 'all required items present' : 'missing required items'}
+                        </p>
                       </div>
 
+                      {/* ── Required Items ────────────────────────────────── */}
+                      {required.some((r) => r.required) && (
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                            Required
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {required.map(renderChecklistItem)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── Optional Items ────────────────────────────────── */}
+                      {optional.some((o) => o.present) && (
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                            Optional
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {optional.map(renderChecklistItem)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── Summary Banner ────────────────────────────────── */}
+                      {allRequired ? (
+                        <div className="flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+                          <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>All required documentation present. Ready to close.</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                          <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          <span>Missing required documentation. Close disabled until all required items are present.</span>
+                        </div>
+                      )}
+
                       {/* ── Technician Notes ─────────────────────────────── */}
-                      {(schedule.note_count ?? 0) > 0 && (
+                      {expandedData.notes.filter((n) => n.note_type === 'technician').length > 0 && (
                         <div>
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Technician Notes</h4>
                           <div className="space-y-2">
@@ -370,7 +519,7 @@ export function ReviewClient() {
                         </div>
                       )}
 
-                      {/* ── Attachments ─────────────────────────────────── */}
+                      {/* ── Attachments by type ──────────────────────────── */}
                       {expandedData.attachments.length > 0 && (
                         <div>
                           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -426,19 +575,44 @@ export function ReviewClient() {
 
                       {/* ── Actions ─────────────────────────────────────── */}
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
+                        {allRequired ? (
+                          <button
+                            onClick={() => handleClose(schedule)}
+                            disabled={isActionLoading}
+                            className="px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isActionLoading ? 'Processing...' : 'Close Job'}
+                          </button>
+                        ) : isAdmin ? (
+                          <button
+                            onClick={() => handleClose(schedule)}
+                            disabled={isActionLoading}
+                            className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {isActionLoading ? 'Processing...' : 'Force Close'}
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            className="px-5 py-2.5 bg-gray-300 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-1.5"
+                            title="Complete all required documentation first"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v2m0-2h2m-2 0H10m9.364-7.364A9 9 0 1112 3a9 9 0 017.364 4.636z" />
+                            </svg>
+                            Close Job
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => handleAction(schedule, 'closed')}
-                          disabled={isActionLoading}
-                          className="px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isActionLoading ? 'Processing...' : 'Close Job'}
-                        </button>
-                        <button
-                          onClick={() => handleAction(schedule, 'on_site')}
+                          onClick={() => handleRework(schedule, 'on_site')}
                           disabled={isActionLoading}
                           className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          Request Rework
+                          {isActionLoading ? 'Processing...' : 'Request Rework'}
                         </button>
                       </div>
                     </div>
@@ -457,10 +631,9 @@ export function ReviewClient() {
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Request Rework</h2>
             <p className="text-sm text-gray-500 mb-4">
               This will move &#34;{reworkModal.schedule.project_name}&#34; from{' '}
-              <strong>completed</strong> to{' '}
+              <strong>Work Completed</strong> to{' '}
               <strong>{reworkModal.targetStatus.replace('_', ' ')}</strong>.
             </p>
-
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Reason for rework <span className="text-red-500">*</span>
             </label>
@@ -472,7 +645,6 @@ export function ReviewClient() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               autoFocus
             />
-
             <div className="flex justify-end gap-3 mt-4">
               <button
                 onClick={() => { setReworkModal(null); setReworkReason(''); }}
@@ -486,6 +658,47 @@ export function ReviewClient() {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionLoading === reworkModal.schedule.id ? 'Requesting...' : 'Request Rework'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Force Close Modal */}
+      {forceCloseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Force Close Job</h2>
+            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+              ⚠ This job is missing required documentation. Only admins can force close.
+            </p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Reason for force close <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={forceCloseReason}
+              onChange={(e) => setForceCloseReason(e.target.value)}
+              placeholder="Emergency close due to customer request..."
+              rows={3}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              autoFocus
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              This will be written to the audit log.
+            </p>
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                onClick={() => { setForceCloseModal(null); setForceCloseReason(''); }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmForceClose}
+                disabled={!forceCloseReason.trim() || actionLoading === forceCloseModal.id}
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {actionLoading === forceCloseModal.id ? 'Closing...' : 'Force Close'}
               </button>
             </div>
           </div>

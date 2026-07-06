@@ -23,7 +23,7 @@ const STATUS_LABELS: Record<string, string> = {
   scheduled: 'Scheduled',
   traveling: 'Traveling',
   on_site: 'On Site',
-  completed: 'Completed',
+  completed: 'Work Completed',
   office_review: 'Office Review',
   closed: 'Closed',
 };

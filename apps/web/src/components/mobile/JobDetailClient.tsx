@@ -36,7 +36,7 @@ const STATUS_CONFIG: Record<
   scheduled: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Scheduled', step: 0 },
   traveling: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Traveling', step: 1 },
   on_site: { bg: 'bg-green-100', text: 'text-green-800', label: 'On Site', step: 2 },
-  completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Completed', step: 3 },
+  completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Work Completed', step: 3 },
   office_review: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Office Review', step: 4 },
   closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed', step: 5 },
 };
