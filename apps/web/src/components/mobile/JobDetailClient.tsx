@@ -120,7 +120,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const [showSignaturePad, setShowSignaturePad] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedAttachmentType, setSelectedAttachmentType] = useState<string>('during');
+  const [selectedAttachmentType, setSelectedAttachmentType] = useState<string>('before');
+  const [showMissingDocsModal, setShowMissingDocsModal] = useState(false);
 
   // ─── Offline Sync ────────────────────────────────────────────────────────
   const {
@@ -459,6 +460,30 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     });
   }
 
+  // ─── Required Documentation Check ──────────────────────────────────────────
+  interface RequiredDocItem {
+    key: string;
+    label: string;
+    present: boolean;
+    count: number;
+  }
+
+  function getRequiredDocsStatus(): { items: RequiredDocItem[]; allPresent: boolean } {
+    const beforePhotos = attachments.filter((a) => a.attachment_type === 'before');
+    const afterPhotos = attachments.filter((a) => a.attachment_type === 'after');
+    const techNotes = notes.filter((n) => n.note_type === 'technician');
+
+    const items: RequiredDocItem[] = [
+      { key: 'note', label: 'Work Note', present: techNotes.length > 0, count: techNotes.length },
+      { key: 'before', label: 'Before Photo', present: beforePhotos.length > 0, count: beforePhotos.length },
+      { key: 'after', label: 'After Photo', present: afterPhotos.length > 0, count: afterPhotos.length },
+      { key: 'signature', label: 'Customer Signature', present: signatures.length > 0, count: signatures.length },
+    ];
+    return { items, allPresent: items.every((i) => i.present) };
+  }
+
+  const requiredDocs = getRequiredDocsStatus();
+
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -718,19 +743,52 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             Photos & Attachments
           </h2>
 
-          {/* Upload controls */}
+          {/* Required Photo Checklist */}
+          <div className="mb-4 space-y-1.5">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+              Required Photos
+            </p>
+            {(['before', 'during', 'after'] as const).map((type) => {
+              const count = attachments.filter((a) => a.attachment_type === type).length;
+              const isSelected = selectedAttachmentType === type;
+              return (
+                <button
+                  key={type}
+                  onClick={() => setSelectedAttachmentType(type)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    isSelected
+                      ? 'bg-blue-50 border border-blue-300'
+                      : 'bg-gray-50 border border-transparent hover:border-gray-300'
+                  }`}
+                >
+                  {/* Radio indicator */}
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                    isSelected ? 'border-blue-600' : 'border-gray-300'
+                  }`}>
+                    {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-blue-600" />}
+                  </div>
+                  <span className={`font-medium capitalize ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>
+                    {type}
+                  </span>
+                  {count > 0 ? (
+                    <span className="ml-auto flex items-center gap-1 text-green-700 font-medium">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      {count}
+                    </span>
+                  ) : (
+                    <span className="ml-auto text-xs text-gray-400">
+                      {type === 'before' || type === 'after' ? 'Required' : 'Optional'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Upload button */}
           <div className="flex gap-2 mb-4">
-            <select
-              value={selectedAttachmentType}
-              onChange={(e) => setSelectedAttachmentType(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={uploading}
-            >
-              <option value="before">Before</option>
-              <option value="during">During</option>
-              <option value="after">After</option>
-              <option value="document">Document</option>
-            </select>
             <label className="flex-1">
               <input
                 ref={fileInputRef}
@@ -741,11 +799,47 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                 className="hidden"
                 disabled={uploading}
               />
-              <div className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium active:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              <div className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium active:bg-blue-700 transition-colors cursor-pointer disabled:opacity-50 shadow-sm">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                {uploading ? 'Uploading...' : 'Add Photo'}
+                {uploading ? 'Uploading...' : `Add ${ATTACHMENT_LABELS[selectedAttachmentType] || 'Photo'}`}
+              </div>
+            </label>
+            {/* Document upload option */}
+            <label>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx,.txt"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) {
+                    setSelectedAttachmentType('document');
+                    // Re-trigger upload with the document type
+                    const file = e.target.files[0];
+                    const input = fileInputRef.current;
+                    if (input) {
+                      // We need to upload directly since the main handler uses selectedAttachmentType
+                      setUploading(true);
+                      const uploadFile = file;
+                      const formData = new FormData();
+                      formData.append('file', uploadFile);
+                      formData.append('attachment_type', 'document');
+                      uploadJobAttachment(scheduleId, formData)
+                        .then(() => getJobAttachments(scheduleId))
+                        .then(setAttachments)
+                        .catch((err) => setError(err instanceof Error ? err.message : 'Failed to upload document'))
+                        .finally(() => { setUploading(false); if (e.target) e.target.value = ''; });
+                    }
+                  }
+                }}
+                className="hidden"
+                disabled={uploading}
+              />
+              <div className="flex items-center justify-center px-4 py-3 bg-white border-2 border-dashed border-gray-300 text-gray-500 rounded-xl text-sm font-medium active:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 hover:border-gray-400">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
               </div>
             </label>
           </div>
@@ -869,31 +963,99 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         </div>
       )}
 
+      {/* Missing Documentation Modal */}
+      {showMissingDocsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-2xl w-full max-w-md mx-auto px-6 pt-6 pb-10">
+            <h3 className="text-lg font-semibold text-red-700 mb-2">
+              Cannot Complete Job
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              All required items must be completed before marking this job as complete.
+            </p>
+            <div className="space-y-2 mb-6">
+              {requiredDocs.items.map((item) => (
+                <div
+                  key={item.key}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm ${
+                    item.present
+                      ? 'bg-green-50 text-green-700'
+                      : 'bg-red-50 text-red-700'
+                  }`}
+                >
+                  {item.present ? (
+                    <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                  <span className="font-medium">{item.label}</span>
+                  {item.present && item.count > 0 && (
+                    <span className="text-xs ml-auto opacity-75">({item.count})</span>
+                  )}
+                  {!item.present && (
+                    <span className="text-xs font-medium ml-auto text-red-600">Missing</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="space-y-3">
+              <button
+                onClick={() => setShowMissingDocsModal(false)}
+                className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Action Buttons */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-4 space-y-3">
         {nextAction && nextAction.status === 'completed' && schedule.status === 'on_site' && (
-          <button
-            onClick={() => setConfirmStatus(nextAction.status)}
-            disabled={transitioning}
-            className={`w-full ${nextAction.color} text-white rounded-xl py-4 text-base font-semibold shadow-lg active:opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
-          >
-            {transitioning ? (
-              <>
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Updating...
-              </>
-            ) : (
-              <>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                {nextAction.label}
-              </>
+          <>
+            <button
+              onClick={() => {
+                if (!requiredDocs.allPresent) {
+                  setShowMissingDocsModal(true);
+                } else {
+                  setConfirmStatus(nextAction.status);
+                }
+              }}
+              disabled={transitioning}
+              className={`w-full rounded-xl py-4 text-base font-semibold shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                requiredDocs.allPresent
+                  ? 'bg-blue-600 text-white active:bg-blue-700'
+                  : 'bg-gray-200 text-gray-500'
+              }`}
+            >
+              {transitioning ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  {nextAction.label}
+                </>
+              )}
+            </button>
+            {!requiredDocs.allPresent && (
+              <p className="text-xs text-red-600 text-center -mt-2">
+                {requiredDocs.items.filter((i) => !i.present).length} required item(s) missing
+              </p>
             )}
-          </button>
+          </>
         )}
 
         {nextAction && nextAction.status !== 'completed' && (
@@ -908,7 +1070,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
 
         {schedule.status === 'completed' && (
           <div className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-4 text-base font-semibold text-center">
-            Awaiting Office Review
+            Work Completed
+            <span className="block text-sm font-normal text-purple-600 mt-0.5">Waiting for office approval</span>
           </div>
         )}
 
