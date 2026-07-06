@@ -426,7 +426,7 @@ export async function updateStatus(data: {
 
     // Row-level lock on the schedule row
     const lockResult = await client.query(
-      'SELECT status, technician_id FROM schedules WHERE id = $1 FOR UPDATE',
+      'SELECT status, technician_id, project_id FROM schedules WHERE id = $1 FOR UPDATE',
       [data.id],
     );
 
@@ -460,6 +460,31 @@ export async function updateStatus(data: {
        RETURNING *`,
       [data.id, data.user_id, 'status_change', oldStatus, data.status, metadata],
     );
+
+    const projectId = lockResult.rows[0].project_id;
+
+    // Auto-complete project if this was the last non-closed, non-cancelled schedule
+    if (data.status === 'closed') {
+      const remainingResult = await client.query(
+        `SELECT COUNT(*) AS count FROM schedules WHERE project_id = $1 AND status NOT IN ('closed', 'cancelled')`,
+        [projectId],
+      );
+      const remaining = parseInt(remainingResult.rows[0].count, 10);
+      if (remaining === 0) {
+        await client.query(
+          `UPDATE projects SET status = 'completed', updated_at = NOW() WHERE id = $1 AND status <> 'cancelled'`,
+          [projectId],
+        );
+      }
+    }
+
+    // Revert project to active if a closed schedule is reopened
+    if (oldStatus === 'closed' && data.status !== 'closed') {
+      await client.query(
+        `UPDATE projects SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'completed'`,
+        [projectId],
+      );
+    }
 
     await client.query('COMMIT');
 
