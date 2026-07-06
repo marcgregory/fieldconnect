@@ -23,7 +23,7 @@ export async function jobNoteRoutes(app: FastifyInstance) {
   // ─── Add Note ───────────────────────────────────────────────────────────
   app.post(
     '/api/v1/schedules/:id/notes',
-    { preHandler: [requireRole('field_technician', 'admin')] },
+    { preHandler: [requireRole('field_technician', 'admin', 'office_manager', 'dispatcher')] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const parsed = createJobNoteSchema.safeParse(request.body);
@@ -52,14 +52,14 @@ export async function jobNoteRoutes(app: FastifyInstance) {
         });
       }
 
-      // Internal notes restricted to admin
+      // Internal notes restricted to admin / office_manager / dispatcher
       if (
         parsed.data.note_type === 'internal' &&
-        request.user!.role !== 'admin'
+        !['admin', 'office_manager', 'dispatcher'].includes(request.user!.role)
       ) {
         return reply.status(403).send({
           success: false,
-          error: 'Only admins can add internal notes',
+          error: 'Only office staff can add internal notes',
         });
       }
 

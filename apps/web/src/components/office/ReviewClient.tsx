@@ -9,6 +9,7 @@ import {
   getJobAttachments,
   getJobSignatures,
   updateScheduleStatus,
+  addJobNote,
 } from '@/lib/api';
 import type {
   ScheduleWithDetails,
@@ -90,6 +91,11 @@ export function ReviewClient() {
   const [expanded, setExpanded] = useState<Record<string, ExpandedData>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // ─── Image URL helper ──────────────────────────────────────────────────
+  function getUploadUrl(filePath: string): string {
+    return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/uploads/${filePath}`;
+  }
+
   // Rework modal
   const [reworkModal, setReworkModal] = useState<{
     schedule: ScheduleWithDetails;
@@ -100,6 +106,10 @@ export function ReviewClient() {
   // Force Close modal
   const [forceCloseModal, setForceCloseModal] = useState<ScheduleWithDetails | null>(null);
   const [forceCloseReason, setForceCloseReason] = useState('');
+
+  // Internal Note state
+  const [internalNotes, setInternalNotes] = useState<Record<string, string>>({});
+  const [savingInternalNote, setSavingInternalNote] = useState<Record<string, boolean>>({});
 
   const userRole = session?.user?.role || '';
   const isAdmin = userRole === 'admin';
@@ -242,6 +252,28 @@ export function ReviewClient() {
       setError(err instanceof Error ? err.message : 'Failed to close job');
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  async function handleAddInternalNote(scheduleId: string) {
+    const content = internalNotes[scheduleId]?.trim();
+    if (!content) return;
+
+    setSavingInternalNote((prev) => ({ ...prev, [scheduleId]: true }));
+    setError('');
+    try {
+      await addJobNote(scheduleId, { content, note_type: 'internal' });
+      // Clear input and refresh notes
+      setInternalNotes((prev) => ({ ...prev, [scheduleId]: '' }));
+      const notes = await getJobNotes(scheduleId);
+      setExpanded((prev) => ({
+        ...prev,
+        [scheduleId]: { ...prev[scheduleId], notes, loading: false },
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add internal note');
+    } finally {
+      setSavingInternalNote((prev) => ({ ...prev, [scheduleId]: false }));
     }
   }
 
@@ -495,10 +527,10 @@ export function ReviewClient() {
                       )}
 
                       {/* ── Internal Notes ──────────────────────────────── */}
-                      {expandedData.notes.filter((n) => n.note_type === 'internal').length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Internal Notes</h4>
-                          <div className="space-y-2">
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Internal Notes</h4>
+                        {expandedData.notes.filter((n) => n.note_type === 'internal').length > 0 ? (
+                          <div className="space-y-2 mb-3">
                             {expandedData.notes.filter((n) => n.note_type === 'internal').map((note) => (
                               <div key={note.id} className="bg-amber-50 rounded-lg px-3 py-2">
                                 <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
@@ -506,8 +538,38 @@ export function ReviewClient() {
                               </div>
                             ))}
                           </div>
-                        </div>
-                      )}
+                        ) : (
+                          <p className="text-xs text-gray-400 italic mb-3">No internal notes yet</p>
+                        )}
+                        {/* Internal note input for office staff */}
+                        {(['admin', 'office_manager', 'dispatcher'].includes(userRole)) && (
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={internalNotes[schedule.id] || ''}
+                              onChange={(e) =>
+                                setInternalNotes((prev) => ({ ...prev, [schedule.id]: e.target.value }))
+                              }
+                              placeholder="Add internal note..."
+                              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleAddInternalNote(schedule.id);
+                                }
+                              }}
+                              disabled={savingInternalNote[schedule.id]}
+                            />
+                            <button
+                              onClick={() => handleAddInternalNote(schedule.id)}
+                              disabled={!internalNotes[schedule.id]?.trim() || savingInternalNote[schedule.id]}
+                              className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-700 transition-colors"
+                            >
+                              {savingInternalNote[schedule.id] ? '...' : 'Add'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
 
                       {/* ── Attachments by type ──────────────────────────── */}
                       {expandedData.attachments.length > 0 && (
@@ -529,11 +591,27 @@ export function ReviewClient() {
                                   </p>
                                   <div className="flex flex-wrap gap-2">
                                     {items.map((att) => (
-                                      <div key={att.id} className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center gap-2">
-                                        <span>📎</span>
-                                        <span className="truncate max-w-[180px]">{att.file_name}</span>
-                                        <span className="text-xs text-gray-400">{(att.file_size / 1024).toFixed(0)} KB</span>
-                                      </div>
+                                      att.mime_type?.startsWith('image/') ? (
+                                        <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden">
+                                          <div className="w-24 h-20 relative">
+                                            <img
+                                              src={getUploadUrl(att.file_path)}
+                                              alt={att.file_name}
+                                              className="w-full h-full object-cover"
+                                              loading="lazy"
+                                            />
+                                          </div>
+                                          <div className="px-2 py-1 text-xs text-gray-500 truncate max-w-[96px]">
+                                            {att.file_name}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div key={att.id} className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center gap-2">
+                                          <span>📎</span>
+                                          <span className="truncate max-w-[180px]">{att.file_name}</span>
+                                          <span className="text-xs text-gray-400">{(att.file_size / 1024).toFixed(0)} KB</span>
+                                        </div>
+                                      )
                                     ))}
                                   </div>
                                 </div>
