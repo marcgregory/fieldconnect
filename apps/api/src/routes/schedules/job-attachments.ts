@@ -64,9 +64,10 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
         });
       }
 
-      // Read attachment_type from fields
+      // Read attachment_type from query (passed by BFF proxy which may mangle multipart fields) or fall back to multipart field
+      const query = request.query as { attachment_type?: string };
       const fields = fileData.fields as Record<string, any>;
-      const attachmentType = fields?.attachment_type?.value || 'document';
+      const attachmentType = query.attachment_type || fields?.attachment_type?.value || 'document';
 
       // Validate attachment type
       const typeCheck = createJobAttachmentSchema.safeParse({

@@ -336,8 +336,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
-      formData.append('attachment_type', selectedAttachmentTypeRef.current);
-      await uploadJobAttachment(scheduleId, formData);
+      await uploadJobAttachment(scheduleId, formData, selectedAttachmentTypeRef.current);
       const updated = await getJobAttachments(scheduleId);
       setAttachments(updated);
     } catch (err) {
@@ -391,8 +390,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('attachment_type', 'document');
-      await uploadJobAttachment(scheduleId, formData);
+      await uploadJobAttachment(scheduleId, formData, 'document');
       const updated = await getJobAttachments(scheduleId);
       setAttachments(updated);
     } catch (err) {

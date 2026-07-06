@@ -287,8 +287,9 @@ export async function getJobAttachments(
 export async function uploadJobAttachment(
   scheduleId: string,
   formData: FormData,
+  attachmentType: string,
 ): Promise<JobAttachment> {
-  const url = `/api/proxy/api/v1/schedules/${scheduleId}/attachments`;
+  const url = `/api/proxy/api/v1/schedules/${scheduleId}/attachments?attachment_type=${encodeURIComponent(attachmentType)}`;
 
   const res = await fetch(url, {
     method: 'POST',
