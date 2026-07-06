@@ -457,9 +457,24 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   }
 
   function handleStartNavigation() {
-    if (!schedule?.project_address) return;
-    const encoded = encodeURIComponent(schedule.project_address);
+    const s = schedule;
+    if (!s) return;
+    // Prefer stored coordinates over the address string for accuracy
+    const destLat = s.project_latitude;
+    const destLng = s.project_longitude;
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+    if (destLat != null && destLng != null) {
+      const url = isIOS
+        ? `maps://?daddr=${destLat},${destLng}`
+        : `https://www.google.com/maps/dir/?api=1&destination=${destLat},${destLng}`;
+      window.open(url, '_blank');
+      return;
+    }
+
+    // Fallback to the address string if no coordinates are stored
+    if (!s.project_address) return;
+    const encoded = encodeURIComponent(s.project_address);
     const url = isIOS
       ? `maps://?daddr=${encoded}`
       : `https://www.google.com/maps/dir/?api=1&destination=${encoded}`;
