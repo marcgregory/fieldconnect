@@ -44,7 +44,7 @@ export async function jobNoteRoutes(app: FastifyInstance) {
       // Field technicians can only add notes to their own jobs
       if (
         request.user!.role === 'field_technician' &&
-        schedule.technician_id !== request.user!.id
+        !(schedule.technician_ids || []).includes(request.user!.id)
       ) {
         return reply.status(403).send({
           success: false,
@@ -78,7 +78,7 @@ export async function jobNoteRoutes(app: FastifyInstance) {
         user_name: request.user!.name,
         note_type: parsed.data.note_type || 'technician',
         timestamp: new Date().toISOString(),
-        technician_id: schedule.technician_id,
+        technician_id: schedule.technician_ids?.[0] || schedule.id,
       });
 
       return reply.status(201).send({ success: true, data: note });

@@ -9,6 +9,7 @@ import { requireRole } from '../../middleware/auth';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { ValidationError } from '../../db/queries/schedules';
 import * as technicianQueries from '../../db/queries/technicians';
+import { query } from '../../db';
 import { broadcastJobEvent } from '../../websocket';
 import { jobNoteRoutes } from './job-notes';
 import { jobAttachmentRoutes } from './job-attachments';
@@ -125,18 +126,20 @@ export async function scheduleRoutes(app: FastifyInstance) {
       // Conflict check (skip if admin sent force: true)
       const { force, ...createData } = parsed.data;
 
-      // Validate technician is a member of the project team
+      // Validate each technician is a member of the project team
       const teamIds = await technicianQueries.findProjectTeamIds(createData.project_id);
-      if (!teamIds.includes(createData.technician_id)) {
+      const invalidTechs = createData.technician_ids.filter((id) => !teamIds.includes(id));
+      if (invalidTechs.length > 0) {
+        const names = await getTechnicianNames(invalidTechs);
         return reply.status(400).send({
           success: false,
-          error: 'Technician is not a member of this project team. Add them to the team first.',
+          error: `The following technicians are not members of this project team: ${names.join(', ')}. Add them to the team first.`,
         });
       }
 
       if (!force && createData.start_time && createData.end_time) {
         const conflicts = await scheduleQueries.findConflicts(
-          createData.technician_id,
+          createData.technician_ids,
           createData.scheduled_date,
           createData.start_time,
           createData.end_time,
@@ -157,19 +160,21 @@ export async function scheduleRoutes(app: FastifyInstance) {
         created_by: request.user!.id,
       });
 
-      // Broadcast assignment event
+      // Broadcast assignment event for each technician
       const createdWithDetails = await scheduleQueries.findById(schedule.id);
-      broadcastJobEvent({
-        type: 'assignment',
-        schedule_id: schedule.id,
-        project_name: createdWithDetails?.project_name || createData.project_id,
-        technician_name: createdWithDetails?.technician_name || '',
-        old_status: null,
-        new_status: 'scheduled',
-        changed_by: request.user!.name,
-        timestamp: new Date().toISOString(),
-        technician_id: schedule.technician_id,
-      });
+      for (const techId of createData.technician_ids) {
+        broadcastJobEvent({
+          type: 'assignment',
+          schedule_id: schedule.id,
+          project_name: createdWithDetails?.project_name || createData.project_id,
+          technician_name: '',
+          old_status: null,
+          new_status: 'scheduled',
+          changed_by: request.user!.name,
+          timestamp: new Date().toISOString(),
+          technician_id: techId,
+        });
+      }
 
       return reply.status(201).send({ success: true, data: schedule });
     },
@@ -198,25 +203,27 @@ export async function scheduleRoutes(app: FastifyInstance) {
       // Conflict check on update (skip if admin sent force: true)
       const { force, ...updateData } = parsed.data;
       if (!force && updateData.start_time && updateData.end_time) {
-        const effectiveTechnicianId = updateData.technician_id || existing.technician_id;
+        const effectiveTechIds = updateData.technician_ids || existing.technician_ids;
         const effectiveDate = updateData.scheduled_date || existing.scheduled_date;
         const effectiveProjectId = updateData.project_id || existing.project_id;
 
-        // Validate technician is a member of the project team
+        // Validate each technician is a member of the project team
         const teamIds = await technicianQueries.findProjectTeamIds(effectiveProjectId);
-        if (!teamIds.includes(effectiveTechnicianId)) {
+        const invalidTechs = effectiveTechIds.filter((tid) => !teamIds.includes(tid));
+        if (invalidTechs.length > 0) {
+          const names = await getTechnicianNames(invalidTechs);
           return reply.status(400).send({
             success: false,
-            error: 'Technician is not a member of this project team. Add them to the team first.',
+            error: `The following technicians are not members of this project team: ${names.join(', ')}. Add them to the team first.`,
           });
         }
 
         const conflicts = await scheduleQueries.findConflicts(
-          effectiveTechnicianId,
+          effectiveTechIds,
           effectiveDate,
           updateData.start_time,
           updateData.end_time,
-          id, // exclude this schedule from conflict check
+          id,
         );
         if (conflicts.length > 0) {
           const canForce = request.user!.role === 'admin';
@@ -231,21 +238,23 @@ export async function scheduleRoutes(app: FastifyInstance) {
 
       const schedule = await scheduleQueries.update(id, updateData);
 
-      // If technician changed, broadcast reassignment event
-      const newTechnicianId = updateData.technician_id;
-      if (newTechnicianId && newTechnicianId !== existing.technician_id) {
+      // Broadcast reassignment events if technicians changed
+      if (updateData.technician_ids) {
         const updatedWithDetails = await scheduleQueries.findById(id);
-        broadcastJobEvent({
-          type: 'reassigned',
-          schedule_id: id,
-          project_name: existing.project_name,
-          technician_name: updatedWithDetails?.technician_name || '',
-          old_status: existing.status,
-          new_status: existing.status,
-          changed_by: request.user!.name,
-          timestamp: new Date().toISOString(),
-          technician_id: newTechnicianId,
-        });
+        // Emit for new technicians
+        for (const techId of updateData.technician_ids) {
+          broadcastJobEvent({
+            type: 'reassigned',
+            schedule_id: id,
+            project_name: existing.project_name,
+            technician_name: updatedWithDetails?.technician_name || '',
+            old_status: existing.status,
+            new_status: existing.status,
+            changed_by: request.user!.name,
+            timestamp: new Date().toISOString(),
+            technician_id: techId,
+          });
+        }
       }
 
       return { success: true, data: schedule };
@@ -267,7 +276,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
         });
       }
 
-      // Fetch existing to get technician_id for ownership check
+      // Fetch existing for ownership check
       const existing = await scheduleQueries.findById(id);
       if (!existing) {
         return reply.status(404).send({ success: false, error: 'Schedule not found' });
@@ -279,22 +288,24 @@ export async function scheduleRoutes(app: FastifyInstance) {
           status: parsed.data.status as JobStatus,
           user_id: request.user!.id,
           user_role: request.user!.role,
-          technician_id: existing.technician_id,
+          technician_id: existing.technician_ids[0] || '',
           notes: parsed.data.notes,
         });
 
-        // Broadcast WebSocket event
-        broadcastJobEvent({
-          type: 'status_change',
-          schedule_id: id,
-          project_name: result.schedule.project_name,
-          technician_name: result.schedule.technician_name,
-          old_status: existing.status,
-          new_status: result.schedule.status,
-          changed_by: request.user!.name,
-          timestamp: new Date().toISOString(),
-          technician_id: result.schedule.technician_id,
-        });
+        // Broadcast WebSocket event for each technician
+        for (const techId of existing.technician_ids) {
+          broadcastJobEvent({
+            type: 'status_change',
+            schedule_id: id,
+            project_name: result.schedule.project_name,
+            technician_name: result.schedule.technician_name,
+            old_status: existing.status,
+            new_status: result.schedule.status,
+            changed_by: request.user!.name,
+            timestamp: new Date().toISOString(),
+            technician_id: techId,
+          });
+        }
 
         return { success: true, data: result };
       } catch (err) {
@@ -324,4 +335,14 @@ export async function scheduleRoutes(app: FastifyInstance) {
       return { success: true, data: { deleted: true } };
     },
   );
+}
+
+/** Fetch user names for a set of user IDs (for error messages). */
+async function getTechnicianNames(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const result = await query(
+    `SELECT name FROM users WHERE id = ANY($1::uuid[])`,
+    [ids],
+  );
+  return (result?.rows || []).map((r: any) => r.name);
 }

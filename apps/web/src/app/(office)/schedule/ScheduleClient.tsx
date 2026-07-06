@@ -153,7 +153,7 @@ export function ScheduleClient() {
       if (scheduleId) {
         // Update existing schedule
         const updates: UpdateScheduleInput = {
-          technician_id: technicianId,
+          technician_ids: [technicianId],
           scheduled_date: date,
         };
         if (startTime) updates.start_time = startTime;
@@ -162,7 +162,7 @@ export function ScheduleClient() {
         // Create new from unassigned
         await createSchedule({
           project_id: '', // Will be set by the drop data
-          technician_id: technicianId,
+          technician_ids: [technicianId],
           scheduled_date: date,
           start_time: startTime,
         });

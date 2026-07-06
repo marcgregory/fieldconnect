@@ -49,13 +49,17 @@ function detectConflicts(
 ): Map<string, { hasConflict: boolean; conflictType: 'overlap' | 'buffer' | null }> {
   const conflictMap = new Map<string, { hasConflict: boolean; conflictType: 'overlap' | 'buffer' | null }>();
 
-  // Group schedules by technician on this date
+  // Group schedules by technician on this date (multi-tech support)
   const dateSchedules = schedules.filter((s) => s.scheduled_date === date && s.start_time && s.end_time);
   const byTechnician = new Map<string, ScheduleWithDetails[]>();
   for (const s of dateSchedules) {
-    const techSchedules = byTechnician.get(s.technician_id) || [];
-    techSchedules.push(s);
-    byTechnician.set(s.technician_id, techSchedules);
+    const techIds = s.technician_ids?.length ? s.technician_ids : [s.technician_id || ''];
+    for (const techId of techIds) {
+      if (!techId) continue;
+      const techSchedules = byTechnician.get(techId) || [];
+      techSchedules.push(s);
+      byTechnician.set(techId, techSchedules);
+    }
   }
 
   for (const [, techSchedules] of byTechnician) {

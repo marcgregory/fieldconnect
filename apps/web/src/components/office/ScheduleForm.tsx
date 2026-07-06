@@ -38,7 +38,7 @@ export function ScheduleForm({
   const [technicians, setTechnicians] = useState<TechnicianAvailability[]>([]);
   const [projectTeamIds, setProjectTeamIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState(schedule?.project_id || '');
-  const [technicianId, setTechnicianId] = useState(schedule?.technician_id || '');
+  const [selectedTechIds, setSelectedTechIds] = useState<string[]>(schedule?.technician_ids || []);
   const [date, setDate] = useState(
     schedule?.scheduled_date || defaultDate || new Date().toLocaleDateString('en-CA'),
   );
@@ -124,10 +124,16 @@ export function ScheduleForm({
 
   useEffect(() => {
     if (schedule && techsLoaded && technicians.length > 0) {
-      setTechnicianId(schedule.technician_id);
+      setSelectedTechIds(schedule.technician_ids || []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule?.technician_id, techsLoaded, technicians.length]);
+  }, [schedule?.technician_ids, techsLoaded, technicians.length]);
+
+  function toggleTechnician(techId: string) {
+    setSelectedTechIds((prev) =>
+      prev.includes(techId) ? prev.filter((id) => id !== techId) : [...prev, techId],
+    );
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -135,14 +141,14 @@ export function ScheduleForm({
 
     // Validation
     if (!projectId) { setError('Please select a project'); return; }
-    if (!technicianId) { setError('Please select a technician'); return; }
+    if (selectedTechIds.length === 0) { setError('Please select at least one technician'); return; }
     if (!date) { setError('Please select a date'); return; }
 
     setSaving(true);
     try {
       const payload: any = {
         project_id: projectId,
-        technician_id: technicianId,
+        technician_ids: selectedTechIds,
         scheduled_date: date,
         start_time: startTime || undefined,
         end_time: endTime || undefined,
@@ -162,13 +168,13 @@ export function ScheduleForm({
       if (conflictErr?.can_force_assign && conflictErr?.conflicts) {
         // Admin: show confirmation dialog
         if (confirm(
-          `Technician has schedule conflicts:\n${conflictErr.error}\n\nForce assign anyway?`,
+          `Technician(s) have schedule conflicts:\n${conflictErr.error}\n\nForce assign anyway?`,
         )) {
           // Resubmit with force: true
           try {
             const payload: any = {
               project_id: projectId,
-              technician_id: technicianId,
+              technician_ids: selectedTechIds,
               scheduled_date: date,
               start_time: startTime || undefined,
               end_time: endTime || undefined,
@@ -234,60 +240,53 @@ export function ScheduleForm({
           </select>
         </div>
 
-        {/* Technician */}
+        {/* Scheduled Technicians (multi-select) */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Technician</label>
-          <select
-            value={technicianId}
-            onChange={(e) => setTechnicianId(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            disabled={!projectId || loadingTechs}
-          >
-            <option value="">
-              {!projectId
-                ? 'Select a project first...'
-                : projectTeamIds.length === 0
-                  ? 'No technicians on project team'
-                  : 'Select a technician...'}
-            </option>
-            {technicians
-              .filter((t) => projectTeamIds.includes(t.id))
-              .map((t) => {
-                const avail = AVAILABILITY_LABELS[t.availability] || AVAILABILITY_LABELS.available;
-                return (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({avail.label})
-                  </option>
-                );
-              })}
-          </select>
-          {projectId && projectTeamIds.length === 0 && (
-            <p className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded mt-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Technicians</label>
+          {!projectId ? (
+            <p className="text-sm text-gray-400 italic">Select a project first...</p>
+          ) : projectTeamIds.length === 0 ? (
+            <p className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
               No technicians assigned to this project team. Add team members first.
             </p>
-          )}
-          {technicianId && date && startTime && (
-            (() => {
-              const tech = technicians.find((t) => t.id === technicianId);
-              if (tech && tech.availability !== 'available') {
-                const label = AVAILABILITY_LABELS[tech.availability]?.label || tech.availability;
-                return (
-                  <div className={`mt-1 px-2 py-1 rounded text-xs font-medium ${
-                    tech.availability === 'busy'
-                      ? 'text-red-700 bg-red-50'
-                      : 'text-yellow-700 bg-yellow-50'
-                  }`}>
-                    {label}
-                    {tech.conflict_schedule && (
-                      <span className="ml-1">
-                        — {tech.conflict_schedule.project_name} ({tech.conflict_schedule.start_time.slice(0, 5)} — {tech.conflict_schedule.end_time.slice(0, 5)})
+          ) : (
+            <div className="space-y-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+              {technicians
+                .filter((t) => projectTeamIds.includes(t.id))
+                .map((t) => {
+                  const isSelected = selectedTechIds.includes(t.id);
+                  const avail = AVAILABILITY_LABELS[t.availability] || AVAILABILITY_LABELS.available;
+                  const isBusy = t.availability !== 'available';
+                  return (
+                    <label
+                      key={t.id}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-blue-50 border border-blue-300'
+                          : isBusy
+                            ? 'bg-red-50 border border-red-100'
+                            : 'bg-gray-50 border border-transparent hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleTechnician(t.id)}
+                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      />
+                      <span className="font-medium">{t.name}</span>
+                      <span className={`ml-auto text-xs font-medium px-1.5 py-0.5 rounded ${avail.class}`}>
+                        {avail.label}
                       </span>
-                    )}
-                  </div>
-                );
-              }
-              return null;
-            })()
+                    </label>
+                  );
+                })}
+            </div>
+          )}
+          {selectedTechIds.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              {selectedTechIds.length} technician{selectedTechIds.length !== 1 ? 's' : ''} selected
+            </p>
           )}
         </div>
 

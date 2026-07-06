@@ -70,7 +70,7 @@ export const clockOutSchema = z.object({
 
 export const createScheduleSchema = z.object({
   project_id: z.string().uuid('Invalid project ID'),
-  technician_id: z.string().uuid('Invalid technician ID'),
+  technician_ids: z.array(z.string().uuid('Invalid technician ID')).min(1, 'At least one technician required'),
   scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
@@ -80,7 +80,7 @@ export const createScheduleSchema = z.object({
 
 export const updateScheduleSchema = z.object({
   project_id: z.string().uuid('Invalid project ID').optional(),
-  technician_id: z.string().uuid('Invalid technician ID').optional(),
+  technician_ids: z.array(z.string().uuid('Invalid technician ID')).min(1, 'At least one technician required').optional(),
   scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
   start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
   end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),

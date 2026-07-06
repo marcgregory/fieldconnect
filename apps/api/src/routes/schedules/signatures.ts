@@ -42,7 +42,7 @@ export async function signatureRoutes(app: FastifyInstance) {
       // Field technicians can only add signatures to their own jobs
       if (
         request.user!.role === 'field_technician' &&
-        schedule.technician_id !== request.user!.id
+        !(schedule.technician_ids || []).includes(request.user!.id)
       ) {
         return reply.status(403).send({
           success: false,
@@ -75,7 +75,7 @@ export async function signatureRoutes(app: FastifyInstance) {
         user_name: request.user!.name,
         label: parsed.data.label || 'customer',
         timestamp: new Date().toISOString(),
-        technician_id: schedule.technician_id,
+        technician_id: schedule.technician_ids?.[0] || request.user!.id,
       });
 
       return reply.status(201).send({ success: true, data: signature });

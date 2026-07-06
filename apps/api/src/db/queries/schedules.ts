@@ -28,7 +28,7 @@ export function validateTransition(
   oldStatus: JobStatus,
   newStatus: JobStatus,
   userRole: string,
-  scheduleTechnicianId: string,
+  scheduleTechnicianIds: string[],
   userId: string,
 ): void {
   // Admin can correct any status to any status
@@ -43,7 +43,7 @@ export function validateTransition(
 
   // field_technician can only advance their own jobs
   if (userRole === 'field_technician') {
-    if (scheduleTechnicianId !== userId) {
+    if (!scheduleTechnicianIds.includes(userId)) {
       throw new ValidationError('You can only update your own jobs', 403);
     }
     const techAllowed: JobStatus[] = ['scheduled', 'traveling', 'on_site'];
@@ -64,15 +64,12 @@ export function validateTransition(
         403,
       );
     }
-    // Rework is allowed from completed back to on_site or traveling
-    // (already covered by VALID_TRANSITIONS above)
   }
 }
 
 export interface ScheduleRow {
   id: string;
   project_id: string;
-  technician_id: string;
   scheduled_date: string;
   start_time: string | null;
   end_time: string | null;
@@ -83,25 +80,87 @@ export interface ScheduleRow {
   updated_at: string;
 }
 
+// ─── Row mapper ────────────────────────────────────────────────────────────
+
+/**
+ * Map a raw query row (joined with schedule_technicians) into ScheduleWithDetails.
+ * Expects `technician_ids` and `technician_names` as comma-separated strings from
+ * string_agg, or the raw arrays from a subquery.
+ */
+function mapScheduleRow(row: any): ScheduleWithDetails {
+  const techIds: string[] = row.technician_ids
+    ? typeof row.technician_ids === 'string'
+      ? row.technician_ids.split(',').filter(Boolean)
+      : row.technician_ids
+    : [];
+  const techNames: string[] = row.technician_names
+    ? typeof row.technician_names === 'string'
+      ? row.technician_names.split(',').filter(Boolean)
+      : row.technician_names
+    : [];
+
+  return {
+    id: row.id,
+    project_id: row.project_id,
+    scheduled_date: row.scheduled_date,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    status: row.status,
+    notes: row.notes,
+    created_by: row.created_by,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    project_name: row.project_name,
+    project_address: row.project_address,
+    project_contact_name: row.project_contact_name,
+    project_contact_phone: row.project_contact_phone,
+    technician_name: techNames.join(', '),
+    technician_ids: techIds,
+    technician_names: techNames,
+    note_count: row.note_count ?? 0,
+    attachment_count: row.attachment_count ?? 0,
+    signature_count: row.signature_count ?? 0,
+    project_latitude: row.project_latitude,
+    project_longitude: row.project_longitude,
+    project_geofence_radius: row.project_geofence_radius,
+    clock_in_lat: row.clock_in_lat,
+    clock_in_lng: row.clock_in_lng,
+    clock_in_accuracy: row.clock_in_accuracy,
+    clock_in_time: row.clock_in_time,
+  };
+}
+
+const SCHEDULE_SELECT = `
+  SELECT s.id, s.project_id,
+         s.scheduled_date::text AS scheduled_date,
+         s.start_time, s.end_time, s.status, s.notes,
+         s.created_by, s.created_at, s.updated_at,
+         p.name AS project_name, p.address AS project_address,
+         p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone,
+         p.latitude AS project_latitude, p.longitude AS project_longitude,
+         p.geofence_radius AS project_geofence_radius,
+         COALESCE(
+           string_agg(DISTINCT st.technician_id::text, ',' ORDER BY st.technician_id::text), ''
+         ) AS technician_ids,
+         COALESCE(
+           string_agg(DISTINCT u.name, ',' ORDER BY u.name), ''
+         ) AS technician_names
+`;
+
+const SCHEDULE_FROM = `
+  FROM schedules s
+  JOIN projects p ON p.id = s.project_id
+  LEFT JOIN schedule_technicians st ON st.schedule_id = s.id
+  LEFT JOIN users u ON u.id = st.technician_id
+`;
+
 export async function findAll(filters?: {
   date?: string;
   technician_id?: string;
   project_id?: string;
   status?: string;
 }): Promise<ScheduleWithDetails[]> {
-  let sql = `
-    SELECT s.id, s.project_id, s.technician_id,
-           s.scheduled_date::text AS scheduled_date,
-           s.start_time, s.end_time, s.status, s.notes,
-           s.created_by, s.created_at, s.updated_at,
-           p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
-           p.latitude AS project_latitude, p.longitude AS project_longitude,
-           p.geofence_radius AS project_geofence_radius
-    FROM schedules s
-    JOIN projects p ON p.id = s.project_id
-    JOIN users u ON u.id = s.technician_id
-    WHERE 1=1
-  `;
+  let sql = SCHEDULE_SELECT + SCHEDULE_FROM + ' WHERE 1=1';
   const params: unknown[] = [];
   let paramIndex = 1;
 
@@ -110,7 +169,7 @@ export async function findAll(filters?: {
     params.push(filters.date);
   }
   if (filters?.technician_id) {
-    sql += ` AND s.technician_id = $${paramIndex++}`;
+    sql += ` AND EXISTS (SELECT 1 FROM schedule_technicians st2 WHERE st2.schedule_id = s.id AND st2.technician_id = $${paramIndex++})`;
     params.push(filters.technician_id);
   }
   if (filters?.project_id) {
@@ -122,137 +181,108 @@ export async function findAll(filters?: {
     params.push(filters.status);
   }
 
+  sql += ' GROUP BY s.id, p.id';
   sql += ' ORDER BY s.scheduled_date, s.start_time NULLS LAST';
 
   const result = await query(sql, params);
-  return result.rows;
+  return result.rows.map(mapScheduleRow);
 }
 
 export async function findById(id: string): Promise<ScheduleWithDetails | null> {
   const result = await query(
-    `SELECT s.id, s.project_id, s.technician_id,
-            s.scheduled_date::text AS scheduled_date,
-            s.start_time, s.end_time, s.status, s.notes,
-            s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name,
-            p.address AS project_address,
-            p.contact_name AS project_contact_name,
-            p.contact_phone AS project_contact_phone,
-            p.latitude AS project_latitude,
-            p.longitude AS project_longitude,
-            u.name AS technician_name,
-            (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
-            (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
-            (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count
-     FROM schedules s
-     JOIN projects p ON p.id = s.project_id
-     JOIN users u ON u.id = s.technician_id
-     WHERE s.id = $1`,
+    SCHEDULE_SELECT + `,
+      (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
+      (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
+      (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count
+    ` + SCHEDULE_FROM + ' WHERE s.id = $1 GROUP BY s.id, p.id',
     [id],
   );
-  return result.rows[0] || null;
+  return result.rows[0] ? mapScheduleRow(result.rows[0]) : null;
 }
 
 export async function findByDateRange(from: string, to: string): Promise<ScheduleWithDetails[]> {
   const result = await query(
-    `SELECT s.id, s.project_id, s.technician_id,
-            s.scheduled_date::text AS scheduled_date,
-            s.start_time, s.end_time, s.status, s.notes,
-            s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
-            p.latitude AS project_latitude, p.longitude AS project_longitude,
-            p.geofence_radius AS project_geofence_radius
-     FROM schedules s
-     JOIN projects p ON p.id = s.project_id
-     JOIN users u ON u.id = s.technician_id
-     WHERE s.scheduled_date >= $1 AND s.scheduled_date <= $2
-     ORDER BY s.scheduled_date, s.start_time NULLS LAST`,
+    SCHEDULE_SELECT + SCHEDULE_FROM +
+    ' WHERE s.scheduled_date >= $1 AND s.scheduled_date <= $2' +
+    ' GROUP BY s.id, p.id' +
+    ' ORDER BY s.scheduled_date, s.start_time NULLS LAST',
     [from, to],
   );
-  return result.rows;
+  return result.rows.map(mapScheduleRow);
 }
 
 export async function findForReview(): Promise<ScheduleWithDetails[]> {
+  // For review we also need clock-in data from the first tech who clocked in
   const result = await query(
-    `SELECT s.id, s.project_id, s.technician_id,
-            s.scheduled_date::text AS scheduled_date,
-            s.start_time, s.end_time, s.status, s.notes,
-            s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name, p.address AS project_address,
-            p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone,
-            p.latitude AS project_latitude, p.longitude AS project_longitude,
-            p.geofence_radius AS project_geofence_radius,
-            u.name AS technician_name,
-            (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
-            (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
-            (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count,
-            (SELECT te.clock_in_lat FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_lat,
-            (SELECT te.clock_in_lng FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_lng,
-            (SELECT te.clock_in_accuracy FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_accuracy,
-            (SELECT te.clock_in::text FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_time
-     FROM schedules s
-     JOIN projects p ON p.id = s.project_id
-     JOIN users u ON u.id = s.technician_id
-     WHERE s.status = 'completed'
-     ORDER BY s.scheduled_date DESC, s.updated_at DESC`,
+    SCHEDULE_SELECT + `,
+      (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
+      (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
+      (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count,
+      (SELECT te.clock_in_lat FROM time_entries te
+         JOIN schedule_technicians st3 ON st3.technician_id = te.user_id
+         WHERE st3.schedule_id = s.id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_lat,
+      (SELECT te.clock_in_lng FROM time_entries te
+         JOIN schedule_technicians st3 ON st3.technician_id = te.user_id
+         WHERE st3.schedule_id = s.id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_lng,
+      (SELECT te.clock_in_accuracy FROM time_entries te
+         JOIN schedule_technicians st3 ON st3.technician_id = te.user_id
+         WHERE st3.schedule_id = s.id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_accuracy,
+      (SELECT te.clock_in::text FROM time_entries te
+         JOIN schedule_technicians st3 ON st3.technician_id = te.user_id
+         WHERE st3.schedule_id = s.id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_time
+    ` + SCHEDULE_FROM +
+    ' WHERE s.status = \'completed\'' +
+    ' GROUP BY s.id, p.id' +
+    ' ORDER BY s.scheduled_date DESC, s.updated_at DESC',
   );
-  return result.rows;
+  return result.rows.map(mapScheduleRow);
 }
 
 export async function findUnassigned(): Promise<ScheduleWithDetails[]> {
   const result = await query(
-    `SELECT s.id, s.project_id, s.technician_id,
-            s.scheduled_date::text AS scheduled_date,
-            s.start_time, s.end_time, s.status, s.notes,
-            s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
-            p.latitude AS project_latitude, p.longitude AS project_longitude,
-            p.geofence_radius AS project_geofence_radius
-     FROM schedules s
-     JOIN projects p ON p.id = s.project_id
-     JOIN users u ON u.id = s.technician_id
-     WHERE s.status = 'scheduled'
-       AND s.start_time IS NULL
-     ORDER BY s.scheduled_date`,
+    SCHEDULE_SELECT + SCHEDULE_FROM +
+    ' WHERE s.status = \'scheduled\' AND s.start_time IS NULL' +
+    ' GROUP BY s.id, p.id' +
+    ' ORDER BY s.scheduled_date',
   );
-  return result.rows;
+  return result.rows.map(mapScheduleRow);
 }
 
 export async function findByTechnician(technicianId: string): Promise<ScheduleWithDetails[]> {
   const result = await query(
-    `SELECT s.id, s.project_id, s.technician_id,
-            s.scheduled_date::text AS scheduled_date,
-            s.start_time, s.end_time, s.status, s.notes,
-            s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
-            p.latitude AS project_latitude, p.longitude AS project_longitude,
-            p.geofence_radius AS project_geofence_radius
-     FROM schedules s
-     JOIN projects p ON p.id = s.project_id
-     JOIN users u ON u.id = s.technician_id
-     WHERE s.technician_id = $1
-     ORDER BY s.scheduled_date DESC, s.start_time NULLS LAST`,
+    SCHEDULE_SELECT + SCHEDULE_FROM +
+    ' WHERE st.technician_id = $1' +
+    ' GROUP BY s.id, p.id' +
+    ' ORDER BY s.scheduled_date DESC, s.start_time NULLS LAST',
     [technicianId],
   );
-  return result.rows;
+  return result.rows.map(mapScheduleRow);
 }
 
 export async function create(data: {
   project_id: string;
-  technician_id: string;
+  technician_ids: string[];
   scheduled_date: string;
   start_time?: string | null;
   end_time?: string | null;
   notes?: string | null;
   created_by: string;
 }): Promise<Schedule> {
-  const result = await query(
-    `INSERT INTO schedules (project_id, technician_id, scheduled_date, start_time, end_time, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+  // Insert the schedule
+  const schedResult = await query(
+    `INSERT INTO schedules (project_id, scheduled_date, start_time, end_time, notes, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
     [
       data.project_id,
-      data.technician_id,
       data.scheduled_date,
       data.start_time ?? null,
       data.end_time ?? null,
@@ -260,14 +290,25 @@ export async function create(data: {
       data.created_by,
     ],
   );
-  return result.rows[0];
+  const schedule = schedResult.rows[0];
+
+  // Insert each schedule_technician row
+  if (data.technician_ids.length > 0) {
+    const values = data.technician_ids.map((_, i) => `($1, $${i + 2})`).join(', ');
+    await query(
+      `INSERT INTO schedule_technicians (schedule_id, technician_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+      [schedule.id, ...data.technician_ids],
+    );
+  }
+
+  return schedule;
 }
 
 export async function update(
   id: string,
   data: {
     project_id?: string;
-    technician_id?: string;
+    technician_ids?: string[];
     scheduled_date?: string;
     start_time?: string | null;
     end_time?: string | null;
@@ -281,10 +322,6 @@ export async function update(
   if (data.project_id !== undefined) {
     fields.push(`project_id = $${paramIndex++}`);
     params.push(data.project_id);
-  }
-  if (data.technician_id !== undefined) {
-    fields.push(`technician_id = $${paramIndex++}`);
-    params.push(data.technician_id);
   }
   if (data.scheduled_date !== undefined) {
     fields.push(`scheduled_date = $${paramIndex++}`);
@@ -303,18 +340,29 @@ export async function update(
     params.push(data.notes);
   }
 
-  if (fields.length === 0) {
-    return findById(id);
+  if (fields.length > 0) {
+    fields.push('updated_at = NOW()');
+    params.push(id);
+
+    await query(
+      `UPDATE schedules SET ${fields.join(', ')} WHERE id = $${paramIndex}`,
+      params,
+    );
   }
 
-  fields.push('updated_at = NOW()');
-  params.push(id);
+  // Replace technician assignments if provided
+  if (data.technician_ids !== undefined) {
+    await query('DELETE FROM schedule_technicians WHERE schedule_id = $1', [id]);
+    if (data.technician_ids.length > 0) {
+      const values = data.technician_ids.map((_, i) => `($1, $${i + 2})`).join(', ');
+      await query(
+        `INSERT INTO schedule_technicians (schedule_id, technician_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+        [id, ...data.technician_ids],
+      );
+    }
+  }
 
-  const result = await query(
-    `UPDATE schedules SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
-    params,
-  );
-  return result.rows[0] || null;
+  return findById(id);
 }
 
 export async function deleteById(id: string): Promise<boolean> {
@@ -335,37 +383,33 @@ export interface ConflictInfo {
 const BUFFER_MINUTES = 30;
 
 /**
- * Find schedule conflicts for a technician on a given date.
- * Conflict rule: existing.start_time < requested.end_time + buffer
- *                AND existing.end_time + buffer > requested.start_time
- *
- * Pass excludeScheduleId when updating an existing schedule to exclude it
- * from the conflict check.
+ * Find schedule conflicts for technicians on a given date.
+ * Checks each technician individually against existing schedules.
  */
 export async function findConflicts(
-  technicianId: string,
+  technicianIds: string[],
   scheduledDate: string,
   startTime: string,
   endTime: string,
   excludeScheduleId?: string,
 ): Promise<ConflictInfo[]> {
-  // Convert time strings to minutes-since-midnight for comparison
   const startParts = startTime.split(':').map(Number);
   const endParts = endTime.split(':').map(Number);
   const requestedStart = startParts[0] * 60 + startParts[1];
   const requestedEnd = endParts[0] * 60 + endParts[1];
 
-  // Fetch all schedules for this technician on this date with time slots
   let sql = `
-    SELECT s.id, s.start_time, s.end_time, p.name AS project_name
+    SELECT s.id, s.start_time, s.end_time, p.name AS project_name,
+           st.technician_id
     FROM schedules s
     JOIN projects p ON p.id = s.project_id
-    WHERE s.technician_id = $1
+    JOIN schedule_technicians st ON st.schedule_id = s.id
+    WHERE st.technician_id = ANY($1::uuid[])
       AND s.scheduled_date = $2
       AND s.start_time IS NOT NULL
       AND s.end_time IS NOT NULL
   `;
-  const params: unknown[] = [technicianId, scheduledDate];
+  const params: unknown[] = [technicianIds, scheduledDate];
   let paramIndex = 3;
 
   if (excludeScheduleId) {
@@ -384,13 +428,10 @@ export async function findConflicts(
     const existingStart = existingParts[0] * 60 + existingParts[1];
     const existingEnd = existingEndParts[0] * 60 + existingEndParts[1];
 
-    // Conflict: existing.start_time < requested.end_time + buffer
-    //           AND existing.end_time + buffer > requested.start_time
     const requestedEndWithBuffer = requestedEnd + BUFFER_MINUTES;
     const existingEndWithBuffer = existingEnd + BUFFER_MINUTES;
 
     if (existingStart < requestedEndWithBuffer && existingEndWithBuffer > requestedStart) {
-      // Determine if it's an actual overlap or just a buffer conflict
       const isOverlap = existingStart < requestedEnd && existingEnd > requestedStart;
       conflicts.push({
         id: row.id,
@@ -442,7 +483,7 @@ export async function updateStatus(data: {
 
     // Row-level lock on the schedule row
     const lockResult = await client.query(
-      'SELECT status, technician_id, project_id FROM schedules WHERE id = $1 FOR UPDATE',
+      'SELECT status, project_id FROM schedules WHERE id = $1 FOR UPDATE',
       [data.id],
     );
 
@@ -453,12 +494,19 @@ export async function updateStatus(data: {
 
     const oldStatus = lockResult.rows[0].status as JobStatus;
 
+    // Fetch assigned technician IDs for ownership check
+    const techResult = await client.query(
+      'SELECT technician_id FROM schedule_technicians WHERE schedule_id = $1',
+      [data.id],
+    );
+    const techIds = techResult.rows.map((r: any) => r.technician_id);
+
     // Validate the transition
     validateTransition(
       oldStatus,
       data.status,
       data.user_role,
-      data.technician_id,
+      techIds,
       data.user_id,
     );
 

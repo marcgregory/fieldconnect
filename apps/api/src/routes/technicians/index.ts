@@ -47,7 +47,7 @@ export async function technicianRoutes(app: FastifyInstance) {
         const withAvailability: TechnicianAvailability[] = await Promise.all(
           technicians.map(async (t) => {
             const conflicts = await findConflicts(
-              t.id,
+              [t.id],
               date,
               start_time,
               end_time,

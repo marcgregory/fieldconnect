@@ -190,7 +190,8 @@ export const JOB_STATUSES: JobStatus[] = [
 export interface Schedule {
   id: string;
   project_id: string;
-  technician_id: string;
+  /** @deprecated Use technician_ids array from ScheduleWithDetails */
+  technician_id?: string;
   scheduled_date: string;
   start_time: string | null;
   end_time: string | null;
@@ -206,7 +207,12 @@ export interface ScheduleWithDetails extends Schedule {
   project_address: string | null;
   project_contact_name: string | null;
   project_contact_phone: string | null;
+  /** Comma-separated technician names for display */
   technician_name: string;
+  /** Array of assigned technician IDs (many-to-many) */
+  technician_ids: string[];
+  /** Array of assigned technician names (order matches ids) */
+  technician_names: string[];
   note_count?: number;
   attachment_count?: number;
   signature_count?: number;
@@ -222,7 +228,8 @@ export interface ScheduleWithDetails extends Schedule {
 
 export interface CreateScheduleInput {
   project_id: string;
-  technician_id: string;
+  /** Array of technician IDs to assign to this schedule */
+  technician_ids: string[];
   scheduled_date: string;
   start_time?: string;
   end_time?: string;
@@ -234,7 +241,8 @@ export interface UpdateScheduleInput {
   start_time?: string;
   end_time?: string;
   notes?: string;
-  technician_id?: string;
+  /** Array of technician IDs to assign to this schedule */
+  technician_ids?: string[];
   scheduled_date?: string;
   force?: boolean;
 }

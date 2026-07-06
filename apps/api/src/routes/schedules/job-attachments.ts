@@ -46,7 +46,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
       // Field technicians can only upload to their own jobs
       if (
         request.user!.role === 'field_technician' &&
-        schedule.technician_id !== request.user!.id
+        !(schedule.technician_ids || []).includes(request.user!.id)
       ) {
         return reply.status(403).send({
           success: false, error: 'You can only upload to your own jobs',
@@ -174,7 +174,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           file_name: fileName,
           attachment_type: typeCheck.data.attachment_type,
           timestamp: new Date().toISOString(),
-          technician_id: schedule.technician_id,
+          technician_id: schedule.technician_ids?.[0] || request.user!.id,
         });
 
         return reply.status(201).send({ success: true, data: attachment });
@@ -239,7 +239,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           file_name: attachment.file_name,
           attachment_type: attachment.attachment_type,
           timestamp: new Date().toISOString(),
-          technician_id: schedule.technician_id,
+          technician_id: schedule.technician_ids?.[0] || request.user!.id,
         });
       }
 
