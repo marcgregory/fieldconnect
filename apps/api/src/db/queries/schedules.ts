@@ -16,8 +16,8 @@ const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   scheduled: ['traveling'],
   traveling: ['on_site'],
   on_site: ['completed'],
-  completed: ['office_review'],
-  office_review: ['closed'],
+  completed: ['office_review', 'on_site', 'traveling'],
+  office_review: ['closed', 'on_site', 'traveling'],
   closed: [],
 };
 
@@ -56,7 +56,7 @@ export function validateTransition(
     }
   }
 
-  // office/dispatcher can only advance completed → office_review → closed
+  // office/dispatcher can review completed/office_review + request rework
   if (['office_manager', 'dispatcher'].includes(userRole)) {
     const officeAllowed: JobStatus[] = ['completed', 'office_review'];
     if (!officeAllowed.includes(oldStatus)) {
@@ -65,6 +65,8 @@ export function validateTransition(
         403,
       );
     }
+    // Rework is allowed from completed/office_review back to on_site or traveling
+    // (already covered by VALID_TRANSITIONS above)
   }
 }
 
@@ -161,6 +163,27 @@ export async function findByDateRange(from: string, to: string): Promise<Schedul
      WHERE s.scheduled_date >= $1 AND s.scheduled_date <= $2
      ORDER BY s.scheduled_date, s.start_time NULLS LAST`,
     [from, to],
+  );
+  return result.rows;
+}
+
+export async function findForReview(): Promise<ScheduleWithDetails[]> {
+  const result = await query(
+    `SELECT s.id, s.project_id, s.technician_id,
+            s.scheduled_date::text AS scheduled_date,
+            s.start_time, s.end_time, s.status, s.notes,
+            s.created_by, s.created_at, s.updated_at,
+            p.name AS project_name, p.address AS project_address,
+            p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone,
+            u.name AS technician_name,
+            (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
+            (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
+            (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count
+     FROM schedules s
+     JOIN projects p ON p.id = s.project_id
+     JOIN users u ON u.id = s.technician_id
+     WHERE s.status IN ('completed', 'office_review')
+     ORDER BY s.scheduled_date DESC, s.updated_at DESC`,
   );
   return result.rows;
 }

@@ -207,6 +207,10 @@ export async function getMyJobs(): Promise<ScheduleWithDetails[]> {
   return bffFetch('/api/v1/schedules/my-jobs');
 }
 
+export async function getReviewQueue(): Promise<ScheduleWithDetails[]> {
+  return bffFetch('/api/v1/schedules/review');
+}
+
 // ─── Schedule API ──────────────────────────────────────────────────────────
 
 export async function getSchedules(filters?: {

@@ -61,6 +61,16 @@ export async function scheduleRoutes(app: FastifyInstance) {
     return { success: true, data: schedules };
   });
 
+  // --- Review Queue (completed + office_review jobs) --------------------------
+  app.get(
+    '/api/v1/schedules/review',
+    { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
+    async (_request, reply) => {
+      const schedules = await scheduleQueries.findForReview();
+      return { success: true, data: schedules };
+    },
+  );
+
   // --- Unassigned Jobs Queue --------------------------------------------------
   app.get(
     '/api/v1/schedules/unassigned',
