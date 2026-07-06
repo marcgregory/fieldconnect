@@ -61,7 +61,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
     return { success: true, data: schedules };
   });
 
-  // --- Review Queue (completed + office_review jobs) --------------------------
+  // --- Review Queue (completed jobs) -----------------------------------------
   app.get(
     '/api/v1/schedules/review',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },

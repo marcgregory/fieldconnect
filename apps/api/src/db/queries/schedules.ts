@@ -16,7 +16,7 @@ const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   scheduled: ['traveling'],
   traveling: ['on_site'],
   on_site: ['completed'],
-  completed: ['office_review', 'on_site', 'traveling'],
+  completed: ['closed', 'on_site', 'traveling'],
   office_review: ['closed', 'on_site', 'traveling'],
   closed: [],
 };
@@ -182,7 +182,7 @@ export async function findForReview(): Promise<ScheduleWithDetails[]> {
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
-     WHERE s.status IN ('completed', 'office_review')
+     WHERE s.status = 'completed'
      ORDER BY s.scheduled_date DESC, s.updated_at DESC`,
   );
   return result.rows;

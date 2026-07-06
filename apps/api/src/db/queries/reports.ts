@@ -175,7 +175,7 @@ export async function getDashboardSummary(): Promise<DashboardSummaryRow> {
       ), 1), 0) AS hours_this_week,
       (SELECT COUNT(DISTINCT user_id) FROM time_entries WHERE clock_out IS NULL)::int AS active_technicians,
       (SELECT COUNT(*)::int FROM schedules WHERE status = 'completed' AND scheduled_date = CURRENT_DATE) AS completed_today,
-      (SELECT COUNT(*)::int FROM schedules WHERE status = 'office_review') AS needs_review_count,
+      (SELECT COUNT(*)::int FROM schedules WHERE status = 'completed') AS needs_review_count,
       (SELECT COUNT(*)::int FROM schedules WHERE status = 'scheduled' AND scheduled_date < CURRENT_DATE) AS late_jobs_count
     FROM time_entries te
     WHERE te.clock_in >= date_trunc('week', CURRENT_DATE)

@@ -17,7 +17,7 @@ interface OfficeAction {
 }
 
 const OFFICE_ACTIONS: Record<string, OfficeAction | null> = {
-  completed: { status: 'office_review', label: 'Move to Office Review', color: 'bg-purple-600' },
+  completed: { status: 'closed', label: 'Close Job', color: 'bg-gray-700' },
   office_review: { status: 'closed', label: 'Close Job', color: 'bg-gray-700' },
 };
 
