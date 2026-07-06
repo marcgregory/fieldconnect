@@ -349,6 +349,59 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     }
   }
 
+  async function handleDocumentUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isOnline) {
+      setUploading(true);
+      try {
+        if (file.size > 10 * 1024 * 1024) {
+          setError('Document is too large for offline upload. Max is 10 MB.');
+          if (e.target) e.target.value = '';
+          return;
+        }
+        await enqueuePhoto(scheduleId, file, 'document');
+        const optimisticAttachment: JobAttachment = {
+          id: `offline-${Date.now()}`,
+          schedule_id: scheduleId,
+          user_id: '',
+          user_name: 'You (offline — pending sync)',
+          file_name: file.name,
+          file_path: '',
+          mime_type: file.type || 'application/octet-stream',
+          file_size: file.size,
+          attachment_type: 'document',
+          created_at: new Date().toISOString(),
+        };
+        setAttachments((prev) => [...prev, optimisticAttachment]);
+        setOfflineToast('Document saved offline — will sync when connected');
+        setTimeout(() => setOfflineToast(''), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to queue document');
+      } finally {
+        setUploading(false);
+        if (e.target) e.target.value = '';
+      }
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('attachment_type', 'document');
+      await uploadJobAttachment(scheduleId, formData);
+      const updated = await getJobAttachments(scheduleId);
+      setAttachments(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload document');
+    } finally {
+      setUploading(false);
+      if (e.target) e.target.value = '';
+    }
+  }
+
   async function handleDeleteAttachment(attachmentId: string) {
     if (!confirm('Delete this attachment?')) return;
     try {
@@ -483,6 +536,56 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   }
 
   const requiredDocs = getRequiredDocsStatus();
+
+  // ─── Attachment card renderer ─────────────────────────────────────────────
+  function renderAttachmentCard(att: JobAttachment) {
+    return (
+      <div key={att.id} className="border border-gray-200 rounded-xl overflow-hidden">
+        {att.mime_type.startsWith('image/') ? (
+          <div className="relative">
+            <img
+              src={att.id.startsWith('offline-') ? att.file_path || '' : getUploadUrl(att.file_path)}
+              alt={att.file_name}
+              className="w-full h-32 object-cover"
+              loading="lazy"
+            />
+            <button
+              onClick={() => handleDeleteAttachment(att.id)}
+              className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/70 transition-colors"
+              title="Delete"
+            >
+              &times;
+            </button>
+            {att.id.startsWith('offline-') && (
+              <div className="absolute bottom-1 left-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded">
+                Pending
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-3 text-center">
+            <svg className="h-8 w-8 text-gray-400 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            <p className="text-xs text-gray-700 truncate">{att.file_name}</p>
+            <p className="text-xs text-gray-400">{formatFileSize(att.file_size)}</p>
+            <button
+              onClick={() => handleDeleteAttachment(att.id)}
+              className="mt-1 text-xs text-red-500 hover:text-red-700"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+        <div className="px-2 py-1 flex items-center justify-between bg-gray-50">
+          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${ATTACHMENT_COLORS[att.attachment_type] || ATTACHMENT_COLORS.document}`}>
+            {ATTACHMENT_LABELS[att.attachment_type] || 'Document'}
+          </span>
+          <span className="text-xs text-gray-400">{att.user_name?.split(' ')[0]}</span>
+        </div>
+      </div>
+    );
+  }
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -811,32 +914,12 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             <label>
               <input
                 type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) {
-                    setSelectedAttachmentType('document');
-                    // Re-trigger upload with the document type
-                    const file = e.target.files[0];
-                    const input = fileInputRef.current;
-                    if (input) {
-                      // We need to upload directly since the main handler uses selectedAttachmentType
-                      setUploading(true);
-                      const uploadFile = file;
-                      const formData = new FormData();
-                      formData.append('file', uploadFile);
-                      formData.append('attachment_type', 'document');
-                      uploadJobAttachment(scheduleId, formData)
-                        .then(() => getJobAttachments(scheduleId))
-                        .then(setAttachments)
-                        .catch((err) => setError(err instanceof Error ? err.message : 'Failed to upload document'))
-                        .finally(() => { setUploading(false); if (e.target) e.target.value = ''; });
-                    }
-                  }
-                }}
+                accept=".pdf,.doc,.docx,.txt,.csv,.xls,.xlsx"
+                onChange={handleDocumentUpload}
                 className="hidden"
                 disabled={uploading}
               />
-              <div className="flex items-center justify-center px-4 py-3 bg-white border-2 border-dashed border-gray-300 text-gray-500 rounded-xl text-sm font-medium active:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 hover:border-gray-400">
+              <div className="flex items-center justify-center px-4 py-3 bg-white border-2 border-dashed border-gray-300 text-gray-500 rounded-xl text-sm font-medium active:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50 hover:border-gray-400" title="Upload Document">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
@@ -844,49 +927,37 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             </label>
           </div>
 
-          {/* Attachments Grid */}
-          {attachments.length === 0 ? (
-            <p className="text-sm text-gray-400 italic">No photos or attachments yet</p>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
-              {attachments.map((att) => (
-                <div key={att.id} className="border border-gray-200 rounded-xl overflow-hidden">
-                  {att.mime_type.startsWith('image/') ? (
-                    <div className="relative">
-                      <img
-                        src={att.id.startsWith('offline-') ? att.file_path || '' : getUploadUrl(att.file_path)}
-                        alt={att.file_name}
-                        className="w-full h-32 object-cover"
-                        loading="lazy"
-                      />
-                      <button
-                        onClick={() => handleDeleteAttachment(att.id)}
-                        className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/70 transition-colors"
-                        title="Delete"
-                      >
-                        &times;
-                      </button>
-                      {att.id.startsWith('offline-') && (
-                        <div className="absolute bottom-1 left-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded">
-                          Pending
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="p-3 text-center">
-                      <p className="text-xs text-gray-700 truncate">{att.file_name}</p>
-                      <p className="text-xs text-gray-400">{formatFileSize(att.file_size)}</p>
-                    </div>
-                  )}
-                  <div className="px-2 py-1 flex items-center justify-between bg-gray-50">
-                    <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${ATTACHMENT_COLORS[att.attachment_type] || ATTACHMENT_COLORS.document}`}>
-                      {ATTACHMENT_LABELS[att.attachment_type] || 'Document'}
-                    </span>
-                    <span className="text-xs text-gray-400">{att.user_name?.split(' ')[0]}</span>
-                  </div>
+          {/* ── Photos (before & after) ────────────────────────────────────── */}
+          {(() => {
+            const photos = attachments.filter((a) => a.attachment_type !== 'document');
+            if (photos.length === 0) return null;
+            return (
+              <div className="mb-4">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Photos</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {photos.map((att) => renderAttachmentCard(att))}
                 </div>
-              ))}
-            </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Documents ──────────────────────────────────────────────────── */}
+          {(() => {
+            const docs = attachments.filter((a) => a.attachment_type === 'document');
+            if (docs.length === 0) return null;
+            return (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Documents</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {docs.map((att) => renderAttachmentCard(att))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Empty state — no attachments at all */}
+          {attachments.length === 0 && (
+            <p className="text-sm text-gray-400 italic">No photos or attachments yet</p>
           )}
         </div>
 
