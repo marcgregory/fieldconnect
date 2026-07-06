@@ -282,6 +282,9 @@ export interface JobAttachment {
   file_size: number;
   attachment_type: AttachmentType;
   created_at: string;
+  cloudinary_public_id?: string;
+  secure_url?: string;
+  resource_type?: string;
 }
 
 export interface CreateJobAttachmentInput {
@@ -296,6 +299,8 @@ export interface Signature {
   signature_data: string;
   label: string;
   created_at: string;
+  cloudinary_public_id?: string;
+  secure_url?: string;
 }
 
 export interface CreateSignatureInput {

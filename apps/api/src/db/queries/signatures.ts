@@ -18,12 +18,21 @@ export async function create(data: {
   user_id: string;
   signature_data: string;
   label: string;
+  cloudinary_public_id?: string;
+  secure_url?: string;
 }): Promise<Signature> {
   const result = await query(
-    `INSERT INTO signatures (schedule_id, user_id, signature_data, label)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO signatures (schedule_id, user_id, signature_data, label, cloudinary_public_id, secure_url)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [data.schedule_id, data.user_id, data.signature_data, data.label],
+    [
+      data.schedule_id,
+      data.user_id,
+      data.signature_data,
+      data.label,
+      data.cloudinary_public_id || null,
+      data.secure_url || null,
+    ],
   );
   return result.rows[0];
 }

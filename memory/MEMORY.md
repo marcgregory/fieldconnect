@@ -1,0 +1,1 @@
+- [Cloudinary Storage Implementation](cloudinary-storage-implementation.md) — Cloudinary replaces local filesystem for all production uploads with secure_url fallback

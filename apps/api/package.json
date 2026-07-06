@@ -17,6 +17,7 @@
     "@fastify/static": "^7.0.0",
     "@fieldconnect/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.5.0",
     "fastify": "^4.27.0",
     "jose": "^6.2.3",
     "node-pg-migrate": "^7.0.0",

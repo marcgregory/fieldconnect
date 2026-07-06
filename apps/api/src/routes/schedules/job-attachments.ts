@@ -8,6 +8,10 @@ import * as jobAttachmentQueries from '../../db/queries/job-attachments';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastAttachmentEvent } from '../../websocket';
 import { saveUpload, deleteUpload } from '../../lib/file-storage';
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary,
+} from '../../lib/cloudinary-storage';
 
 const MAX_ATTACHMENTS = 20;
 
@@ -86,8 +90,23 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
       const mimeType = fileData.mimetype || 'application/octet-stream';
       const fileSize = buffer.length;
 
-      // Save to disk
-      const relativePath = await saveUpload(id, fileName, buffer);
+      // Upload to Cloudinary
+      let cloudinaryResult: {
+        public_id: string;
+        secure_url: string;
+        resource_type: string;
+        file_size: number;
+      } | null = null;
+      let relativePath = '';
+
+      try {
+        cloudinaryResult = await uploadToCloudinary(id, buffer, fileName, mimeType);
+        relativePath = `${id}/${cloudinaryResult.public_id}`; // logical path for records
+      } catch (cloudinaryErr) {
+        // Fallback: save to local disk if Cloudinary fails
+        console.warn('Cloudinary upload failed, falling back to local storage:', cloudinaryErr);
+        relativePath = await saveUpload(id, fileName, buffer);
+      }
 
       try {
         const attachment = await jobAttachmentQueries.create({
@@ -96,8 +115,11 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           file_name: fileName,
           file_path: relativePath,
           mime_type: mimeType,
-          file_size: fileSize,
+          file_size: cloudinaryResult?.file_size || fileSize,
           attachment_type: typeCheck.data.attachment_type,
+          cloudinary_public_id: cloudinaryResult?.public_id,
+          secure_url: cloudinaryResult?.secure_url,
+          resource_type: cloudinaryResult?.resource_type,
         });
 
         // Broadcast attachment uploaded event
@@ -116,7 +138,11 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
         return reply.status(201).send({ success: true, data: attachment });
       } catch (err) {
         // Rollback file if DB insert fails
-        await deleteUpload(relativePath);
+        if (cloudinaryResult?.public_id) {
+          await deleteFromCloudinary(cloudinaryResult.public_id).catch(() => {});
+        } else {
+          await deleteUpload(relativePath);
+        }
         throw err;
       }
     },
@@ -149,7 +175,12 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
       // Get schedule for technician_id before deletion
       const schedule = await scheduleQueries.findById(id).catch(() => null);
 
-      // Delete from disk
+      // Delete from Cloudinary first (if cloudinary upload)
+      if (attachment.cloudinary_public_id) {
+        await deleteFromCloudinary(attachment.cloudinary_public_id);
+      }
+
+      // Delete from disk (local fallback)
       await deleteUpload(attachment.file_path);
 
       // Delete from database

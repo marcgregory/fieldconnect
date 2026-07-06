@@ -4,6 +4,7 @@ import { requireRole } from '../../middleware/auth';
 import * as signatureQueries from '../../db/queries/signatures';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastSignatureEvent } from '../../websocket';
+import { uploadSignatureToCloudinary } from '../../lib/cloudinary-storage';
 
 export async function signatureRoutes(app: FastifyInstance) {
   // ─── List Signatures ────────────────────────────────────────────────────
@@ -49,11 +50,21 @@ export async function signatureRoutes(app: FastifyInstance) {
         });
       }
 
+      // Upload signature to Cloudinary
+      let cloudinaryResult: { public_id: string; secure_url: string } | null = null;
+      try {
+        cloudinaryResult = await uploadSignatureToCloudinary(id, parsed.data.signature_data);
+      } catch (cloudinaryErr) {
+        console.warn('Cloudinary signature upload failed, storing base64 only:', cloudinaryErr);
+      }
+
       const signature = await signatureQueries.create({
         schedule_id: id,
         user_id: request.user!.id,
         signature_data: parsed.data.signature_data,
         label: parsed.data.label || 'customer',
+        cloudinary_public_id: cloudinaryResult?.public_id,
+        secure_url: cloudinaryResult?.secure_url,
       });
 
       // Broadcast signature captured event

@@ -103,6 +103,10 @@ function getUploadUrl(filePath: string): string {
   return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/uploads/${filePath}`;
 }
 
+function getAttachmentUrl(att: JobAttachment): string {
+  return att.secure_url || (att.file_path ? getUploadUrl(att.file_path) : '');
+}
+
 export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const router = useRouter();
   const [schedule, setSchedule] = useState<ScheduleWithDetails | null>(null);
@@ -543,7 +547,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         {att.mime_type.startsWith('image/') ? (
           <div className="relative">
             <img
-              src={att.id.startsWith('offline-') ? att.file_path || '' : getUploadUrl(att.file_path)}
+              src={att.id.startsWith('offline-') ? att.file_path || '' : getAttachmentUrl(att)}
               alt={att.file_name}
               className="w-full h-32 object-cover"
               loading="lazy"

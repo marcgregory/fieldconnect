@@ -96,6 +96,10 @@ export function ReviewClient() {
     return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/uploads/${filePath}`;
   }
 
+  function getAttachmentUrl(att: JobAttachment): string {
+    return att.secure_url || (att.file_path ? getUploadUrl(att.file_path) : '');
+  }
+
   // Rework modal
   const [reworkModal, setReworkModal] = useState<{
     schedule: ScheduleWithDetails;
@@ -595,7 +599,7 @@ export function ReviewClient() {
                                         <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden">
                                           <div className="w-24 h-20 relative">
                                             <img
-                                              src={getUploadUrl(att.file_path)}
+                                              src={getAttachmentUrl(att)}
                                               alt={att.file_name}
                                               className="w-full h-full object-cover"
                                               loading="lazy"

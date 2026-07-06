@@ -32,10 +32,13 @@ export async function create(data: {
   mime_type: string;
   file_size: number;
   attachment_type: string;
+  cloudinary_public_id?: string;
+  secure_url?: string;
+  resource_type?: string;
 }): Promise<JobAttachment> {
   const result = await query(
-    `INSERT INTO job_attachments (schedule_id, user_id, file_name, file_path, mime_type, file_size, attachment_type)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO job_attachments (schedule_id, user_id, file_name, file_path, mime_type, file_size, attachment_type, cloudinary_public_id, secure_url, resource_type)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [
       data.schedule_id,
@@ -45,6 +48,9 @@ export async function create(data: {
       data.mime_type,
       data.file_size,
       data.attachment_type,
+      data.cloudinary_public_id || null,
+      data.secure_url || null,
+      data.resource_type || null,
     ],
   );
   return result.rows[0];
