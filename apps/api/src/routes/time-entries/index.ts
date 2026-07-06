@@ -20,7 +20,7 @@ export async function timeEntryRoutes(app: FastifyInstance) {
       }
 
       // Check that the technician is assigned to this project
-      const { project_id, notes } = parsed.data;
+      const { project_id, notes, clock_in_lat, clock_in_lng } = parsed.data;
 
       // Verify project exists
       const project = await projectQueries.findById(project_id);
@@ -45,6 +45,8 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         request.user!.id,
         project_id,
         notes,
+        clock_in_lat,
+        clock_in_lng,
       );
 
       // Broadcast clock-in event
@@ -56,6 +58,8 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         project_name: project.name,
         timestamp: entry.clock_in,
         entry_id: entry.id,
+        clock_in_lat,
+        clock_in_lng,
       });
 
       return reply.status(201).send({ success: true, data: entry });
@@ -75,6 +79,8 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         });
       }
 
+      const { notes, clock_out_lat, clock_out_lng } = parsed.data;
+
       // Find the active entry for this user
       const active = await timeEntryQueries.findActiveByUser(request.user!.id);
       if (!active) {
@@ -86,7 +92,9 @@ export async function timeEntryRoutes(app: FastifyInstance) {
 
       const entry = await timeEntryQueries.clockOut(
         active.id,
-        parsed.data.notes,
+        notes,
+        clock_out_lat,
+        clock_out_lng,
       );
       if (!entry) {
         return reply.status(409).send({

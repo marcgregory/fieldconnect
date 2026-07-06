@@ -9,6 +9,10 @@ export interface TimeEntryRow {
   clock_out: string | null;
   break_minutes: number;
   notes: string | null;
+  clock_in_lat: number | null;
+  clock_in_lng: number | null;
+  clock_out_lat: number | null;
+  clock_out_lng: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -22,6 +26,10 @@ function mapRow(row: TimeEntryRow): TimeEntry {
     clock_out: row.clock_out,
     break_minutes: row.break_minutes,
     notes: row.notes,
+    clock_in_lat: row.clock_in_lat ?? null,
+    clock_in_lng: row.clock_in_lng ?? null,
+    clock_out_lat: row.clock_out_lat ?? null,
+    clock_out_lng: row.clock_out_lng ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -31,12 +39,14 @@ export async function clockIn(
   userId: string,
   projectId: string,
   notes?: string | null,
+  clockInLat?: number | null,
+  clockInLng?: number | null,
 ): Promise<TimeEntry> {
   const result = await query(
-    `INSERT INTO time_entries (user_id, project_id, notes)
-     VALUES ($1, $2, $3)
+    `INSERT INTO time_entries (user_id, project_id, notes, clock_in_lat, clock_in_lng)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [userId, projectId, notes ?? null],
+    [userId, projectId, notes ?? null, clockInLat ?? null, clockInLng ?? null],
   );
   return mapRow(result.rows[0]);
 }
@@ -44,6 +54,8 @@ export async function clockIn(
 export async function clockOut(
   id: string,
   notes?: string | null,
+  clockOutLat?: number | null,
+  clockOutLng?: number | null,
 ): Promise<TimeEntry | null> {
   let sql = `UPDATE time_entries SET clock_out = NOW(), updated_at = NOW()`;
   const params: unknown[] = [];
@@ -52,6 +64,16 @@ export async function clockOut(
   if (notes !== undefined) {
     sql += `, notes = $${paramIndex++}`;
     params.push(notes);
+  }
+
+  if (clockOutLat !== undefined && clockOutLat !== null) {
+    sql += `, clock_out_lat = $${paramIndex++}`;
+    params.push(clockOutLat);
+  }
+
+  if (clockOutLng !== undefined && clockOutLng !== null) {
+    sql += `, clock_out_lng = $${paramIndex++}`;
+    params.push(clockOutLng);
   }
 
   sql += ` WHERE id = $${paramIndex} AND clock_out IS NULL RETURNING *`;

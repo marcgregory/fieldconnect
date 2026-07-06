@@ -24,6 +24,9 @@ export const createProjectSchema = z.object({
   contact_name: z.string().max(100).optional(),
   contact_phone: z.string().max(20).optional(),
   notes: z.string().max(5000).optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  geofence_radius: z.number().int().min(0).max(10000).default(50),
 });
 
 export const updateProjectSchema = z.object({
@@ -33,6 +36,9 @@ export const updateProjectSchema = z.object({
   contact_name: z.string().max(100).optional(),
   contact_phone: z.string().max(20).optional(),
   notes: z.string().max(5000).optional(),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  geofence_radius: z.number().int().min(0).max(10000).optional(),
 });
 
 export const updateProjectStatusSchema = z.object({
@@ -41,13 +47,20 @@ export const updateProjectStatusSchema = z.object({
 
 // ─── Time Entry Validation ─────────────────────────────────────────────────
 
+const latSchema = z.number().min(-90).max(90).optional();
+const lngSchema = z.number().min(-180).max(180).optional();
+
 export const clockInSchema = z.object({
   project_id: z.string().uuid('Invalid project ID'),
   notes: z.string().max(5000).optional(),
+  clock_in_lat: latSchema,
+  clock_in_lng: lngSchema,
 });
 
 export const clockOutSchema = z.object({
   notes: z.string().max(5000).optional(),
+  clock_out_lat: latSchema,
+  clock_out_lng: lngSchema,
 });
 
 // ─── Schedule Validation ────────────────────────────────────────────────────

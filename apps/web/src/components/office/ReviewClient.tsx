@@ -463,6 +463,21 @@ export function ReviewClient() {
                     </div>
                   ) : (
                     <div className="p-4 space-y-5">
+                      {/* ── Location ──────────────────────────────────────── */}
+                      {schedule.project_latitude && schedule.project_longitude && (
+                        <div>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Site Location</h4>
+                          <a
+                            href={`https://www.google.com/maps?q=${schedule.project_latitude},${schedule.project_longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 underline"
+                          >
+                            📍 View customer site on Google Maps
+                          </a>
+                        </div>
+                      )}
+
                       {/* ── Completion Score ──────────────────────────────── */}
                       <div>
                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">

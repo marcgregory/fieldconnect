@@ -136,6 +136,8 @@ export async function findById(id: string): Promise<ScheduleWithDetails | null> 
             p.address AS project_address,
             p.contact_name AS project_contact_name,
             p.contact_phone AS project_contact_phone,
+            p.latitude AS project_latitude,
+            p.longitude AS project_longitude,
             u.name AS technician_name,
             (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
             (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
@@ -144,7 +146,6 @@ export async function findById(id: string): Promise<ScheduleWithDetails | null> 
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
      WHERE s.id = $1`,
-    [id],
   );
   return result.rows[0] || null;
 }
@@ -174,6 +175,7 @@ export async function findForReview(): Promise<ScheduleWithDetails[]> {
             s.created_by, s.created_at, s.updated_at,
             p.name AS project_name, p.address AS project_address,
             p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone,
+            p.latitude AS project_latitude, p.longitude AS project_longitude,
             u.name AS technician_name,
             (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
             (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,

@@ -151,17 +151,32 @@ export async function removeTeamMember(
 export async function clockIn(
   projectId: string,
   notes?: string,
+  clockInLat?: number,
+  clockInLng?: number,
 ): Promise<TimeEntry> {
   return bffFetch('/api/v1/time-entries/clock-in', {
     method: 'POST',
-    body: JSON.stringify({ project_id: projectId, notes }),
+    body: JSON.stringify({
+      project_id: projectId,
+      notes,
+      clock_in_lat: clockInLat,
+      clock_in_lng: clockInLng,
+    }),
   });
 }
 
-export async function clockOut(notes?: string): Promise<TimeEntry> {
+export async function clockOut(
+  notes?: string,
+  clockOutLat?: number,
+  clockOutLng?: number,
+): Promise<TimeEntry> {
   return bffFetch('/api/v1/time-entries/clock-out', {
     method: 'POST',
-    body: JSON.stringify({ notes }),
+    body: JSON.stringify({
+      notes,
+      clock_out_lat: clockOutLat,
+      clock_out_lng: clockOutLng,
+    }),
   });
 }
 

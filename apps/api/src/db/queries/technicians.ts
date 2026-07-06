@@ -15,6 +15,8 @@ export interface AssignmentWithDetails {
   project_name: string;
   technician_name: string;
   technician_role: string;
+  project_latitude: number | null;
+  project_longitude: number | null;
 }
 
 export interface UserRow {
@@ -68,7 +70,7 @@ export async function findAssignmentsByUser(
   userId: string,
 ): Promise<AssignmentWithDetails[]> {
   const result = await query(
-    `SELECT ta.*, p.name AS project_name, p.status AS project_status, u.name AS technician_name, u.role AS technician_role
+    `SELECT ta.*, p.name AS project_name, p.status AS project_status, u.name AS technician_name, u.role AS technician_role, p.latitude AS project_latitude, p.longitude AS project_longitude
      FROM technician_assignments ta
      JOIN projects p ON p.id = ta.project_id
      JOIN users u ON u.id = ta.user_id

@@ -11,6 +11,61 @@ interface ClockInOutProps {
   onStatusChange?: () => void;
 }
 
+/** Haversine distance in meters between two lat/lng points */
+function haversineDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number,
+): number {
+  const R = 6371000; // Earth radius in meters
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** Format distance for display */
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+/** Build a Google Maps URL from lat/lng */
+function googleMapsUrl(lat: number, lng: number): string {
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+/** Get current position via browser Geolocation API */
+function getCurrentPosition(
+  timeout = 10000,
+): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      () => {
+        // Permission denied, timeout, or error — degrade gracefully
+        resolve(null);
+      },
+      { enableHighAccuracy: true, timeout, maximumAge: 30000 },
+    );
+  });
+}
+
 export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
   const [assignments, setAssignments] = useState<TechnicianAssignmentWithDetails[]>([]);
@@ -25,6 +80,8 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     duration: string;
     projectName: string;
   } | null>(null);
+  const [distanceFromSite, setDistanceFromSite] = useState<number | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   // Optimistic rollback snapshot — keeps last known state so we can revert on failure
   const optimisticRollbackRef = useRef<{
     activeEntry: typeof activeEntry;
@@ -44,6 +101,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
 
       setActiveEntry(current);
       setAssignments(userAssignments);
+      setDistanceFromSite(null);
 
       if (current) {
         // Calculate elapsed seconds
@@ -103,6 +161,8 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       clock_out: null,
       break_minutes: 0,
       notes: null,
+      clock_in_lat: null,
+      clock_in_lng: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -113,9 +173,25 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     setClockInError('');
     setError('');
     setActionLoading(true);
+    setLocationLoading(true);
 
     try {
-      await clockIn(selectedProjectId);
+      // Capture GPS position (best-effort)
+      const pos = await getCurrentPosition();
+
+      await clockIn(selectedProjectId, undefined, pos?.lat, pos?.lng);
+
+      // Calculate distance from project site if we have both GPS and project coords
+      if (pos && selectedAssignment?.project_latitude && selectedAssignment?.project_longitude) {
+        const dist = haversineDistance(
+          pos.lat,
+          pos.lng,
+          selectedAssignment.project_latitude,
+          selectedAssignment.project_longitude,
+        );
+        setDistanceFromSite(dist);
+      }
+
       // Success — refetch to get server-authoritative state
       await fetchState();
       onStatusChange?.();
@@ -128,6 +204,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     } finally {
       optimisticRollbackRef.current = null;
       setActionLoading(false);
+      setLocationLoading(false);
     }
   }
 
@@ -142,15 +219,19 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     if (!currentEntry) return;
 
     // Optimistic — mark as clocked out immediately
-    const clockOutTime = new Date().toISOString();
     const clockOutSeconds = elapsed;
     setActiveEntry(null);
     setShowConfirmClockOut(false);
     setActionLoading(true);
     setError('');
+    setLocationLoading(true);
 
     try {
-      await clockOut();
+      // Capture GPS position (best-effort)
+      const pos = await getCurrentPosition();
+
+      await clockOut(undefined, pos?.lat, pos?.lng);
+
       // Refetch to get server-authoritative state
       await fetchState();
       // Show clocked-out summary using elapsed time
@@ -172,6 +253,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     } finally {
       optimisticRollbackRef.current = null;
       setActionLoading(false);
+      setLocationLoading(false);
     }
   }
 
@@ -230,6 +312,10 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
 
   // Active entry — show running timer
   if (activeEntry) {
+    const hasClockInCoords = activeEntry.clock_in_lat && activeEntry.clock_in_lng;
+    const selectedAssignment = assignments
+      .find((a) => a.project_id === activeEntry.project_id);
+
     return (
       <Card className="text-center">
         {/* Timer Display */}
@@ -239,6 +325,34 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
           {activeEntry.project_address && (
             <p className="text-xs text-gray-400 mb-4">{activeEntry.project_address}</p>
           )}
+
+          {/* Distance from site indicator */}
+          {distanceFromSite !== null && (
+            <div className="mb-3">
+              {distanceFromSite <= 100 ? (
+                <p className="text-sm text-green-600 font-medium">
+                  📍 {formatDistance(distanceFromSite)} from customer site
+                </p>
+              ) : (
+                <p className="text-sm text-amber-600 font-medium">
+                  ⚠ {formatDistance(distanceFromSite)} from customer site
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* GPS indicator for clock-in location */}
+          {hasClockInCoords && (
+            <a
+              href={googleMapsUrl(activeEntry.clock_in_lat!, activeEntry.clock_in_lng!)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-500 underline block mb-2"
+            >
+              View clock-in location on Google Maps
+            </a>
+          )}
+
           <div className="text-5xl font-mono font-bold text-blue-600 my-4">
             {formatElapsed(elapsed)}
           </div>
@@ -246,6 +360,14 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
             Since {new Date(activeEntry.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
+
+        {/* Location loading indicator */}
+        {locationLoading && (
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mt-2">
+            <Spinner size="sm" />
+            Capturing location...
+          </div>
+        )}
 
         {/* Clock Out Button */}
         {!showConfirmClockOut ? (
@@ -303,24 +425,40 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
           </div>
         ) : (
           <div className="space-y-2 mb-4">
-            {assignments.map((assignment) => (
-              <button
-                key={assignment.id}
-                onClick={() => setSelectedProjectId(assignment.project_id)}
-                className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-all ${
-                  selectedProjectId === assignment.project_id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 bg-white active:bg-gray-50'
-                }`}
-              >
-                <p className="font-semibold text-gray-900">{assignment.project_name}</p>
-                {assignment.project_name && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    {assignment.technician_name}
-                  </p>
-                )}
-              </button>
-            ))}
+            {assignments.map((assignment) => {
+              const hasProjectCoords = assignment.project_latitude && assignment.project_longitude;
+              return (
+                <button
+                  key={assignment.id}
+                  onClick={() => setSelectedProjectId(assignment.project_id)}
+                  className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-all ${
+                    selectedProjectId === assignment.project_id
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 bg-white active:bg-gray-50'
+                  }`}
+                >
+                  <p className="font-semibold text-gray-900">{assignment.project_name}</p>
+                  {assignment.project_name && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {assignment.technician_name}
+                    </p>
+                  )}
+                  {hasProjectCoords && (
+                    <p className="text-xs text-blue-400 mt-1">
+                      📍 Site coordinates set
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Location loading indicator */}
+        {locationLoading && (
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-400 mb-3">
+            <Spinner size="sm" />
+            Getting GPS position...
           </div>
         )}
 

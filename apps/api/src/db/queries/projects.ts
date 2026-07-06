@@ -10,6 +10,9 @@ export interface ProjectRow {
   contact_name: string | null;
   contact_phone: string | null;
   notes: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geofence_radius: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -19,6 +22,9 @@ function mapRow(row: ProjectRow): Project {
   return {
     ...row,
     status: row.status as ProjectStatus,
+    latitude: row.latitude ?? null,
+    longitude: row.longitude ?? null,
+    geofence_radius: row.geofence_radius ?? 50,
   };
 }
 
@@ -59,11 +65,14 @@ export async function create(data: {
   contact_name?: string | null;
   contact_phone?: string | null;
   notes?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofence_radius?: number;
   created_by: string;
 }): Promise<Project> {
   const result = await query(
-    `INSERT INTO projects (name, description, address, contact_name, contact_phone, notes, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `INSERT INTO projects (name, description, address, contact_name, contact_phone, notes, latitude, longitude, geofence_radius, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING *`,
     [
       data.name,
@@ -72,6 +81,9 @@ export async function create(data: {
       data.contact_name ?? null,
       data.contact_phone ?? null,
       data.notes ?? null,
+      data.latitude ?? null,
+      data.longitude ?? null,
+      data.geofence_radius ?? 50,
       data.created_by,
     ],
   );
@@ -87,6 +99,9 @@ export async function update(
     contact_name?: string | null;
     contact_phone?: string | null;
     notes?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    geofence_radius?: number;
   },
 ): Promise<Project | null> {
   const fields: string[] = [];
@@ -116,6 +131,18 @@ export async function update(
   if (data.notes !== undefined) {
     fields.push(`notes = $${paramIndex++}`);
     params.push(data.notes);
+  }
+  if (data.latitude !== undefined) {
+    fields.push(`latitude = $${paramIndex++}`);
+    params.push(data.latitude);
+  }
+  if (data.longitude !== undefined) {
+    fields.push(`longitude = $${paramIndex++}`);
+    params.push(data.longitude);
+  }
+  if (data.geofence_radius !== undefined) {
+    fields.push(`geofence_radius = $${paramIndex++}`);
+    params.push(data.geofence_radius);
   }
 
   if (fields.length === 0) {

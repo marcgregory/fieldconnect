@@ -69,6 +69,9 @@ export interface Project {
   contact_name: string | null;
   contact_phone: string | null;
   notes: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  geofence_radius: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -81,6 +84,9 @@ export interface CreateProjectInput {
   contact_name?: string;
   contact_phone?: string;
   notes?: string;
+  latitude?: number;
+  longitude?: number;
+  geofence_radius?: number;
 }
 
 export interface UpdateProjectInput {
@@ -90,6 +96,9 @@ export interface UpdateProjectInput {
   contact_name?: string;
   contact_phone?: string;
   notes?: string;
+  latitude?: number;
+  longitude?: number;
+  geofence_radius?: number;
 }
 
 // ─── Time Entry ────────────────────────────────────────────────────────────
@@ -102,6 +111,10 @@ export interface TimeEntry {
   clock_out: string | null;
   break_minutes: number;
   notes: string | null;
+  clock_in_lat: number | null;
+  clock_in_lng: number | null;
+  clock_out_lat: number | null;
+  clock_out_lng: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -133,6 +146,8 @@ export interface TechnicianAssignmentWithDetails extends TechnicianAssignment {
   project_name: string;
   technician_name: string;
   technician_role: string;
+  project_latitude?: number | null;
+  project_longitude?: number | null;
 }
 
 // ─── Clock Event (for real-time broadcast) ─────────────────────────────────
@@ -146,6 +161,8 @@ export interface ClockEvent {
   timestamp: string;
   entry_id: string;
   duration_hours?: number;
+  clock_in_lat?: number;
+  clock_in_lng?: number;
 }
 
 // ─── Schedule / Job Status ──────────────────────────────────────────────────
@@ -183,6 +200,8 @@ export interface ScheduleWithDetails extends Schedule {
   note_count?: number;
   attachment_count?: number;
   signature_count?: number;
+  project_latitude?: number | null;
+  project_longitude?: number | null;
 }
 
 export interface CreateScheduleInput {
