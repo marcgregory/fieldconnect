@@ -51,6 +51,17 @@ export function ScheduleForm({
   const [error, setError] = useState('');
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [loadingTechs, setLoadingTechs] = useState(false);
+  const [conflictDialog, setConflictDialog] = useState<{
+    message: string;
+    conflicts: Array<{
+      technician_name: string;
+      project_name: string;
+      start_time: string;
+      end_time: string;
+      conflict_type: string;
+    }>;
+  } | null>(null);
+  const [pendingPayload, setPendingPayload] = useState<any>(null);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
   const [techsLoaded, setTechsLoaded] = useState(false);
 
@@ -129,6 +140,45 @@ export function ScheduleForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schedule?.technician_ids, techsLoaded, technicians.length]);
 
+  function formatTime(time: string): string {
+    // Convert "10:45:00" or "10:45" to "10:45 AM"
+    const parts = time.split(':');
+    const h = parseInt(parts[0], 10);
+    const m = parts[1];
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m} ${ampm}`;
+  }
+
+  async function handleForceAssign() {
+    if (!pendingPayload) return;
+    setConflictDialog(null);
+    setPendingPayload(null);
+    setSaving(true);
+    try {
+      if ('id' in pendingPayload) {
+        await onSaved(pendingPayload);
+      } else {
+        await onSaved(pendingPayload as CreateScheduleInput);
+      }
+    } catch (innerErr) {
+      const msg2 = innerErr instanceof Error ? innerErr.message : 'Failed to force save';
+      // If still a conflict with no force option, show the error directly
+      const innerConflict = innerErr as any;
+      if (innerConflict?.conflicts) {
+        setConflictDialog({
+          message: msg2,
+          conflicts: innerConflict.conflicts,
+        });
+        setPendingPayload(pendingPayload);
+      } else {
+        setError(msg2);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function toggleTechnician(techId: string) {
     setSelectedTechIds((prev) =>
       prev.includes(techId) ? prev.filter((id) => id !== techId) : [...prev, techId],
@@ -166,32 +216,21 @@ export function ScheduleForm({
       // Check if this is a conflict error with can_force_assign flag
       const conflictErr = err as any;
       if (conflictErr?.can_force_assign && conflictErr?.conflicts) {
-        // Admin: show confirmation dialog
-        // Use .message (set by api.ts) not .error (undefined on Error objects)
-        if (confirm(
-          `Schedule Conflicts\n\n${conflictErr.message}\n\nForce assign anyway?`,
-        )) {
-          // Resubmit with force: true
-          try {
-            const payload: any = {
-              project_id: projectId,
-              technician_ids: selectedTechIds,
-              scheduled_date: date,
-              start_time: startTime || undefined,
-              end_time: endTime || undefined,
-              notes: notes || undefined,
-              force: true,
-            };
-            if (isEditing) {
-              await onSaved({ id: schedule!.id, ...payload });
-            } else {
-              await onSaved(payload as CreateScheduleInput);
-            }
-            return;
-          } catch (innerErr) {
-            setError(innerErr instanceof Error ? innerErr.message : 'Failed to force save');
-          }
-        }
+        // Show a proper conflict dialog instead of window.confirm
+        setConflictDialog({
+          message: msg,
+          conflicts: conflictErr.conflicts,
+        });
+        setPendingPayload({
+          project_id: projectId,
+          technician_ids: selectedTechIds,
+          scheduled_date: date,
+          start_time: startTime || undefined,
+          end_time: endTime || undefined,
+          notes: notes || undefined,
+          force: true,
+          ...(isEditing ? { id: schedule!.id } : {}),
+        });
       } else {
         setError(msg);
       }
@@ -368,6 +407,61 @@ export function ScheduleForm({
           </div>
         </div>
       </form>
+
+      {/* Conflict Force-Assign Modal */}
+      {conflictDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-red-700 mb-3">
+              Schedule Conflicts
+            </h3>
+
+            <p className="text-sm text-gray-700 mb-4 whitespace-pre-line">
+              {conflictDialog.message}
+            </p>
+
+            {conflictDialog.conflicts.length > 0 && (
+              <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
+                {conflictDialog.conflicts.map((c, i) => (
+                  <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
+                    <p className="font-semibold text-gray-900">{c.technician_name}</p>
+                    <p className="text-gray-600">{c.project_name}</p>
+                    <p className="text-gray-600">
+                      {formatTime(c.start_time)} — {formatTime(c.end_time)}
+                    </p>
+                    {c.conflict_type && (
+                      <p className="text-red-600 text-xs mt-1">
+                        {c.conflict_type === 'overlap'
+                          ? 'Overlaps with existing job'
+                          : 'Minimum 30-minute buffer required'}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setConflictDialog(null);
+                  setPendingPayload(null);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForceAssign}
+                disabled={saving}
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : 'Force Assign'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
