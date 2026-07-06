@@ -11,6 +11,8 @@ declare module 'next-auth' {
       name: string;
       role: string;
     };
+    /** Stored in the JWT so the proxy can use it */
+    refreshToken?: string;
   }
 
   interface User {
@@ -18,6 +20,7 @@ declare module 'next-auth' {
     email: string;
     name: string;
     role: string;
+    refreshToken?: string;
   }
 }
 
@@ -25,6 +28,7 @@ declare module 'next-auth/jwt' {
   interface JWT {
     id: string;
     role: string;
+    refreshToken?: string;
   }
 }
 
@@ -61,6 +65,8 @@ export const authOptions: NextAuthOptions = {
             email: data.user.email,
             name: data.user.name,
             role: data.user.role,
+            // Pass the refresh token through so the JWT callback can store it
+            refreshToken: data.refresh_token,
           };
         } catch {
           return null;
@@ -70,13 +76,15 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: 'jwt',
-    maxAge: 24 * 60 * 60, // 24 hours
+    maxAge: 24 * 60 * 60, // 24 hours (NextAuth session)
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        // Store refresh token in the JWT so it survives across the BFF proxy
+        token.refreshToken = user.refreshToken;
       }
       return token;
     },
@@ -85,6 +93,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id;
         session.user.role = token.role;
       }
+      session.refreshToken = token.refreshToken;
       return session;
     },
   },

@@ -8,6 +8,7 @@ import { healthRoutes } from './routes/health';
 import { loginRoutes } from './routes/auth/login';
 import { registerRoutes } from './routes/auth/register';
 import { tokenRoutes } from './routes/auth/token';
+import { refreshRoutes } from './routes/auth/refresh';
 import { projectRoutes } from './routes/projects';
 import { timeEntryRoutes } from './routes/time-entries';
 import { technicianRoutes } from './routes/technicians';
@@ -68,6 +69,7 @@ async function main() {
   await app.register(loginRoutes);
   await app.register(registerRoutes);
   await app.register(tokenRoutes);
+  await app.register(refreshRoutes);
 
   // Project routes
   await app.register(projectRoutes);
