@@ -6,7 +6,7 @@ This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 5 — GPS & Field Operations — Phase B: Soft Geofencing 🔄
+Sprint 5 — GPS & Field Operations — Phase C: Photo Geotagging 🚧
 
 ## Current Progress
 
@@ -20,11 +20,13 @@ Sprint 5 — GPS & Field Operations — Phase B: Soft Geofencing 🔄
 - Google Maps links for clock-in location ✅
 - `geofence_radius` field on projects (default 50m) ✅
 
-**Sprint 5 — Phase B: Soft Geofencing — In Progress 🚧**
+**Sprint 5 — Phase B: Soft Geofencing — Complete ✅**
 
-- Distance from site calculated on every clock in/out 🔄
-- Inside/Outside geofence badge on mobile 🔄
-- Office visibility of geofence status in review page 🔄
+- Distance from site calculated on every clock in/out ✅
+- Inside/Outside geofence badge on mobile ✅
+- Office visibility of geofence status in review page ✅
+- Polished clock-in location card (time, distance, accuracy, badge) ✅
+- GPS accuracy stored in DB (±N meters from Geolocation API) ✅
 - No enforcement — informational only
 
 ### Architecture Status
@@ -81,7 +83,7 @@ Sprint 5 — GPS & Field Operations — Phase B: Soft Geofencing 🔄
 
 ## Next Milestone
 
-- Phase B completion: Soft Geofencing with inside/outside display on mobile and office
+- Phase C completion: Photo Geotagging with GPS metadata on uploaded photos
 
 ## Last Build
 

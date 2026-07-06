@@ -75,17 +75,17 @@ Last updated: 2026-07-06
 
 ## Sprint Queue
 
-### Sprint 5 — GPS & Field Operations (🚧 In Progress)
+### Sprint 5 — GPS & Field Operations (🚧 Phase C In Progress)
 
-- **Phase B — Soft Geofencing** 🔄
+- **Phase B — Soft Geofencing** ✅
   - Calculate distance from site
   - Inside/Outside badge
   - Office visibility
   - No blocking
 
-### Pending
+### Sprint Queue
 
-- **Phase C — Photo Geotagging**
+- **Phase C — Photo Geotagging** 🚧
   - GPS on uploaded photos
   - Distance from site
   - EXIF + DB metadata

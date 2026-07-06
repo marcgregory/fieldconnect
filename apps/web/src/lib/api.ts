@@ -153,6 +153,7 @@ export async function clockIn(
   notes?: string,
   clockInLat?: number,
   clockInLng?: number,
+  clockInAccuracy?: number,
 ): Promise<TimeEntry> {
   return bffFetch('/api/v1/time-entries/clock-in', {
     method: 'POST',
@@ -161,6 +162,7 @@ export async function clockIn(
       notes,
       clock_in_lat: clockInLat,
       clock_in_lng: clockInLng,
+      clock_in_accuracy: clockInAccuracy,
     }),
   });
 }
@@ -169,6 +171,7 @@ export async function clockOut(
   notes?: string,
   clockOutLat?: number,
   clockOutLng?: number,
+  clockOutAccuracy?: number,
 ): Promise<TimeEntry> {
   return bffFetch('/api/v1/time-entries/clock-out', {
     method: 'POST',
@@ -176,6 +179,7 @@ export async function clockOut(
       notes,
       clock_out_lat: clockOutLat,
       clock_out_lng: clockOutLng,
+      clock_out_accuracy: clockOutAccuracy,
     }),
   });
 }

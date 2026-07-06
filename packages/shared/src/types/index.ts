@@ -113,8 +113,10 @@ export interface TimeEntry {
   notes: string | null;
   clock_in_lat: number | null;
   clock_in_lng: number | null;
+  clock_in_accuracy: number | null;
   clock_out_lat: number | null;
   clock_out_lng: number | null;
+  clock_out_accuracy: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -214,6 +216,8 @@ export interface ScheduleWithDetails extends Schedule {
   /** GPS coordinates from the technician's clock-in on this job's day */
   clock_in_lat?: number | null;
   clock_in_lng?: number | null;
+  clock_in_accuracy?: number | null;
+  clock_in_time?: string | null;
 }
 
 export interface CreateScheduleInput {

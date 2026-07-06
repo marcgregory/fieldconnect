@@ -30,7 +30,7 @@ function googleMapsUrl(lat: number, lng: number): string {
 /** Get current position via browser Geolocation API */
 function getCurrentPosition(
   timeout = 10000,
-): Promise<{ lat: number; lng: number } | null> {
+): Promise<{ lat: number; lng: number; accuracy: number } | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve(null);
@@ -41,6 +41,7 @@ function getCurrentPosition(
         resolve({
           lat: position.coords.latitude,
           lng: position.coords.longitude,
+          accuracy: Math.round(position.coords.accuracy),
         });
       },
       () => {
@@ -194,7 +195,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       // Capture GPS position (best-effort)
       const pos = await getCurrentPosition();
 
-      await clockIn(selectedProjectId, undefined, pos?.lat, pos?.lng);
+      await clockIn(selectedProjectId, undefined, pos?.lat, pos?.lng, pos?.accuracy);
 
       // Calculate distance from project site if we have both GPS and project coords
       if (pos && selectedAssignment?.project_latitude && selectedAssignment?.project_longitude) {

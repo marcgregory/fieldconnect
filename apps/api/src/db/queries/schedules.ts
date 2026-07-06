@@ -187,7 +187,9 @@ export async function findForReview(): Promise<ScheduleWithDetails[]> {
             (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
             (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count,
             (SELECT te.clock_in_lat FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_lat,
-            (SELECT te.clock_in_lng FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_lng
+            (SELECT te.clock_in_lng FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_lng,
+            (SELECT te.clock_in_accuracy FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_accuracy,
+            (SELECT te.clock_in::text FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_time
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id

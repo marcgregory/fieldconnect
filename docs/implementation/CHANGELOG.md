@@ -8,10 +8,18 @@ All notable project changes should be documented here. Keep this file versioned 
 
 - **Soft Geofencing (Phase B)**: Geofence status computed on every clock in/out — distance from technician GPS to project site coordinates compared against configurable `geofence_radius`.
 - **Mobile geofence badge**: Clock-in UI now shows 🟢 Inside Geofence or 🟠 Outside Geofence alongside distance from customer site.
-- **Office geofence visibility**: Review page shows clock-in location, distance from site, and geofence status for completed jobs.
+- **Office geofence visibility**: Review page shows a polished clock-in location card with time, distance, inside/outside badge, GPS accuracy (±N m), Google Maps links for clock-in location and customer site.
+- **GPS accuracy capture**: `clock_in_accuracy` and `clock_out_accuracy` fields added to `time_entries` table (migration 012). Geolocation API accuracy is stored with every clock in/out.
 - **Shared types**: `GeofenceStatus` type and `calculateDistance()` utility exported from `@fieldconnect/shared`.
 - **Schedule queries**: `findAll`, `findByDateRange`, `findByTechnician`, `findUnassigned` now return `project_latitude`, `project_longitude`, and `project_geofence_radius`.
 - **Clock-in API response**: Returns `distance_from_site` and `inside_geofence` fields alongside time entry data.
+- **Clock-in project filter**: Only active/on-hold projects shown on Clock In screen — completed/cancelled projects are hidden.
+- **Closed job read-only mode**: Mobile job detail now shows a green read-only banner for closed jobs, hides all editing controls (status transitions, note input, photo upload, signature capture, delete buttons).
+
+### Changed
+
+- **Navigation URLs**: Job detail navigation now uses stored `project_latitude`/`project_longitude` coordinates when available, falling back to address string — eliminates address ambiguity.
+- **Review geofence card**: Redesigned with structured layout showing clock-in time, distance, inside/outside badge, accuracy, and separate Google Maps links for clock-in location and customer site.
 
 ## v0.5.1 — 2026-07-06
 

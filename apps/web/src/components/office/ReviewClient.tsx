@@ -469,64 +469,96 @@ export function ReviewClient() {
                     </div>
                   ) : (
                     <div className="p-4 space-y-5">
-                      {/* ── Location & Geofence ─────────────────────────── */}
-                      {schedule.project_latitude && schedule.project_longitude && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Location</h4>
+                      {/* ── Clock-In Location & Geofence ──────────────────── */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Clock-In Location</h4>
+                        {schedule.clock_in_lat && schedule.clock_in_lng ? (
+                          <div className="bg-gray-50 rounded-lg px-3 py-3 space-y-1.5">
+                            {/* Clock-in time */}
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-700">Clock In</span>
+                              <span className="text-sm text-gray-500">
+                                {schedule.clock_in_time
+                                  ? new Date(schedule.clock_in_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                                  : 'N/A'}
+                              </span>
+                            </div>
+
+                            {/* Distance + Geofence badge */}
+                            {(() => {
+                              const dist = calculateDistance(
+                                schedule.clock_in_lat,
+                                schedule.clock_in_lng,
+                                schedule.project_latitude,
+                                schedule.project_longitude,
+                              );
+                              const gfStatus: GeofenceStatus = evaluateGeofence(
+                                dist,
+                                schedule.project_geofence_radius ?? 50,
+                              );
+                              return (
+                                <>
+                                  <p className="text-sm text-gray-700">
+                                    📍 {dist !== null ? formatDistance(dist) : 'Unknown'} from customer site
+                                  </p>
+                                  <p className="text-sm">
+                                    {gfStatus === 'inside' ? (
+                                      <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                                        Inside Geofence
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
+                                        <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                        Outside Geofence
+                                      </span>
+                                    )}
+                                  </p>
+                                </>
+                              );
+                            })()}
+
+                            {/* Accuracy */}
+                            {schedule.clock_in_accuracy != null && (
+                              <p className="text-xs text-gray-400">
+                                Accuracy ±{schedule.clock_in_accuracy} m
+                              </p>
+                            )}
+
+                            {/* Google Maps link */}
+                            <a
+                              href={`https://www.google.com/maps?q=${schedule.clock_in_lat},${schedule.clock_in_lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 underline"
+                            >
+                              View Clock-in Location
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="bg-gray-50 rounded-lg px-3 py-3">
+                            <p className="text-sm text-gray-500 flex items-center gap-1.5">
+                              <span className="h-2 w-2 rounded-full bg-gray-400 inline-block" />
+                              GPS Unavailable
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              No GPS data captured at clock-in.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Customer site link (always shown) */}
+                        {schedule.project_latitude && schedule.project_longitude && (
                           <a
                             href={`https://www.google.com/maps?q=${schedule.project_latitude},${schedule.project_longitude}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 underline"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 underline mt-2"
                           >
                             📍 View customer site on Google Maps
                           </a>
-
-                          {/* Clock-in GPS and geofence status */}
-                          {schedule.clock_in_lat && schedule.clock_in_lng && (
-                            <div className="mt-2 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700">
-                              <p className="text-xs font-medium text-gray-500 mb-1">Technician Clock-In Location</p>
-                              {(() => {
-                                const dist = calculateDistance(
-                                  schedule.clock_in_lat,
-                                  schedule.clock_in_lng,
-                                  schedule.project_latitude,
-                                  schedule.project_longitude,
-                                );
-                                const gfStatus: GeofenceStatus = evaluateGeofence(
-                                  dist,
-                                  schedule.project_geofence_radius ?? 50,
-                                );
-                                return (
-                                  <>
-                                    <p>
-                                      📍 {dist !== null ? formatDistance(dist) : 'Unknown'} from site
-                                    </p>
-                                    <p className="mt-1">
-                                      {gfStatus === 'inside' ? (
-                                        <span className="inline-flex items-center gap-1 text-green-700 font-medium">
-                                          <span className="h-2 w-2 rounded-full bg-green-500" />
-                                          Inside Geofence
-                                        </span>
-                                      ) : gfStatus === 'outside' ? (
-                                        <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
-                                          <span className="h-2 w-2 rounded-full bg-amber-500" />
-                                          Outside Geofence
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 text-gray-500 font-medium">
-                                          <span className="h-2 w-2 rounded-full bg-gray-400" />
-                                          GPS Unavailable
-                                        </span>
-                                      )}
-                                    </p>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {/* ── Completion Score ──────────────────────────────── */}
                       <div>
