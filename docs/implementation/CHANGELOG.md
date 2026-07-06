@@ -2,6 +2,12 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.5.1 — 2026-07-06
+
+### Added
+
+- **Full lifecycle smoke test**: `scripts/smoke-test.sh` — validates the entire user journey end-to-end: registration, login, project CRUD, time tracking, schedule workflow, job status transitions, field notes/photos/signatures, offline queue, reports, and CSV export
+
 ## v0.5.0 — 2026-07-06
 
 ### Changed

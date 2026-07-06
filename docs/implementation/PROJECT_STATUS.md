@@ -1,16 +1,16 @@
 # FieldConnect Project Status
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 4 — Reporting & Analytics — ✅ Complete
+Sprint 5 — GPS & Field Operations — Phase A: GPS Location Stamping 🔄
 
 ## Current Progress
 
-**Sprint 4 — All deliverables complete.**
+**Sprint 4 — Complete. All deliverables verified via smoke test.**
 
 ### Reports API
 - Time entries report with filters (date range, project, technician) ✅
@@ -25,6 +25,10 @@ Sprint 4 — Reporting & Analytics — ✅ Complete
 - Date range picker with Apply button ✅
 - CSV download button ✅
 - Reports nav link in header ✅
+
+### Smoke Test
+- Full lifecycle end-to-end validation script (`scripts/smoke-test.sh`) ✅
+- Covers: registration, login, project CRUD, time tracking, schedule workflow, job status transitions, field notes/photos/signatures, offline queue, reports, CSV export
 
 ### Architecture Status
 
@@ -129,7 +133,11 @@ Sprint 4 — Reporting & Analytics — ✅ Complete
 
 ## Next Milestone
 
-Sprint 5 — GPS & Field Operations — GPS location stamping on clock-in/out, route history, geofencing.
+Sprint 5 — GPS & Field Operations
+- Phase A: GPS location stamping on clock-in/out (in progress)
+- Phase B: Route history for technicians
+- Phase C: Geofencing for job sites
+- Phase D: Photo geo-tagging
 
 ## Last Build
 

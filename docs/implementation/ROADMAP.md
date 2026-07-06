@@ -1,6 +1,6 @@
 # FieldConnect Roadmap
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 ## Completed
 
@@ -61,6 +61,7 @@ Last updated: 2026-07-05
   - CSV export for time entries
   - Dashboard summary cards widget on office dashboard
   - Reports page with tabbed view and date range picker
+  - Full lifecycle smoke test — validates registration, login, project CRUD, time tracking, schedule workflow, job status transitions, field data (notes/photos/signatures), offline queue, reports, and CSV export
   - All packages pass `pnpm typecheck` and `pnpm build` — 13 routes
 
 ## Sprint Queue
