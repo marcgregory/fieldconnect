@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, Button, Spinner } from '@fieldconnect/ui';
 import { clockIn, clockOut, getCurrentEntry, getMyAssignments } from '@/lib/api';
 import type { ActiveTimeEntry, TechnicianAssignmentWithDetails } from '@fieldconnect/shared';
 
 interface ClockInOutProps {
   userId: string;
+  /** Called after a successful clock-in or clock-out so the parent can coordinate UI refreshes. */
+  onStatusChange?: () => void;
 }
 
-export function ClockInOut({ userId }: ClockInOutProps) {
+export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
   const [assignments, setAssignments] = useState<TechnicianAssignmentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,11 @@ export function ClockInOut({ userId }: ClockInOutProps) {
   const [clockedOutEntry, setClockedOutEntry] = useState<{
     duration: string;
     projectName: string;
+  } | null>(null);
+  // Optimistic rollback snapshot — keeps last known state so we can revert on failure
+  const optimisticRollbackRef = useRef<{
+    activeEntry: typeof activeEntry;
+    assignments: typeof assignments;
   } | null>(null);
 
   // Fetch current state
@@ -75,41 +82,95 @@ export function ClockInOut({ userId }: ClockInOutProps) {
       return;
     }
 
-    setActionLoading(true);
+    const selectedAssignment = assignments.find(
+      (a) => a.project_id === selectedProjectId,
+    );
+
+    // Snapshot current state for rollback
+    optimisticRollbackRef.current = {
+      activeEntry,
+      assignments,
+    };
+
+    // Optimistic entry
+    const optimisticEntry: ActiveTimeEntry = {
+      id: `optimistic-${Date.now()}`,
+      user_id: userId,
+      project_id: selectedProjectId,
+      project_name: selectedAssignment?.project_name || '',
+      project_address: null,
+      clock_in: new Date().toISOString(),
+      clock_out: null,
+      break_minutes: 0,
+      notes: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Apply optimistic state immediately
+    setActiveEntry(optimisticEntry);
+    setElapsed(0);
     setClockInError('');
     setError('');
+    setActionLoading(true);
 
     try {
-      const entry = await clockIn(selectedProjectId);
-      // Refetch to get the full ActiveTimeEntry with project name
+      await clockIn(selectedProjectId);
+      // Success — refetch to get server-authoritative state
       await fetchState();
+      onStatusChange?.();
     } catch (err) {
+      // Rollback on failure
+      if (optimisticRollbackRef.current) {
+        setActiveEntry(optimisticRollbackRef.current.activeEntry);
+      }
       setClockInError(err instanceof Error ? err.message : 'Failed to clock in');
     } finally {
+      optimisticRollbackRef.current = null;
       setActionLoading(false);
     }
   }
 
   async function handleClockOut() {
+    // Snapshot for rollback
+    optimisticRollbackRef.current = {
+      activeEntry,
+      assignments,
+    };
+
+    const currentEntry = activeEntry;
+    if (!currentEntry) return;
+
+    // Optimistic — mark as clocked out immediately
+    const clockOutTime = new Date().toISOString();
+    const clockOutSeconds = elapsed;
+    setActiveEntry(null);
+    setShowConfirmClockOut(false);
     setActionLoading(true);
     setError('');
 
     try {
-      const entry = await clockOut();
-      const durationMinutes = elapsed / 60;
+      await clockOut();
+      // Refetch to get server-authoritative state
+      await fetchState();
+      // Show clocked-out summary using elapsed time
+      const durationMinutes = clockOutSeconds / 60;
       const hours = Math.floor(durationMinutes / 60);
       const mins = Math.round(durationMinutes % 60);
       const durationStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
-
       setClockedOutEntry({
         duration: durationStr,
-        projectName: activeEntry?.project_name || '',
+        projectName: currentEntry.project_name || '',
       });
-      setActiveEntry(null);
-      setShowConfirmClockOut(false);
+      onStatusChange?.();
     } catch (err) {
+      // Rollback on failure
+      if (optimisticRollbackRef.current) {
+        setActiveEntry(optimisticRollbackRef.current.activeEntry);
+      }
       setError(err instanceof Error ? err.message : 'Failed to clock out');
     } finally {
+      optimisticRollbackRef.current = null;
       setActionLoading(false);
     }
   }

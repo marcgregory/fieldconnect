@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@fieldconnect/ui';
@@ -21,6 +21,11 @@ type MobileView = 'home' | 'history';
 export function MobileHomeClient({ user }: MobileHomeClientProps) {
   const router = useRouter();
   const [view, setView] = useState<MobileView>('home');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handleStatusChange = useCallback(() => {
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -43,7 +48,7 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
         {view === 'home' ? (
           <>
             {/* Clock In/Out */}
-            <ClockInOut userId={user.id} />
+            <ClockInOut userId={user.id} onStatusChange={handleStatusChange} />
 
             {/* Today's Jobs / Quick Links */}
             <Card title="Quick Links">
@@ -70,7 +75,7 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
             </Card>
 
             {/* Today's Activity */}
-            <TimeHistory />
+            <TimeHistory refreshTrigger={refreshKey} />
           </>
         ) : (
           <>
@@ -84,9 +89,7 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
               Back
             </button>
             <div className="space-y-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <TimeHistory key={i} />
-              ))[0]}
+              <TimeHistory refreshTrigger={refreshKey} />
             </div>
           </>
         )}

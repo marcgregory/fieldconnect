@@ -1,37 +1,43 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, Spinner } from '@fieldconnect/ui';
 import { getTimeEntries } from '@/lib/api';
 import type { TimeEntryWithProject } from '@fieldconnect/shared';
 
-export function TimeHistory() {
+interface TimeHistoryProps {
+  refreshTrigger?: number;
+}
+
+export function TimeHistory({ refreshTrigger = 0 }: TimeHistoryProps) {
   const [entries, setEntries] = useState<TimeEntryWithProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    async function fetch() {
-      try {
-        setLoading(true);
-        // Get this week's entries
-        const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-        startOfWeek.setHours(0, 0, 0, 0);
+  const fetchEntries = useCallback(async () => {
+    try {
+      setLoading(true);
+      // Get this week's entries
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
+      startOfWeek.setHours(0, 0, 0, 0);
 
-        const data = await getTimeEntries({
-          from: startOfWeek.toISOString(),
-        });
-        setEntries(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load entries');
-      } finally {
-        setLoading(false);
-      }
+      const data = await getTimeEntries({
+        from: startOfWeek.toISOString(),
+      });
+      setEntries(data);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load entries');
+    } finally {
+      setLoading(false);
     }
-    fetch();
   }, []);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries, refreshTrigger]);
 
   function formatDuration(entry: TimeEntryWithProject): string {
     if (!entry.clock_out) return 'In progress';
