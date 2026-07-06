@@ -64,17 +64,46 @@ Last updated: 2026-07-06
   - Full lifecycle smoke test — validates registration, login, project CRUD, time tracking, schedule workflow, job status transitions, field data (notes/photos/signatures), offline queue, reports, and CSV export
   - All packages pass `pnpm typecheck` and `pnpm build` — 13 routes
 
+## Completed
+
+- **Sprint 5 — GPS & Field Operations**
+  - **Phase A — GPS Clock In/Out** ✅
+    - GPS captured at clock in/out
+    - Customer site coordinates
+    - Distance calculation
+    - Google Maps links
+
 ## Sprint Queue
 
-### Sprint 5 — GPS & Field Operations
-- GPS location stamping on clock-in/out
-- Route history for technicians
-- Geofencing for job sites
-- Photo geo-tagging
+### Sprint 5 — GPS & Field Operations (🚧 In Progress)
+
+- **Phase B — Soft Geofencing** 🔄
+  - Calculate distance from site
+  - Inside/Outside badge
+  - Office visibility
+  - No blocking
+
+### Pending
+
+- **Phase C — Photo Geotagging**
+  - GPS on uploaded photos
+  - Distance from site
+  - EXIF + DB metadata
+  - Review integration
+
+- **Phase D — Configurable Geofence Enforcement**
+  - Per-project radius
+  - Warning or block (configurable)
+  - Office override
+
+- **Phase E — Optional Route History**
+  - Opt-in
+  - Active jobs only
+  - Configurable interval
+  - Polyline map
 
 ## Future
 
-- GPS location stamping on clock-in
 - Advanced reporting (PDF export, charts)
 - Push notifications for schedule changes
 - Audit log viewer UI for admin
@@ -83,6 +112,4 @@ Last updated: 2026-07-06
 
 ## Blocked
 
-- Existing tool integration — blocked until Sprint 4+; requires inventory of current systems
-- Photo uploads — blocked until Sprint 5+; requires storage solution on Render
-- Offline support — blocked until Sprint 5+; requires IndexedDB architecture design
+- Existing tool integration — requires inventory of current systems

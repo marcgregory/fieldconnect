@@ -17,6 +17,12 @@ import type {
   JobAttachment,
   Signature,
   JobStatus,
+  GeofenceStatus,
+} from '@fieldconnect/shared';
+import {
+  calculateDistance,
+  evaluateGeofence,
+  formatDistance,
 } from '@fieldconnect/shared';
 
 interface ExpandedData {
@@ -463,10 +469,10 @@ export function ReviewClient() {
                     </div>
                   ) : (
                     <div className="p-4 space-y-5">
-                      {/* ── Location ──────────────────────────────────────── */}
+                      {/* ── Location & Geofence ─────────────────────────── */}
                       {schedule.project_latitude && schedule.project_longitude && (
                         <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Site Location</h4>
+                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Location</h4>
                           <a
                             href={`https://www.google.com/maps?q=${schedule.project_latitude},${schedule.project_longitude}`}
                             target="_blank"
@@ -475,6 +481,50 @@ export function ReviewClient() {
                           >
                             📍 View customer site on Google Maps
                           </a>
+
+                          {/* Clock-in GPS and geofence status */}
+                          {schedule.clock_in_lat && schedule.clock_in_lng && (
+                            <div className="mt-2 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700">
+                              <p className="text-xs font-medium text-gray-500 mb-1">Technician Clock-In Location</p>
+                              {(() => {
+                                const dist = calculateDistance(
+                                  schedule.clock_in_lat,
+                                  schedule.clock_in_lng,
+                                  schedule.project_latitude,
+                                  schedule.project_longitude,
+                                );
+                                const gfStatus: GeofenceStatus = evaluateGeofence(
+                                  dist,
+                                  schedule.project_geofence_radius ?? 50,
+                                );
+                                return (
+                                  <>
+                                    <p>
+                                      📍 {dist !== null ? formatDistance(dist) : 'Unknown'} from site
+                                    </p>
+                                    <p className="mt-1">
+                                      {gfStatus === 'inside' ? (
+                                        <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                                          <span className="h-2 w-2 rounded-full bg-green-500" />
+                                          Inside Geofence
+                                        </span>
+                                      ) : gfStatus === 'outside' ? (
+                                        <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
+                                          <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                          Outside Geofence
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 text-gray-500 font-medium">
+                                          <span className="h-2 w-2 rounded-full bg-gray-400" />
+                                          GPS Unavailable
+                                        </span>
+                                      )}
+                                    </p>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          )}
                         </div>
                       )}
 

@@ -6,29 +6,26 @@ This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 5 — GPS & Field Operations — Phase A: GPS Location Stamping 🔄
+Sprint 5 — GPS & Field Operations — Phase B: Soft Geofencing 🔄
 
 ## Current Progress
 
 **Sprint 4 — Complete. All deliverables verified via smoke test.**
 
-### Reports API
-- Time entries report with filters (date range, project, technician) ✅
-- Hours by technician aggregation ✅
-- Hours by project aggregation ✅
-- Dashboard summary (hours this week, active techs, completed today, needs review, late jobs) ✅
-- CSV export endpoint ✅
+**Sprint 5 — Phase A: GPS Location Stamping — Complete.**
 
-### Frontend
-- Dashboard summary cards — live-updating 5-card widget ✅
-- Reports page with tabbed view (Time Entries, By Technician, By Project) ✅
-- Date range picker with Apply button ✅
-- CSV download button ✅
-- Reports nav link in header ✅
+- GPS coordinates captured at clock in/out ✅
+- Customer site coordinates (latitude/longitude) on projects ✅
+- Distance calculation (Haversine) from technician to site ✅
+- Google Maps links for clock-in location ✅
+- `geofence_radius` field on projects (default 50m) ✅
 
-### Smoke Test
-- Full lifecycle end-to-end validation script (`scripts/smoke-test.sh`) ✅
-- Covers: registration, login, project CRUD, time tracking, schedule workflow, job status transitions, field notes/photos/signatures, offline queue, reports, CSV export
+**Sprint 5 — Phase B: Soft Geofencing — In Progress 🚧**
+
+- Distance from site calculated on every clock in/out 🔄
+- Inside/Outside geofence badge on mobile 🔄
+- Office visibility of geofence status in review page 🔄
+- No enforcement — informational only
 
 ### Architecture Status
 
@@ -38,55 +35,6 @@ Sprint 5 — GPS & Field Operations — Phase A: GPS Location Stamping 🔄
 | Next.js frontend | ✅ Complete (13 routes) |
 | Fastify API | ✅ Complete (health, auth, projects, time-entries, technicians, schedules, notes, attachments, signatures, reports, dashboard) |
 | PostgreSQL on Neon | ✅ Connected, migrated, verified |
-
-## Current Progress
-
-**Sprint 3 — All Phases Complete.**
-
-### Phase A — Scheduling (Office)
-- Calendar view (day/week toggle ✅)
-- Schedule creation/edit forms ✅
-- Unassigned jobs queue ✅
-- Schedule cards with drag-and-drop ✅
-- Conflict detection when assigning overlapping jobs ✅
-
-### Phase B — Technician Workflow (Mobile)
-- Today's Jobs / Upcoming / Completed tabs ✅
-- Job details page with address, contact, time range ✅
-- Start Navigation (maps:// deep link) ✅
-- Contact Customer (tel: link) ✅
-- Status progress stepper visual ✅
-
-### Phase C — Job Lifecycle (Status State Machine)
-- Status state machine: `scheduled → traveling → on_site → completed → closed` ✅
-- Transaction-safe `updateStatus()` with `SELECT FOR UPDATE` row lock and audit logging ✅
-- Role-enforced transition rules (technician, office, admin) ✅
-- `audit_logs` table for insert-only history ✅
-- WebSocket `job:update` events broadcast on every status change ✅
-- Workflow buttons on mobile job detail page ("Start Traveling", "Arrived On Site", "Mark Complete") ✅
-- Office ScheduleReviewPanel for "Move to Office Review" and "Close Job" actions ✅
-- Zod validation and shared types for all new entities ✅
-
-### Phase D — Field Data Collection
-- **D1 — Job Notes**: API, migration, mobile UI, real-time events ✅
-- **D2 — Photo Upload**: Multipart API, client-side compression, offline queue, real-time events ✅
-- **D3 — Customer Signature**: SignatureCanvas component, API, offline queue, real-time events ✅
-
-### Phase E — Real-Time Updates
-- `broadcastNoteEvent()`, `broadcastAttachmentEvent()`, `broadcastSignatureEvent()` — all field data events broadcast ✅
-- `useSocket` hook with listener registration pattern (onJobUpdate, onNoteAdded, etc.) ✅
-
-### Phase F — Offline-First PWA
-- IndexedDB wrapper with jobs cache, action queue, blob storage ✅
-- `useOfflineSync` hook with auto-sync on reconnect ✅
-- `OfflineIndicator` component (Online/Syncing/Offline/Pending states) ✅
-- Connectivity probe with `HEAD /health` check ✅
-- FIFO queue processing with 3-retry limit and blob cleanup ✅
-
-### BFF Proxy Fixes
-- Fixed double `/api/v1/` prefix in proxy requests
-- Fixed empty JSON body error on bodiless POST requests
-- Fixed auth hook excluding `/auth/token` from authentication
 
 ## Architecture Status
 
@@ -110,7 +58,7 @@ Sprint 5 — GPS & Field Operations — Phase A: GPS Location Stamping 🔄
 | Offline queue | ✅ Complete (IndexedDB, auto-sync, retry with backoff) |
 | Office projects page | ✅ Complete (CRUD, assignments, status filter, live feed) |
 | Office schedule page | ✅ Complete (calendar, forms, unassigned queue, review panel) |
-| Mobile clock-in/out | ✅ Complete (project selection, timer, one-tap actions) |
+| Mobile clock-in/out | ✅ Complete (project selection, timer, one-tap actions, GPS, geofence) |
 | Mobile time history | ✅ Complete (this week's entries with duration) |
 | Mobile job queue | ✅ Complete (Today/Upcoming/Completed tabs) |
 | Mobile job detail | ✅ Complete (info, stepper, workflow buttons, notes, photos, signatures, nav, contact) |
@@ -123,7 +71,7 @@ Sprint 5 — GPS & Field Operations — Phase A: GPS Location Stamping 🔄
 | Platform | Status |
 |---|---|
 | Render.com account | 🔧 Not yet configured (needs provisioning) |
-| PostgreSQL database | ✅ Native Windows PostgreSQL 18 — connected and migrated |
+| PostgreSQL database | ✅ Windows PostgreSQL 18 — connected |
 | Domain name | ❌ Not yet configured |
 | GitHub repository | 🔧 Not yet created |
 
@@ -133,11 +81,7 @@ Sprint 5 — GPS & Field Operations — Phase A: GPS Location Stamping 🔄
 
 ## Next Milestone
 
-Sprint 5 — GPS & Field Operations
-- Phase A: GPS location stamping on clock-in/out (in progress)
-- Phase B: Route history for technicians
-- Phase C: Geofencing for job sites
-- Phase D: Photo geo-tagging
+- Phase B completion: Soft Geofencing with inside/outside display on mobile and office
 
 ## Last Build
 

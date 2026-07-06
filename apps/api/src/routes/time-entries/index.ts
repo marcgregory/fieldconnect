@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { clockInSchema, clockOutSchema } from '@fieldconnect/shared';
+import { clockInSchema, clockOutSchema, checkGeofence } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as timeEntryQueries from '../../db/queries/time-entries';
 import * as projectQueries from '../../db/queries/projects';
@@ -49,6 +49,15 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         clock_in_lng,
       );
 
+      // Compute geofence status
+      const geofence = checkGeofence(
+        clock_in_lat,
+        clock_in_lng,
+        project.latitude,
+        project.longitude,
+        project.geofence_radius ?? 50,
+      );
+
       // Broadcast clock-in event
       broadcastClockEvent({
         type: 'clock_in',
@@ -62,7 +71,14 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         clock_in_lng,
       });
 
-      return reply.status(201).send({ success: true, data: entry });
+      return reply.status(201).send({
+        success: true,
+        data: {
+          ...entry,
+          distance_from_site: geofence.distance_meters,
+          inside_geofence: geofence.inside_geofence,
+        },
+      });
     },
   );
 
@@ -112,6 +128,15 @@ export async function timeEntryRoutes(app: FastifyInstance) {
       // Get project name for broadcast
       const project = await projectQueries.findById(entry.project_id);
 
+      // Compute geofence status
+      const geofence = checkGeofence(
+        clock_out_lat,
+        clock_out_lng,
+        project?.latitude,
+        project?.longitude,
+        project?.geofence_radius ?? 50,
+      );
+
       // Broadcast clock-out event
       broadcastClockEvent({
         type: 'clock_out',
@@ -129,6 +154,8 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         data: {
           ...entry,
           duration_hours: durationHours,
+          distance_from_site: geofence.distance_meters,
+          inside_geofence: geofence.inside_geofence,
         },
       });
     },

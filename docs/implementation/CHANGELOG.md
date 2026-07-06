@@ -2,6 +2,17 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.5.2 — 2026-07-06
+
+### Added
+
+- **Soft Geofencing (Phase B)**: Geofence status computed on every clock in/out — distance from technician GPS to project site coordinates compared against configurable `geofence_radius`.
+- **Mobile geofence badge**: Clock-in UI now shows 🟢 Inside Geofence or 🟠 Outside Geofence alongside distance from customer site.
+- **Office geofence visibility**: Review page shows clock-in location, distance from site, and geofence status for completed jobs.
+- **Shared types**: `GeofenceStatus` type and `calculateDistance()` utility exported from `@fieldconnect/shared`.
+- **Schedule queries**: `findAll`, `findByDateRange`, `findByTechnician`, `findUnassigned` now return `project_latitude`, `project_longitude`, and `project_geofence_radius`.
+- **Clock-in API response**: Returns `distance_from_site` and `inside_geofence` fields alongside time entry data.
+
 ## v0.5.1 — 2026-07-06
 
 ### Added

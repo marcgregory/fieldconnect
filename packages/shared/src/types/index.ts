@@ -128,6 +128,12 @@ export interface TimeEntryWithProject extends TimeEntry {
   project_name: string;
 }
 
+/** Extended time entry returned from clock-in/out with geofence info */
+export interface TimeEntryWithGeofence extends TimeEntry {
+  distance_from_site: number | null;
+  inside_geofence: 'inside' | 'outside' | 'unavailable';
+}
+
 export interface CreateTimeEntryInput {
   project_id: string;
   notes?: string;
@@ -148,6 +154,7 @@ export interface TechnicianAssignmentWithDetails extends TechnicianAssignment {
   technician_role: string;
   project_latitude?: number | null;
   project_longitude?: number | null;
+  project_geofence_radius?: number;
 }
 
 // ─── Clock Event (for real-time broadcast) ─────────────────────────────────
@@ -202,6 +209,10 @@ export interface ScheduleWithDetails extends Schedule {
   signature_count?: number;
   project_latitude?: number | null;
   project_longitude?: number | null;
+  project_geofence_radius?: number;
+  /** GPS coordinates from the technician's clock-in on this job's day */
+  clock_in_lat?: number | null;
+  clock_in_lng?: number | null;
 }
 
 export interface CreateScheduleInput {

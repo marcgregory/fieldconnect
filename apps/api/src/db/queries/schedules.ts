@@ -94,7 +94,9 @@ export async function findAll(filters?: {
            s.scheduled_date::text AS scheduled_date,
            s.start_time, s.end_time, s.status, s.notes,
            s.created_by, s.created_at, s.updated_at,
-           p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+           p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
+           p.latitude AS project_latitude, p.longitude AS project_longitude,
+           p.geofence_radius AS project_geofence_radius
     FROM schedules s
     JOIN projects p ON p.id = s.project_id
     JOIN users u ON u.id = s.technician_id
@@ -157,7 +159,9 @@ export async function findByDateRange(from: string, to: string): Promise<Schedul
             s.scheduled_date::text AS scheduled_date,
             s.start_time, s.end_time, s.status, s.notes,
             s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
+            p.latitude AS project_latitude, p.longitude AS project_longitude,
+            p.geofence_radius AS project_geofence_radius
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
@@ -177,10 +181,13 @@ export async function findForReview(): Promise<ScheduleWithDetails[]> {
             p.name AS project_name, p.address AS project_address,
             p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone,
             p.latitude AS project_latitude, p.longitude AS project_longitude,
+            p.geofence_radius AS project_geofence_radius,
             u.name AS technician_name,
             (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
             (SELECT COUNT(*)::int FROM job_attachments WHERE schedule_id = s.id) AS attachment_count,
-            (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count
+            (SELECT COUNT(*)::int FROM signatures WHERE schedule_id = s.id) AS signature_count,
+            (SELECT te.clock_in_lat FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_lat,
+            (SELECT te.clock_in_lng FROM time_entries te WHERE te.user_id = s.technician_id AND te.project_id = s.project_id AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day' ORDER BY te.clock_in LIMIT 1) AS clock_in_lng
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
@@ -196,7 +203,9 @@ export async function findUnassigned(): Promise<ScheduleWithDetails[]> {
             s.scheduled_date::text AS scheduled_date,
             s.start_time, s.end_time, s.status, s.notes,
             s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
+            p.latitude AS project_latitude, p.longitude AS project_longitude,
+            p.geofence_radius AS project_geofence_radius
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
@@ -213,7 +222,9 @@ export async function findByTechnician(technicianId: string): Promise<ScheduleWi
             s.scheduled_date::text AS scheduled_date,
             s.start_time, s.end_time, s.status, s.notes,
             s.created_by, s.created_at, s.updated_at,
-            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name
+            p.name AS project_name, p.address AS project_address, p.contact_name AS project_contact_name, p.contact_phone AS project_contact_phone, u.name AS technician_name,
+            p.latitude AS project_latitude, p.longitude AS project_longitude,
+            p.geofence_radius AS project_geofence_radius
      FROM schedules s
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id

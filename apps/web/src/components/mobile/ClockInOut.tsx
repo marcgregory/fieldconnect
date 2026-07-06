@@ -2,38 +2,24 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, Button, Spinner } from '@fieldconnect/ui';
-import { clockIn, clockOut, getCurrentEntry, getMyAssignments } from '@/lib/api';
+import {
+  clockIn,
+  clockOut,
+  getCurrentEntry,
+  getMyAssignments,
+} from '@/lib/api';
+import {
+  calculateDistance,
+  evaluateGeofence,
+  formatDistance,
+  type GeofenceStatus,
+} from '@fieldconnect/shared';
 import type { ActiveTimeEntry, TechnicianAssignmentWithDetails } from '@fieldconnect/shared';
 
 interface ClockInOutProps {
   userId: string;
   /** Called after a successful clock-in or clock-out so the parent can coordinate UI refreshes. */
   onStatusChange?: () => void;
-}
-
-/** Haversine distance in meters between two lat/lng points */
-function haversineDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371000; // Earth radius in meters
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-/** Format distance for display */
-function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters)} m`;
-  return `${(meters / 1000).toFixed(1)} km`;
 }
 
 /** Build a Google Maps URL from lat/lng */
@@ -66,6 +52,27 @@ function getCurrentPosition(
   });
 }
 
+/** Geofence badge UI helper */
+function GeofenceBadge({ status }: { status: GeofenceStatus }) {
+  if (status === 'inside') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+        Inside Geofence
+      </span>
+    );
+  }
+  if (status === 'outside') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+        Outside Geofence
+      </span>
+    );
+  }
+  return null;
+}
+
 export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
   const [assignments, setAssignments] = useState<TechnicianAssignmentWithDetails[]>([]);
@@ -81,6 +88,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     projectName: string;
   } | null>(null);
   const [distanceFromSite, setDistanceFromSite] = useState<number | null>(null);
+  const [geofenceStatus, setGeofenceStatus] = useState<GeofenceStatus>('unavailable');
   const [locationLoading, setLocationLoading] = useState(false);
   // Optimistic rollback snapshot — keeps last known state so we can revert on failure
   const optimisticRollbackRef = useRef<{
@@ -102,6 +110,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       setActiveEntry(current);
       setAssignments(userAssignments);
       setDistanceFromSite(null);
+      setGeofenceStatus('unavailable');
 
       if (current) {
         // Calculate elapsed seconds
@@ -185,13 +194,16 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
 
       // Calculate distance from project site if we have both GPS and project coords
       if (pos && selectedAssignment?.project_latitude && selectedAssignment?.project_longitude) {
-        const dist = haversineDistance(
+        const dist = calculateDistance(
           pos.lat,
           pos.lng,
           selectedAssignment.project_latitude,
           selectedAssignment.project_longitude,
         );
         setDistanceFromSite(dist);
+        setGeofenceStatus(
+          evaluateGeofence(dist, selectedAssignment.project_geofence_radius ?? 50),
+        );
       }
 
       // Success — refetch to get server-authoritative state
@@ -328,18 +340,13 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
             <p className="text-xs text-gray-400 mb-4">{activeEntry.project_address}</p>
           )}
 
-          {/* Distance from site indicator */}
+          {/* Distance from site + geofence indicator */}
           {distanceFromSite !== null && (
-            <div className="mb-3">
-              {distanceFromSite <= 100 ? (
-                <p className="text-sm text-green-600 font-medium">
-                  📍 {formatDistance(distanceFromSite)} from customer site
-                </p>
-              ) : (
-                <p className="text-sm text-amber-600 font-medium">
-                  ⚠ {formatDistance(distanceFromSite)} from customer site
-                </p>
-              )}
+            <div className="mb-3 space-y-1">
+              <p className="text-sm text-gray-600 font-medium">
+                📍 {formatDistance(distanceFromSite)} from customer site
+              </p>
+              <GeofenceBadge status={geofenceStatus} />
             </div>
           )}
 

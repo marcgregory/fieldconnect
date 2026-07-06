@@ -70,7 +70,7 @@ export async function findAssignmentsByUser(
   userId: string,
 ): Promise<AssignmentWithDetails[]> {
   const result = await query(
-    `SELECT ta.*, p.name AS project_name, p.status AS project_status, u.name AS technician_name, u.role AS technician_role, p.latitude AS project_latitude, p.longitude AS project_longitude
+    `SELECT ta.*, p.name AS project_name, p.status AS project_status, u.name AS technician_name, u.role AS technician_role, p.latitude AS project_latitude, p.longitude AS project_longitude, p.geofence_radius AS project_geofence_radius
      FROM technician_assignments ta
      JOIN projects p ON p.id = ta.project_id
      JOIN users u ON u.id = ta.user_id
