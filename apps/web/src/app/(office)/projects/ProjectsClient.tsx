@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button, Card } from '@fieldconnect/ui';
 import { ProjectForm } from '@/components/office/ProjectForm';
 import { LiveStatusFeed } from '@/components/office/LiveStatusFeed';
+import { useSocket } from '@/hooks/useSocket';
 import {
   getProjects,
   updateProjectStatus,
@@ -66,6 +67,13 @@ export function ProjectsClient() {
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
+
+  // ─── Socket: refetch on job/assignment events or clock in/out ────────────
+  const { lastJobEvent, lastEvent } = useSocket();
+  useEffect(() => {
+    if (!lastJobEvent && !lastEvent) return;
+    fetchProjects();
+  }, [lastJobEvent, lastEvent, fetchProjects]);
 
   async function handleStatusChange(projectId: string, newStatus: ProjectStatus) {
     try {
