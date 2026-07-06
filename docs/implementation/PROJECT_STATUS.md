@@ -54,7 +54,7 @@ Sprint 4 — Reporting & Analytics — ✅ Complete
 - Status progress stepper visual ✅
 
 ### Phase C — Job Lifecycle (Status State Machine)
-- Status state machine: `scheduled → traveling → on_site → completed → office_review → closed` ✅
+- Status state machine: `scheduled → traveling → on_site → completed → closed` ✅
 - Transaction-safe `updateStatus()` with `SELECT FOR UPDATE` row lock and audit logging ✅
 - Role-enforced transition rules (technician, office, admin) ✅
 - `audit_logs` table for insert-only history ✅

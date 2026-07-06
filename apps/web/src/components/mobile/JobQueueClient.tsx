@@ -49,7 +49,7 @@ export function JobQueueClient() {
   const todayStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD
 
   const activeStatuses = new Set(['scheduled', 'traveling', 'on_site']);
-  const completedStatuses = new Set(['completed', 'office_review', 'closed']);
+  const completedStatuses = new Set(['completed', 'closed']);
 
   const todayJobs = jobs.filter(
     (j) => j.scheduled_date === todayStr && activeStatuses.has(j.status),

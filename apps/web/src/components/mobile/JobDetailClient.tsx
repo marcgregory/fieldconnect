@@ -37,18 +37,16 @@ const STATUS_CONFIG: Record<
   traveling: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Traveling', step: 1 },
   on_site: { bg: 'bg-green-100', text: 'text-green-800', label: 'On Site', step: 2 },
   completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Work Completed', step: 3 },
-  office_review: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Office Review', step: 4 },
-  closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed', step: 5 },
+  closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed', step: 4 },
 };
 
-const STATUS_STEPS = ['scheduled', 'traveling', 'on_site', 'completed', 'office_review', 'closed'];
+const STATUS_STEPS = ['scheduled', 'traveling', 'on_site', 'completed', 'closed'];
 
 const NEXT_STATUS: Record<string, { status: JobStatus; label: string; color: string; confirm: string } | null> = {
   scheduled: { status: 'traveling', label: 'Start Traveling', color: 'bg-blue-600', confirm: 'Start traveling to this job?' },
   traveling: { status: 'on_site', label: 'Arrived On Site', color: 'bg-green-600', confirm: 'Mark yourself as on site?' },
   on_site: { status: 'completed', label: 'Mark Complete', color: 'bg-blue-600', confirm: 'Mark this job as completed?' },
   completed: null,
-  office_review: null,
   closed: null,
 };
 
@@ -914,7 +912,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </div>
         )}
 
-        {schedule.project_address && schedule.status !== 'completed' && schedule.status !== 'office_review' && schedule.status !== 'closed' && (
+        {schedule.project_address && schedule.status !== 'completed' && schedule.status !== 'closed' && (
           <button
             onClick={handleStartNavigation}
             className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors flex items-center justify-center gap-2"

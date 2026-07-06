@@ -15,7 +15,6 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
   traveling: { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-700', dot: 'bg-yellow-500' },
   on_site: { bg: 'bg-green-50 border-green-200', text: 'text-green-700', dot: 'bg-green-500' },
   completed: { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-600', dot: 'bg-gray-400' },
-  office_review: { bg: 'bg-purple-50 border-purple-200', text: 'text-purple-700', dot: 'bg-purple-500' },
   closed: { bg: 'bg-gray-100 border-gray-300', text: 'text-gray-500', dot: 'bg-gray-500' },
 };
 
@@ -24,7 +23,6 @@ const STATUS_LABELS: Record<string, string> = {
   traveling: 'Traveling',
   on_site: 'On Site',
   completed: 'Work Completed',
-  office_review: 'Office Review',
   closed: 'Closed',
 };
 

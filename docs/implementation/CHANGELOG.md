@@ -2,6 +2,17 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.5.0 — 2026-07-06
+
+### Changed
+
+- **Simplified status workflow**: removed `office_review` from the state machine. New flow: `scheduled → traveling → on_site → completed → closed`. The Review page reads `status = 'completed'` which is now the single source of truth for work pending review.
+- **DB migration 007**: converts all existing `office_review` records to `completed` and tightens the CHECK constraint.
+
+### Fixed
+
+- **Status mismatch bug**: Technician app was still writing `office_review` after the workflow was simplified. The Review page only queried `status = 'completed'`, so completed jobs disappeared from the review queue. Removed `office_review` from shared types, API validation rules, DB constraint, and all UI components (mobile + office).
+
 ## v0.1.0 — 2026-07-05
 
 ### Added

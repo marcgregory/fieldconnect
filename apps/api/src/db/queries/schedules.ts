@@ -17,7 +17,6 @@ const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   traveling: ['on_site'],
   on_site: ['completed'],
   completed: ['closed', 'on_site', 'traveling'],
-  office_review: ['closed', 'on_site', 'traveling'],
   closed: [],
 };
 
@@ -56,16 +55,16 @@ export function validateTransition(
     }
   }
 
-  // office/dispatcher can review completed/office_review + request rework
+  // office/dispatcher can review completed + request rework
   if (['office_manager', 'dispatcher'].includes(userRole)) {
-    const officeAllowed: JobStatus[] = ['completed', 'office_review'];
+    const officeAllowed: JobStatus[] = ['completed'];
     if (!officeAllowed.includes(oldStatus)) {
       throw new ValidationError(
-        `Office staff can only advance jobs from completed or office_review`,
+        `Office staff can only advance jobs from completed`,
         403,
       );
     }
-    // Rework is allowed from completed/office_review back to on_site or traveling
+    // Rework is allowed from completed back to on_site or traveling
     // (already covered by VALID_TRANSITIONS above)
   }
 }

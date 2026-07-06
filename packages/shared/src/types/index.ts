@@ -150,14 +150,13 @@ export interface ClockEvent {
 
 // ─── Schedule / Job Status ──────────────────────────────────────────────────
 
-export type JobStatus = 'scheduled' | 'traveling' | 'on_site' | 'completed' | 'office_review' | 'closed';
+export type JobStatus = 'scheduled' | 'traveling' | 'on_site' | 'completed' | 'closed';
 
 export const JOB_STATUSES: JobStatus[] = [
   'scheduled',
   'traveling',
   'on_site',
   'completed',
-  'office_review',
   'closed',
 ];
 

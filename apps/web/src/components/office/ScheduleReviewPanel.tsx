@@ -18,7 +18,6 @@ interface OfficeAction {
 
 const OFFICE_ACTIONS: Record<string, OfficeAction | null> = {
   completed: { status: 'closed', label: 'Close Job', color: 'bg-gray-700' },
-  office_review: { status: 'closed', label: 'Close Job', color: 'bg-gray-700' },
 };
 
 export function ScheduleReviewPanel({ schedule, onStatusChange, userRole }: ScheduleReviewPanelProps) {
@@ -59,7 +58,7 @@ export function ScheduleReviewPanel({ schedule, onStatusChange, userRole }: Sche
       <div className="flex items-center gap-2 mb-3">
         <span className="text-sm text-gray-500">Current:</span>
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-          {schedule.status === 'completed' ? 'Completed' : schedule.status === 'office_review' ? 'Office Review' : schedule.status}
+          {schedule.status === 'completed' ? 'Work Completed' : schedule.status}
         </span>
       </div>
 
