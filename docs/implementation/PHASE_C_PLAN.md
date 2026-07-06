@@ -1,308 +1,133 @@
-# Phase C — Job Lifecycle (Status State Machine) Implementation Plan
+# Phase C — Photo Geotagging (Evidence System)
 
-**Status transitions, audit logging, WebSocket events, and workflow UI buttons.**
+## Goal
 
----
+Turn every field photo into location-verified evidence by capturing GPS at upload time, computing geofence status immediately, and displaying it on both mobile and office review.
 
-## Overview
+## Files Changed (Ordered)
 
-Build the job status state machine on top of the existing schedules infrastructure. The `schedules` table already has the status column with a CHECK constraint. We add:
+### 1. Database — Migration 013
 
-1. An `audit_logs` table for insert-only history
-2. A transaction-based status update query with row-level locking
-3. A `PATCH /api/v1/schedules/:id/status` endpoint with role-based transition enforcement
-4. Workflow buttons on the mobile job detail page
-5. Office-side review controls (Completed → Office Review → Closed)
-6. WebSocket events (`job:update`) when status changes
-7. Frontend API client and Socket.io hook updates
+**File:** `apps/api/src/db/migrations/013_add-photo-geotagging.sql`
 
----
+Add columns to `job_attachments`:
 
-## Files to Create
+| Column | Type | Notes |
+|--------|------|-------|
+| `latitude` | `DOUBLE PRECISION` | GPS lat at capture time |
+| `longitude` | `DOUBLE PRECISION` | GPS lng at capture time |
+| `accuracy` | `DOUBLE PRECISION` | GPS accuracy in meters |
+| `captured_at` | `TIMESTAMPTZ` | When the photo was taken (may differ from upload time) |
+| `distance_from_site` | `INTEGER` | Meters — computed once at upload |
+| `inside_geofence` | `BOOLEAN` | Computed once at upload |
+| `width` | `INTEGER` | Cloudinary image width |
+| `height` | `INTEGER` | Cloudinary image height |
+| `format` | `VARCHAR(10)` | Cloudinary image format (jpg, png, webp) |
 
-| # | File | Purpose |
-|---|------|---------|
-| 1 | `apps/api/src/db/migrations/004_create-audit-logs.sql` | audit_logs table |
-| 2 | `apps/web/src/hooks/useSocket.ts` | Socket.io hook for job events |
+### 2. Shared Types
 
-## Files to Modify
+**File:** `packages/shared/src/types/index.ts`
 
-| # | File | Change |
-|---|------|--------|
-| 1 | `packages/shared/src/types/index.ts` | Add `UpdateScheduleStatusInput.notes`, `AuditLog`, `JobEvent` types |
-| 2 | `packages/shared/src/validation/index.ts` | Add `updateScheduleStatusSchema` with transition validation |
-| 3 | `apps/api/src/db/queries/schedules.ts` | Add `updateStatus()` with transaction + row lock + audit log |
-| 4 | `apps/api/src/routes/schedules/index.ts` | Add `PATCH /api/v1/schedules/:id/status` with role rules |
-| 5 | `apps/api/src/websocket/index.ts` | Add `broadcastJobEvent()` |
-| 6 | `apps/web/src/lib/api.ts` | Add `updateScheduleStatus()` |
-| 7 | `apps/web/src/components/mobile/JobDetailClient.tsx` | Add workflow buttons (sticky bottom bar) |
-| 8 | `apps/web/src/components/office/ScheduleReviewPanel.tsx` | NEW: Office review controls |
+Extend `JobAttachment` with all new fields. Also add `latitude`, `longitude`, `accuracy`, `captured_at` to `CreateJobAttachmentInput`.
 
----
+### 3. Cloudinary Upload — Return dimensions
 
-## Implementation Details
+**File:** `apps/api/src/lib/cloudinary-storage.ts`
 
-### 1. DB Migration: `004_create-audit-logs.sql`
+Extend return type of `uploadToCloudinary` to include `width`, `height`, `format`.
 
-```sql
-CREATE TABLE audit_logs (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  schedule_id UUID NOT NULL REFERENCES schedules(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES users(id),
-  action VARCHAR(50) NOT NULL,
-  old_status VARCHAR(20),
-  new_status VARCHAR(20),
-  metadata JSONB,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+### 4. API Attachment Query — Accept GPS fields
 
-CREATE INDEX idx_audit_logs_schedule ON audit_logs(schedule_id);
-CREATE INDEX idx_audit_logs_created ON audit_logs(created_at);
-```
+**File:** `apps/api/src/db/queries/job-attachments.ts`
 
-### 2. Shared Types (`packages/shared/src/types/index.ts`)
+Update `create()` to accept and store the new GPS and dimension fields.
 
-Add `notes` field to `UpdateScheduleStatusInput`:
-```typescript
-export interface UpdateScheduleStatusInput {
-  status: JobStatus;
-  notes?: string;  // reason for transition (optional)
-}
-```
+### 5. API Attachment Route — Accept GPS + compute geofence
 
-Add `AuditLog` interface:
-```typescript
-export interface AuditLog {
-  id: string;
-  schedule_id: string;
-  user_id: string;
-  action: string;
-  old_status: string | null;
-  new_status: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
+**File:** `apps/api/src/routes/schedules/job-attachments.ts`
 
-export interface AuditLogWithUser extends AuditLog {
-  user_name: string;
-}
-```
+In POST handler:
+1. Accept GPS query params: `lat`, `lng`, `accuracy`, `captured_at`
+2. Before inserting, compute distance and geofence using project coords
+3. Pass all GPS and dimension fields to `create()`
 
-Add `JobEvent` type:
-```typescript
-export interface JobEvent {
-  type: 'status_change' | 'assignment';
-  schedule_id: string;
-  project_name: string;
-  technician_name: string;
-  old_status: JobStatus | null;
-  new_status: JobStatus;
-  changed_by: string;
-  timestamp: string;
-}
-```
+Also available as multipart fields for offline sync compatibility.
 
-### 3. Zod Schema (`packages/shared/src/validation/index.ts`)
+### 6. Frontend API Client — Pass GPS on upload
 
-```typescript
-export const updateScheduleStatusSchema = z.object({
-  status: z.enum(JOB_STATUSES as [string, ...string[]]),
-  notes: z.string().max(500).optional(),
-});
-```
+**File:** `apps/web/src/lib/api.ts`
 
-### 4. Backend Query: `updateStatus()` with Transaction
+Update `uploadJobAttachment()` to accept optional `lat`, `lng`, `accuracy`, `capturedAt` query params.
 
-In `apps/api/src/db/queries/schedules.ts`:
+### 7. Mobile — Capture GPS during photo upload
 
-```typescript
-import { query, pool } from '../index';
+**File:** `apps/web/src/components/mobile/JobDetailClient.tsx`
 
-export async function updateStatus(data: {
-  id: string;
-  status: JobStatus;
-  user_id: string;
-  notes?: string;
-}): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+- Extract `getCurrentPosition()` into a shared utility (`@fieldconnect/shared` or inline in this file)
+- In `handleFileUpload()`: call GPS capture before upload, pass to API
+- In `handleFileUpload()` for offline mode: store GPS in the offline action payload
 
-    // Row lock
-    const lockResult = await client.query(
-      'SELECT status FROM schedules WHERE id = $1 FOR UPDATE',
-      [data.id]
-    );
-    if (lockResult.rows.length === 0) {
-      throw new AppError(404, 'Schedule not found');
-    }
+### 8. Mobile — Photo card shows GPS badge
 
-    const oldStatus = lockResult.rows[0].status as JobStatus;
+**File:** `apps/web/src/components/mobile/JobDetailClient.tsx`
 
-    // Validate transition
-    validateTransition(oldStatus, data.status, data.user_role);
-
-    // Update status
-    const updateResult = await client.query(
-      `UPDATE schedules SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [data.status, data.id]
-    );
-
-    // Insert audit log
-    const auditResult = await client.query(
-      `INSERT INTO audit_logs (schedule_id, user_id, action, old_status, new_status, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [data.id, data.user_id, 'status_change', oldStatus, data.status,
-       data.notes ? JSON.stringify({ notes: data.notes }) : null]
-    );
-
-    await client.query('COMMIT');
-
-    return {
-      schedule: await findById(data.id),
-      audit: auditResult.rows[0],
-    };
-  } catch (err) {
-    await client.query('ROLLBACK');
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-```
-
-**Transition validation rules:**
-
-```typescript
-const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
-  scheduled: ['traveling'],
-  traveling: ['on_site'],
-  on_site: ['completed'],
-  completed: ['office_review'],
-  office_review: ['closed'],
-  closed: [],  // terminal — no forward transitions
-};
-
-// Roles allowed per transition:
-// Technician (own job): scheduled → traveling → on_site → completed
-// Admin/office/dispatcher: completed → office_review → closed
-// Admin only: any → any (correction)
-```
-
-Implementation will be a helper function `validateTransition(oldStatus, newStatus, userRole, scheduleTechnicianId, userId)`.
-
-### 5. API Endpoint
-
-In `apps/api/src/routes/schedules/index.ts`:
+In `renderAttachmentCard()`, add a GPS info row below photos:
 
 ```
-PATCH /api/v1/schedules/:id/status
+Before       09:15 AM
+🟢 Inside Geofence  12 m
+±5 m accuracy
 ```
 
-Body: `{ status, notes? }`
+Uses `calculateDistance()`, `evaluateGeofence()`, `formatDistance()` already in shared.
 
-Role-dependent behavior:
-- `field_technician`: can only advance own jobs scheduled → traveling → on_site → completed
-- `admin`, `office_manager`, `dispatcher`: can advance completed → office_review → closed
-- `admin` only: can correct from any status to any status
+### 9. Office Review — Photo GPS badges
 
-Response: `{ success: true, data: { schedule, audit } }`
+**File:** `apps/web/src/components/office/ReviewClient.tsx`
 
-### 6. WebSocket Event
+Update the attachment thumbnails section:
+- Add GPS badge (inside/outside) to each photo
+- Add distance, accuracy, capture time
+- Add "View on Map" link using photo coordinates
+- Show `⚪ GPS Unavailable` when no GPS data
 
-In `apps/api/src/websocket/index.ts`:
+### 10. Office Review — Checklist GPS quality
 
-```typescript
-export function broadcastJobEvent(event: JobEvent): void {
-  if (!io) return;
-  io.to('tech:status').emit('job:update', event);
-  io.to(`user:${event.schedule_technician_id}`).emit('job:update', event);
-}
-```
+**File:** `apps/web/src/components/office/ReviewClient.tsx`
 
-Emit after successful status transition in the route handler.
+Enhance checklist items to show GPS status:
+- `✓ Before Photo 🟢 GPS Verified` when inside
+- `✓ Before Photo 🟠 Outside Geofence` when outside
+- `✓ Before Photo ⚪ No GPS` when no data
 
-### 7. Frontend API Client
+### 11. Offline Queue — Carry GPS data
 
-In `apps/web/src/lib/api.ts`:
+**File:** `apps/web/src/lib/offline-types.ts`
 
-```typescript
-export async function updateScheduleStatus(
-  id: string,
-  status: JobStatus,
-  notes?: string
-): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
-  return bffFetch(`/api/v1/schedules/${id}/status`, {
-    method: 'PATCH',
-    body: JSON.stringify({ status, notes }),
-  });
-}
-```
+Extend `UploadPhotoAction` payload with `lat?`, `lng?`, `accuracy?`, `capturedAt?`.
 
-### 8. Mobile Job Detail — Workflow Buttons
+**File:** `apps/web/src/hooks/useOfflineSync.ts`
 
-In `apps/web/src/components/mobile/JobDetailClient.tsx`:
+- In `enqueuePhoto()`, accept optional GPS args and store
+- In `syncAction()` upload_photo case, append GPS params
 
-Replace the action buttons area to include status progression buttons between the Start Navigation and Contact Customer buttons.
+### 12. Docs
 
-- Default state: show current status as disabled step label
-- When job.status === 'scheduled': show "Start Traveling" blue button
-- When job.status === 'traveling': show "Arrived On Site" blue button
-- When job.status === 'on_site': show "Mark Complete" blue button
-- When job.status === 'completed': show "Awaiting Office Review" informational badge
-- When job.status === 'office_review' or 'closed': no workflow button needed
+**Files:**
+- `docs/implementation/CHANGELOG.md`
+- `docs/implementation/ROADMAP.md`
+- `docs/implementation/PROJECT_STATUS.md`
 
-The buttons call `updateScheduleStatus(id, nextStatus)` then refetch.
+## Implementation Order
 
-Also add a confirmation dialog before each transition (simple state-based confirm).
-
-### 9. Office Review Panel
-
-In `apps/web/src/components/office/ScheduleReviewPanel.tsx`:
-
-A minimal panel component that can be used in the schedule detail view showing:
-- Current status
-- "Move to Office Review" / "Close Job" buttons (for admin/office_manager/dispatcher)
-- Notes input for transition reason
-
-Integrated into the office schedule view page.
-
-### 10. Socket.io Hook
-
-In `apps/web/src/hooks/useSocket.ts`:
-
-```typescript
-'use client';
-// Socket.io client hook that connects to the Fastify backend
-// Subscribes to job:update events
-// Returns: { isConnected, lastJobEvent }
-```
-
-Uses `socket.io-client` to connect with JWT token from session.
-
----
-
-## Order of Implementation
-
-1. Migration SQL (audit_logs table)
-2. Shared types + Zod schema
-3. Backend queries (`updateStatus` with transaction)
-4. Backend route (`PATCH /api/v1/schedules/:id/status`)
-5. WebSocket broadcast function
-6. Frontend API client
-7. Mobile job detail — workflow buttons
-8. Office review panel
-9. Socket.io hook
-10. Wire WebSocket emission into status endpoint
-11. Update CHANGELOG
-12. Typecheck + build
-
----
-
-## What's NOT Included
-
-- Notes, photos, signatures — Phase D deferred
-- Offline sync — Phase F deferred
-- Reporting — Sprint 4
-- Drag-and-drop calendar — Phase A (already done)
-- Technician queue tabs — Phase B (already done)
+1. Migration 013
+2. Shared types (JobAttachment + input)
+3. Cloudinary (return dimensions)
+4. Attachment queries (store new fields)
+5. Attachment route (accept GPS, compute geofence)
+6. Frontend API client (pass GPS params)
+7. Mobile photo capture + display
+8. Office review (badges + map)
+9. Office checklist (GPS quality)
+10. Offline queue support
+11. Docs

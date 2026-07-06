@@ -177,8 +177,10 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       notes: null,
       clock_in_lat: null,
       clock_in_lng: null,
+      clock_in_accuracy: null,
       clock_out_lat: null,
       clock_out_lng: null,
+      clock_out_accuracy: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
