@@ -121,6 +121,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedAttachmentType, setSelectedAttachmentType] = useState<string>('before');
+  const selectedAttachmentTypeRef = useRef<string>('before');
   const [showMissingDocsModal, setShowMissingDocsModal] = useState(false);
 
   // ─── Offline Sync ────────────────────────────────────────────────────────
@@ -295,7 +296,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           }
         }
 
-        await enqueuePhoto(scheduleId, uploadFile, selectedAttachmentType as any);
+        await enqueuePhoto(scheduleId, uploadFile, selectedAttachmentTypeRef.current as any);
         // Optimistically add to local attachments list
         const optimisticAttachment: JobAttachment = {
           id: `offline-${Date.now()}`,
@@ -306,7 +307,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           file_path: '',
           mime_type: uploadFile.type || 'image/jpeg',
           file_size: uploadFile.size,
-          attachment_type: selectedAttachmentType as any,
+          attachment_type: selectedAttachmentTypeRef.current as any,
           created_at: new Date().toISOString(),
         };
         setAttachments((prev) => [...prev, optimisticAttachment]);
@@ -335,7 +336,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
-      formData.append('attachment_type', selectedAttachmentType);
+      formData.append('attachment_type', selectedAttachmentTypeRef.current);
       await uploadJobAttachment(scheduleId, formData);
       const updated = await getJobAttachments(scheduleId);
       setAttachments(updated);
@@ -857,7 +858,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               return (
                 <button
                   key={type}
-                  onClick={() => setSelectedAttachmentType(type)}
+                  onClick={() => { setSelectedAttachmentType(type); selectedAttachmentTypeRef.current = type; }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isSelected
                       ? 'bg-blue-50 border border-blue-300'
