@@ -35,10 +35,25 @@ export async function create(data: {
   cloudinary_public_id?: string;
   secure_url?: string;
   resource_type?: string;
+  /** GPS + geofence evidence fields */
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy?: number | null;
+  captured_at?: string | null;
+  distance_from_site?: number | null;
+  inside_geofence?: boolean | null;
+  /** Cloudinary image dimensions */
+  width?: number | null;
+  height?: number | null;
+  format?: string | null;
 }): Promise<JobAttachment> {
   const result = await query(
-    `INSERT INTO job_attachments (schedule_id, user_id, file_name, file_path, mime_type, file_size, attachment_type, cloudinary_public_id, secure_url, resource_type)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO job_attachments
+      (schedule_id, user_id, file_name, file_path, mime_type, file_size, attachment_type,
+       cloudinary_public_id, secure_url, resource_type,
+       latitude, longitude, accuracy, captured_at, distance_from_site, inside_geofence,
+       width, height, format)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      RETURNING *`,
     [
       data.schedule_id,
@@ -51,6 +66,15 @@ export async function create(data: {
       data.cloudinary_public_id || null,
       data.secure_url || null,
       data.resource_type || null,
+      data.latitude ?? null,
+      data.longitude ?? null,
+      data.accuracy ?? null,
+      data.captured_at ?? null,
+      data.distance_from_site ?? null,
+      data.inside_geofence ?? null,
+      data.width ?? null,
+      data.height ?? null,
+      data.format ?? null,
     ],
   );
   return result.rows[0];

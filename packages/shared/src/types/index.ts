@@ -320,6 +320,24 @@ export interface JobAttachment {
   cloudinary_public_id?: string;
   secure_url?: string;
   resource_type?: string;
+  /** GPS latitude at capture time */
+  latitude?: number | null;
+  /** GPS longitude at capture time */
+  longitude?: number | null;
+  /** GPS accuracy in meters */
+  accuracy?: number | null;
+  /** When the photo was taken (may differ from upload time) */
+  captured_at?: string | null;
+  /** Distance from project site in meters (computed at upload) */
+  distance_from_site?: number | null;
+  /** Whether the photo was taken inside the geofence */
+  inside_geofence?: boolean | null;
+  /** Cloudinary image width in pixels */
+  width?: number | null;
+  /** Cloudinary image height in pixels */
+  height?: number | null;
+  /** Cloudinary image format (jpg, png, webp) */
+  format?: string | null;
 }
 
 export interface CreateJobAttachmentInput {

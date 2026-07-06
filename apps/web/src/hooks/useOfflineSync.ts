@@ -66,6 +66,8 @@ export interface UseOfflineSyncReturn {
     scheduleId: string,
     file: File,
     attachmentType: AttachmentType,
+    /** Optional GPS evidence captured at upload time */
+    gps?: { lat: number; lng: number; accuracy: number; capturedAt: string },
   ) => Promise<string>;
   enqueueSignature: (
     scheduleId: string,
@@ -324,9 +326,14 @@ export function useOfflineSync(): UseOfflineSyncReturn {
         formData.append('file', storedBlob.blob, storedBlob.fileName);
         formData.append('attachment_type', attachmentType);
 
-        const res = await fetch(
-          `/api/proxy/api/v1/schedules/${action.scheduleId}/attachments`,
-          {
+        // Append GPS evidence data if captured
+        const pa = (action as UploadPhotoAction).payload;
+        let url = `/api/proxy/api/v1/schedules/${action.scheduleId}/attachments`;
+        if (pa.lat != null && pa.lng != null) {
+          url += `?lat=${pa.lat}&lng=${pa.lng}&accuracy=${pa.accuracy ?? ''}&captured_at=${encodeURIComponent(pa.capturedAt ?? '')}`;
+        }
+
+        const res = await fetch(url, {
             method: 'POST',
             headers: {
               // Do NOT set Content-Type — browser sets it with boundary
@@ -425,6 +432,7 @@ export function useOfflineSync(): UseOfflineSyncReturn {
       scheduleId: string,
       file: File,
       attachmentType: AttachmentType,
+      gps?: { lat: number; lng: number; accuracy: number; capturedAt: string },
     ): Promise<string> => {
       const id = generateIdempotencyKey();
       const blobRecord = await storeBlob(id, file, file.name);
@@ -432,7 +440,11 @@ export function useOfflineSync(): UseOfflineSyncReturn {
         id,
         scheduleId,
         type: 'upload_photo',
-        payload: { blobId: blobRecord.id, attachmentType },
+        payload: {
+          blobId: blobRecord.id,
+          attachmentType,
+          ...(gps ? { lat: gps.lat, lng: gps.lng, accuracy: gps.accuracy, capturedAt: gps.capturedAt } : {}),
+        },
         createdAt: new Date().toISOString(),
         retryCount: 0,
         lastError: null,

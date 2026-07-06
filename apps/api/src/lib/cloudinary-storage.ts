@@ -23,6 +23,9 @@ export async function uploadToCloudinary(
   secure_url: string;
   resource_type: string;
   file_size: number;
+  width: number;
+  height: number;
+  format: string;
 }> {
   const publicId = randomUUID();
   const folder = `${BASE_FOLDER}/jobs/${scheduleId}`;
@@ -42,6 +45,9 @@ export async function uploadToCloudinary(
     secure_url: result.secure_url,
     resource_type: result.resource_type,
     file_size: result.bytes,
+    width: result.width,
+    height: result.height,
+    format: result.format,
   };
 }
 

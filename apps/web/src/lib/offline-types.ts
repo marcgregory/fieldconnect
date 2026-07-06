@@ -37,7 +37,15 @@ export interface AddNoteAction extends OfflineActionBase {
 
 export interface UploadPhotoAction extends OfflineActionBase {
   type: 'upload_photo';
-  payload: { blobId: string; attachmentType: AttachmentType };
+  payload: {
+    blobId: string;
+    attachmentType: AttachmentType;
+    /** Optional GPS evidence captured at upload time */
+    lat?: number;
+    lng?: number;
+    accuracy?: number;
+    capturedAt?: string;
+  };
 }
 
 export interface CaptureSignatureAction extends OfflineActionBase {

@@ -39,6 +39,7 @@ interface ChecklistItem {
   present: boolean;
   count: number;
   required: boolean;
+  gpsStatus?: 'verified' | 'outside' | 'unavailable' | null;
 }
 
 const REQUIRED_ITEMS: ChecklistItem[] = [
@@ -62,11 +63,26 @@ function evaluateChecklist(notes: JobNote[], attachments: JobAttachment[], signa
   const afterPhotos = attachments.filter((a) => a.attachment_type === 'after');
   const documents = attachments.filter((a) => a.attachment_type === 'document');
 
+  /** Determine GPS quality for a set of photos */
+  function photoGpsStatus(photos: JobAttachment[]): ChecklistItem['gpsStatus'] {
+    if (photos.length === 0) return null;
+    const allInside = photos.every((p) => p.inside_geofence === true);
+    const anyGps = photos.some((p) => p.latitude != null);
+    if (!anyGps) return 'unavailable';
+    return allInside ? 'verified' : 'outside';
+  }
+
   const required = REQUIRED_ITEMS.map((item) => {
     switch (item.label) {
       case 'Technician Notes': return { ...item, present: techNotes.length > 0, count: techNotes.length };
-      case 'Before Photo': return { ...item, present: beforePhotos.length > 0, count: beforePhotos.length };
-      case 'After Photo': return { ...item, present: afterPhotos.length > 0, count: afterPhotos.length };
+      case 'Before Photo': {
+        const base = { ...item, present: beforePhotos.length > 0, count: beforePhotos.length };
+        return { ...base, gpsStatus: photoGpsStatus(beforePhotos) };
+      }
+      case 'After Photo': {
+        const base = { ...item, present: afterPhotos.length > 0, count: afterPhotos.length };
+        return { ...base, gpsStatus: photoGpsStatus(afterPhotos) };
+      }
       case 'Customer Signature': return { ...item, present: signatures.length > 0, count: signatures.length };
       default: return item;
     }
@@ -74,7 +90,7 @@ function evaluateChecklist(notes: JobNote[], attachments: JobAttachment[], signa
 
   const optional = OPTIONAL_ITEMS.map((item) => {
     switch (item.label) {
-      case 'During Photos': return { ...item, present: duringPhotos.length > 0, count: duringPhotos.length };
+      case 'During Photos': return { ...item, present: duringPhotos.length > 0, count: duringPhotos.length, gpsStatus: photoGpsStatus(duringPhotos) };
       case 'Internal Notes': return { ...item, present: internalNotes.length > 0, count: internalNotes.length };
       case 'Documents': return { ...item, present: documents.length > 0, count: documents.length };
       default: return item;
@@ -374,6 +390,24 @@ export function ReviewClient() {
         )}
         {item.required && !item.present && (
           <span className="text-xs font-medium ml-auto text-red-600">Required</span>
+        )}
+        {item.gpsStatus === 'verified' && item.present && (
+          <span className="text-xs font-medium ml-auto flex items-center gap-1 text-green-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+            GPS Verified
+          </span>
+        )}
+        {item.gpsStatus === 'outside' && item.present && (
+          <span className="text-xs font-medium ml-auto flex items-center gap-1 text-amber-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+            Outside Geofence
+          </span>
+        )}
+        {item.gpsStatus === 'unavailable' && item.present && (
+          <span className="text-xs font-medium ml-auto flex items-center gap-1 text-gray-500">
+            <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
+            No GPS
+          </span>
         )}
       </div>
     );
@@ -693,8 +727,8 @@ export function ReviewClient() {
                                   <div className="flex flex-wrap gap-2">
                                     {items.map((att) => (
                                       att.mime_type?.startsWith('image/') ? (
-                                        <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden">
-                                          <div className="w-24 h-20 relative">
+                                        <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden w-32">
+                                          <div className="w-full h-24 relative">
                                             <img
                                               src={getAttachmentUrl(att)}
                                               alt={att.file_name}
@@ -702,7 +736,43 @@ export function ReviewClient() {
                                               loading="lazy"
                                             />
                                           </div>
-                                          <div className="px-2 py-1 text-xs text-gray-500 truncate max-w-[96px]">
+                                          <div className="px-2 py-1.5 space-y-0.5 border-t border-gray-200">
+                                            {att.latitude && att.longitude ? (
+                                              <>
+                                                <p className={`text-xs font-medium flex items-center gap-1 ${
+                                                  att.inside_geofence ? 'text-green-700' : 'text-amber-700'
+                                                }`}>
+                                                  <span className={`h-1.5 w-1.5 rounded-full ${att.inside_geofence ? 'bg-green-500' : 'bg-amber-500'}`} />
+                                                  {att.inside_geofence ? 'Inside' : 'Outside'}
+                                                </p>
+                                                {att.distance_from_site != null && (
+                                                  <p className="text-xs text-gray-500">{att.distance_from_site} m</p>
+                                                )}
+                                                {att.accuracy != null && (
+                                                  <p className="text-xs text-gray-400">±{att.accuracy} m</p>
+                                                )}
+                                                {att.captured_at && (
+                                                  <p className="text-xs text-gray-400">
+                                                    {new Date(att.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                  </p>
+                                                )}
+                                                <a
+                                                  href={`https://www.google.com/maps?q=${att.latitude},${att.longitude}`}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="text-xs text-blue-600 hover:text-blue-800 underline inline-block"
+                                                >
+                                                  View on Map
+                                                </a>
+                                              </>
+                                            ) : (
+                                              <p className="text-xs text-gray-400 flex items-center gap-1">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-gray-400 inline-block" />
+                                                No GPS
+                                              </p>
+                                            )}
+                                          </div>
+                                          <div className="px-2 py-1 text-xs text-gray-500 truncate">
                                             {att.file_name}
                                           </div>
                                         </div>

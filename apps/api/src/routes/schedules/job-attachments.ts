@@ -1,7 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import {
   createJobAttachmentSchema,
+  calculateDistance,
+  evaluateGeofence,
   type AttachmentType,
+  type GeofenceStatus,
 } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as jobAttachmentQueries from '../../db/queries/job-attachments';
@@ -68,8 +71,11 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
         });
       }
 
-      // Read attachment_type from query (passed by BFF proxy which may mangle multipart fields) or fall back to multipart field
-      const query = request.query as { attachment_type?: string };
+      // Read attachment_type and GPS data from query (BFF proxy) or multipart fields (offline sync)
+      const query = request.query as {
+        attachment_type?: string;
+        lat?: string; lng?: string; accuracy?: string; captured_at?: string;
+      };
       const fields = fileData.fields as Record<string, any>;
       const attachmentType = query.attachment_type || fields?.attachment_type?.value || 'document';
 
@@ -84,6 +90,28 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
         });
       }
 
+      // Parse GPS data from query params or multipart fields
+      const photoLat = parseFloat(query.lat ?? fields?.lat?.value) || undefined;
+      const photoLng = parseFloat(query.lng ?? fields?.lng?.value) || undefined;
+      const photoAccuracy = parseFloat(query.accuracy ?? fields?.accuracy?.value) || undefined;
+      const capturedAt = query.captured_at ?? fields?.captured_at?.value ?? undefined;
+
+      // Compute geofence status immediately if we have photo GPS + project coords
+      let distanceFromSite: number | null = null;
+      let insideGeofence: boolean | null = null;
+      if (photoLat && photoLng && schedule.project_latitude && schedule.project_longitude) {
+        const dist = calculateDistance(
+          photoLat, photoLng,
+          schedule.project_latitude, schedule.project_longitude,
+        );
+        distanceFromSite = dist !== null ? Math.round(dist) : null;
+        const gfStatus = evaluateGeofence(
+          dist,
+          schedule.project_geofence_radius ?? 50,
+        );
+        insideGeofence = gfStatus === 'inside' ? true : false;
+      }
+
       // Read the file buffer
       const buffer = await fileData.toBuffer();
       const fileName = fileData.filename || 'upload.bin';
@@ -96,6 +124,9 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
         secure_url: string;
         resource_type: string;
         file_size: number;
+        width: number;
+        height: number;
+        format: string;
       } | null = null;
       let relativePath = '';
 
@@ -120,6 +151,17 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           cloudinary_public_id: cloudinaryResult?.public_id,
           secure_url: cloudinaryResult?.secure_url,
           resource_type: cloudinaryResult?.resource_type,
+          // GPS evidence data
+          latitude: photoLat ?? null,
+          longitude: photoLng ?? null,
+          accuracy: photoAccuracy ?? null,
+          captured_at: capturedAt ?? null,
+          distance_from_site: distanceFromSite,
+          inside_geofence: insideGeofence,
+          // Cloudinary image dimensions
+          width: cloudinaryResult?.width ?? null,
+          height: cloudinaryResult?.height ?? null,
+          format: cloudinaryResult?.format ?? null,
         });
 
         // Broadcast attachment uploaded event

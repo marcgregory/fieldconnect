@@ -307,8 +307,13 @@ export async function uploadJobAttachment(
   scheduleId: string,
   formData: FormData,
   attachmentType: string,
+  /** Optional GPS evidence data captured at upload time */
+  gps?: { lat: number; lng: number; accuracy: number; capturedAt: string },
 ): Promise<JobAttachment> {
-  const url = `/api/proxy/api/v1/schedules/${scheduleId}/attachments?attachment_type=${encodeURIComponent(attachmentType)}`;
+  let url = `/api/proxy/api/v1/schedules/${scheduleId}/attachments?attachment_type=${encodeURIComponent(attachmentType)}`;
+  if (gps) {
+    url += `&lat=${gps.lat}&lng=${gps.lng}&accuracy=${gps.accuracy}&captured_at=${encodeURIComponent(gps.capturedAt)}`;
+  }
 
   const res = await fetch(url, {
     method: 'POST',

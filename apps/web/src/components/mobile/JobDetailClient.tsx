@@ -19,6 +19,12 @@ import type {
   JobNote,
   JobAttachment,
   Signature,
+  GeofenceStatus,
+} from '@fieldconnect/shared';
+import {
+  calculateDistance,
+  evaluateGeofence,
+  formatDistance,
 } from '@fieldconnect/shared';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { SignatureCanvas } from './SignatureCanvas';
@@ -275,9 +281,36 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     }
   }
 
+  /** Capture GPS position — best-effort, degrades gracefully */
+  async function captureGps(): Promise<{ lat: number; lng: number; accuracy: number } | null> {
+    if (!navigator.geolocation) return null;
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 30000,
+        });
+      });
+      return {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: Math.round(pos.coords.accuracy),
+      };
+    } catch {
+      return null;
+    }
+  }
+
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Capture GPS for photo evidence (best-effort, runs in parallel with compression)
+    const gps = await captureGps();
+    const gpsPayload = gps
+      ? { ...gps, capturedAt: new Date().toISOString() }
+      : undefined;
 
     // Offline upload handling
     if (!isOnline) {
@@ -300,7 +333,12 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           }
         }
 
-        await enqueuePhoto(scheduleId, uploadFile, selectedAttachmentTypeRef.current as any);
+        await enqueuePhoto(
+          scheduleId,
+          uploadFile,
+          selectedAttachmentTypeRef.current as any,
+          gpsPayload,
+        );
         // Optimistically add to local attachments list
         const optimisticAttachment: JobAttachment = {
           id: `offline-${Date.now()}`,
@@ -340,7 +378,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
-      await uploadJobAttachment(scheduleId, formData, selectedAttachmentTypeRef.current);
+      await uploadJobAttachment(scheduleId, formData, selectedAttachmentTypeRef.current, gpsPayload);
       const updated = await getJobAttachments(scheduleId);
       setAttachments(updated);
     } catch (err) {
@@ -596,6 +634,37 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             >
               Delete
             </button>
+            )}
+          </div>
+        )}
+        {/* GPS evidence badge for photos */}
+        {att.mime_type.startsWith('image/') && (
+          <div className="px-2 py-1.5 border-t border-gray-100">
+            {att.latitude && att.longitude ? (
+              <div className="space-y-0.5">
+                <p className={`text-xs font-medium flex items-center gap-1 ${
+                  att.inside_geofence ? 'text-green-700' : 'text-amber-700'
+                }`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${att.inside_geofence ? 'bg-green-500' : 'bg-amber-500'}`} />
+                  {att.inside_geofence ? 'Inside Geofence' : 'Outside Geofence'}
+                </p>
+                {att.distance_from_site != null && (
+                  <p className="text-xs text-gray-500">{att.distance_from_site} m from site</p>
+                )}
+                {att.accuracy != null && (
+                  <p className="text-xs text-gray-400">±{att.accuracy} m</p>
+                )}
+                {att.captured_at && (
+                  <p className="text-xs text-gray-400">
+                    {new Date(att.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-gray-400 inline-block" />
+                GPS Unavailable
+              </p>
             )}
           </div>
         )}
