@@ -146,6 +146,7 @@ export async function findById(id: string): Promise<ScheduleWithDetails | null> 
      JOIN projects p ON p.id = s.project_id
      JOIN users u ON u.id = s.technician_id
      WHERE s.id = $1`,
+    [id],
   );
   return result.rows[0] || null;
 }
