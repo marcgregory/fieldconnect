@@ -690,7 +690,7 @@ export async function updateStatus(data: {
 
     // Row-level lock on the schedule row
     const lockResult = await client.query(
-      'SELECT status, project_id FROM schedules WHERE id = $1 FOR UPDATE',
+      'SELECT status, project_id, scheduled_date FROM schedules WHERE id = $1 FOR UPDATE',
       [data.id],
     );
 
@@ -700,6 +700,7 @@ export async function updateStatus(data: {
     }
 
     const projectId = lockResult.rows[0].project_id;
+    const scheduledDate = lockResult.rows[0].scheduled_date;
 
     // Fetch all assigned technicians for ownership check
     const techResult = await client.query(
@@ -762,6 +763,29 @@ export async function updateStatus(data: {
         [techId], // For field_technician: check they own this row
         data.technician_id || data.user_id,
       );
+    }
+
+    // ─── Backend time entry guard ─────────────────────────────────────
+    // When a field technician transitions to 'completed', require an active
+    // time entry for that technician on this schedule's project.
+    if (data.status === 'completed' && data.user_role === 'field_technician') {
+      for (const techId of targetTechIds) {
+        const teResult = await client.query(
+          `SELECT 1 FROM time_entries
+           WHERE user_id = $1 AND project_id = $2
+             AND clock_out IS NULL
+             AND clock_in >= $3::timestamptz - interval '1 day'
+           LIMIT 1`,
+          [techId, projectId, scheduledDate],
+        );
+        if (teResult.rows.length === 0) {
+          await client.query('ROLLBACK');
+          throw new ValidationError(
+            'Cannot complete job without an active time entry. Please clock in first.',
+            400,
+          );
+        }
+      }
     }
 
     // Update each target technician's schedule_technicians row

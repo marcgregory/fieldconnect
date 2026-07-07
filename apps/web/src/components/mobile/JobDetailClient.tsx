@@ -15,6 +15,9 @@ import {
   getReworkRequests,
   resumeRework,
   completeRework,
+  clockIn,
+  clockOut,
+  getCurrentEntry,
 } from '@/lib/api';
 import type {
   ScheduleWithDetails,
@@ -25,6 +28,7 @@ import type {
   GeofenceStatus,
   ReworkRequest,
   TechnicianWorkflowStatus,
+  ActiveTimeEntry,
 } from '@fieldconnect/shared';
 import {
   calculateDistance,
@@ -156,6 +160,11 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const selectedAttachmentTypeRef = useRef<string>('before');
   const [showMissingDocsModal, setShowMissingDocsModal] = useState(false);
 
+  // ─── Time Entry State (merged workflow) ────────────────────────────────────
+  const [activeTimeEntry, setActiveTimeEntry] = useState<ActiveTimeEntry | null>(null);
+  const [timeEntryLoading, setTimeEntryLoading] = useState(false);
+  const [showClockOutPrompt, setShowClockOutPrompt] = useState(false);
+
   // ─── Offline Sync ────────────────────────────────────────────────────────
   const {
     isOnline,
@@ -194,6 +203,14 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         setSignatures(signaturesData);
       }
       setReworkRequests(reworkData);
+
+      // Best-effort: fetch current time entry for merged workflow
+      try {
+        const entry = await getCurrentEntry();
+        setActiveTimeEntry(entry);
+      } catch {
+        // Non-critical — time entry state is best-effort
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load job details');
     } finally {
@@ -277,9 +294,69 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
       return;
     }
 
+    // ─── Auto clock-in on "Arrived On Site" ─────────────────────────────
+    if (newStatus === 'on_site') {
+      if (!schedule) {
+        setError('Schedule data not loaded');
+        setTransitioning(false);
+        return;
+      }
+      const isForThisProject = activeTimeEntry?.project_id === schedule.project_id;
+
+      if (!activeTimeEntry) {
+        // No active entry — auto-clock-in to this project
+        try {
+          const pos = await captureGps();
+          await clockIn(
+            schedule.project_id,
+            'Auto clock-in on arrival',
+            pos?.lat,
+            pos?.lng,
+            pos?.accuracy,
+          );
+          // Refetch to get the authoritative time entry
+          const entry = await getCurrentEntry();
+          setActiveTimeEntry(entry);
+        } catch (clockErr) {
+          setError(
+            clockErr instanceof Error
+              ? `Clock-in failed: ${clockErr.message}. Please clock in manually before proceeding.`
+              : 'Clock-in failed. Please clock in manually before proceeding.',
+          );
+          setTransitioning(false);
+          return;
+        }
+      } else if (!isForThisProject) {
+        // Active entry for a different project — warn
+        setError(
+          'You are already clocked into a different project. Please clock out first.',
+        );
+        setTransitioning(false);
+        return;
+      }
+      // isForThisProject === true: already clocked in — proceed with status change
+    }
+
+    // ─── Guard: require active time entry before "completed" ─────────────
+    if (newStatus === 'completed') {
+      const isForThisSchedule = activeTimeEntry?.project_id === schedule?.project_id;
+      if (!activeTimeEntry || !isForThisSchedule) {
+        setError(
+          'You must clock in before completing this job. Please clock in first.',
+        );
+        setTransitioning(false);
+        return;
+      }
+    }
+
     try {
       await updateScheduleStatus(scheduleId, newStatus, undefined, myTechnicianId);
       await fetchAll();
+
+      // ─── Show clock-out prompt after "Mark Complete" ───────────────
+      if (newStatus === 'completed') {
+        setShowClockOutPrompt(true);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
     } finally {
@@ -922,6 +999,27 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           ) : (
             <p className="text-sm text-gray-400 italic">No time set</p>
           )}
+
+          {/* Time entry status indicator — merged workflow */}
+          {activeTimeEntry && activeTimeEntry.project_id === schedule.project_id && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Time Entry</p>
+              <p className="text-sm text-green-700 font-medium flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-green-500 inline-block" />
+                Clocked in since{' '}
+                {new Date(activeTimeEntry.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+          )}
+          {!activeTimeEntry && (myStatus === 'on_site') && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Time Entry</p>
+              <p className="text-sm text-amber-700 font-medium flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-amber-500 inline-block" />
+                Not clocked in — required to complete this job
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Address */}
@@ -1326,6 +1424,52 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                 className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors"
               >
                 Got It
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Clock Out Prompt After Work Complete ──────────────────────────── */}
+      {showClockOutPrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
+          <div className="bg-white rounded-t-2xl w-full max-w-md mx-auto px-6 pt-6 pb-10">
+            <div className="text-center mb-6">
+              <div className="text-green-600 text-4xl mb-3">✓</div>
+              <h3 className="text-lg font-semibold text-gray-900">Work Completed</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Your work has been marked complete and sent for review.
+              </p>
+            </div>
+            <p className="text-sm font-medium text-gray-700 mb-4 text-center">
+              Would you like to clock out now?
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={async () => {
+                  setShowClockOutPrompt(false);
+                  setTimeEntryLoading(true);
+                  try {
+                    const pos = await captureGps();
+                    await clockOut(undefined, pos?.lat, pos?.lng, pos?.accuracy);
+                    setActiveTimeEntry(null);
+                    setTimeEntryLoading(false);
+                  } catch (err) {
+                    setTimeEntryLoading(false);
+                    setError(err instanceof Error ? err.message : 'Failed to clock out');
+                  }
+                }}
+                disabled={timeEntryLoading}
+                className="w-full bg-red-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {timeEntryLoading ? 'Clocking out...' : 'Clock Out'}
+              </button>
+              <button
+                onClick={() => setShowClockOutPrompt(false)}
+                disabled={timeEntryLoading}
+                className="w-full bg-white border border-gray-300 text-gray-700 rounded-xl py-4 text-base font-semibold active:bg-gray-50 transition-colors"
+              >
+                I&apos;ll Clock Out Later
               </button>
             </div>
           </div>
