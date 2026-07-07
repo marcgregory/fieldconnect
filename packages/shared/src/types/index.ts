@@ -177,7 +177,7 @@ export interface ClockEvent {
 
 // ─── Schedule / Job Status ──────────────────────────────────────────────────
 
-export type JobStatus = 'scheduled' | 'traveling' | 'on_site' | 'completed' | 'closed';
+export type JobStatus = 'scheduled' | 'traveling' | 'on_site' | 'completed' | 'closed' | 'rework_required';
 
 export const JOB_STATUSES: JobStatus[] = [
   'scheduled',
@@ -185,6 +185,7 @@ export const JOB_STATUSES: JobStatus[] = [
   'on_site',
   'completed',
   'closed',
+  'rework_required',
 ];
 
 export interface Schedule {
@@ -224,6 +225,10 @@ export interface ScheduleWithDetails extends Schedule {
   clock_in_lng?: number | null;
   clock_in_accuracy?: number | null;
   clock_in_time?: string | null;
+  /** Current rework version for this schedule (0 = original) */
+  current_rework_version?: number;
+  /** Whether this schedule has an open rework request */
+  has_open_rework?: boolean;
 }
 
 export interface CreateScheduleInput {
@@ -267,6 +272,26 @@ export interface UpdateScheduleStatusInput {
   notes?: string;
 }
 
+// ─── Rework Request ───────────────────────────────────────────────────────────
+
+export type ReworkStatus = 'open' | 'completed';
+
+export interface ReworkRequest {
+  id: string;
+  schedule_id: string;
+  reason: string;
+  requested_by: string;
+  requested_by_name?: string;
+  requested_at: string;
+  resolved_at: string | null;
+  status: ReworkStatus;
+  created_at: string;
+}
+
+export interface CreateReworkInput {
+  reason: string;
+}
+
 // ─── Audit Log ──────────────────────────────────────────────────────────────
 
 export interface AuditLog {
@@ -306,6 +331,7 @@ export interface JobNote {
   user_name: string;
   content: string;
   note_type: NoteType;
+  rework_version: number;
   created_at: string;
 }
 
@@ -324,6 +350,7 @@ export interface JobAttachment {
   mime_type: string;
   file_size: number;
   attachment_type: AttachmentType;
+  rework_version: number;
   created_at: string;
   cloudinary_public_id?: string;
   secure_url?: string;
@@ -359,6 +386,7 @@ export interface Signature {
   user_name: string;
   signature_data: string;
   label: string;
+  rework_version: number;
   created_at: string;
   cloudinary_public_id?: string;
   secure_url?: string;

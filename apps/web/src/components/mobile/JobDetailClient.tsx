@@ -12,6 +12,9 @@ import {
   deleteJobAttachment,
   getJobSignatures,
   addJobSignature,
+  getReworkRequests,
+  resumeRework,
+  completeRework,
 } from '@/lib/api';
 import type {
   ScheduleWithDetails,
@@ -20,6 +23,7 @@ import type {
   JobAttachment,
   Signature,
   GeofenceStatus,
+  ReworkRequest,
 } from '@fieldconnect/shared';
 import {
   calculateDistance,
@@ -43,16 +47,18 @@ const STATUS_CONFIG: Record<
   traveling: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Traveling', step: 1 },
   on_site: { bg: 'bg-green-100', text: 'text-green-800', label: 'On Site', step: 2 },
   completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Work Completed', step: 3 },
+  rework_required: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Rework Required', step: 3 },
   closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed', step: 4 },
 };
 
-const STATUS_STEPS = ['scheduled', 'traveling', 'on_site', 'completed', 'closed'];
+const STATUS_STEPS = ['scheduled', 'traveling', 'on_site', 'completed', 'rework_required', 'closed'];
 
 const NEXT_STATUS: Record<string, { status: JobStatus; label: string; color: string; confirm: string } | null> = {
   scheduled: { status: 'traveling', label: 'Start Traveling', color: 'bg-blue-600', confirm: 'Start traveling to this job?' },
   traveling: { status: 'on_site', label: 'Arrived On Site', color: 'bg-green-600', confirm: 'Mark yourself as on site?' },
   on_site: { status: 'completed', label: 'Mark Complete', color: 'bg-blue-600', confirm: 'Mark this job as completed?' },
   completed: null,
+  rework_required: null, // Handled separately with Resume Work button
   closed: null,
 };
 
@@ -125,6 +131,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const [notes, setNotes] = useState<JobNote[]>([]);
   const [attachments, setAttachments] = useState<JobAttachment[]>([]);
   const [signatures, setSignatures] = useState<Signature[]>([]);
+  const [reworkRequests, setReworkRequests] = useState<ReworkRequest[]>([]);
   const [newNote, setNewNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [showSignaturePad, setShowSignaturePad] = useState(false);
@@ -151,16 +158,18 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     try {
       setLoading(true);
       setError('');
-      const [scheduleData, notesData, attachmentsData, signaturesData] = await Promise.all([
+      const [scheduleData, notesData, attachmentsData, signaturesData, reworkData] = await Promise.all([
         getSchedule(scheduleId),
         getJobNotes(scheduleId),
         getJobAttachments(scheduleId),
         getJobSignatures(scheduleId),
+        getReworkRequests(scheduleId).catch(() => [] as ReworkRequest[]),
       ]);
       setSchedule(scheduleData);
       setNotes(notesData);
       setAttachments(attachmentsData);
       setSignatures(signaturesData);
+      setReworkRequests(reworkData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load job details');
     } finally {
@@ -255,6 +264,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           user_name: 'You (offline)',
           content: newNote.trim(),
           note_type: 'technician',
+          rework_version: 0,
           created_at: new Date().toISOString(),
         };
         setNotes((prev) => [...prev, optimisticNote]);
@@ -350,6 +360,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           mime_type: uploadFile.type || 'image/jpeg',
           file_size: uploadFile.size,
           attachment_type: selectedAttachmentTypeRef.current as any,
+          rework_version: 0,
           created_at: new Date().toISOString(),
         };
         setAttachments((prev) => [...prev, optimisticAttachment]);
@@ -414,6 +425,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           mime_type: file.type || 'application/octet-stream',
           file_size: file.size,
           attachment_type: 'document',
+          rework_version: 0,
           created_at: new Date().toISOString(),
         };
         setAttachments((prev) => [...prev, optimisticAttachment]);
@@ -468,6 +480,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           user_name: 'You (offline — pending sync)',
           signature_data: dataUrl,
           label: 'customer',
+          rework_version: 0,
           created_at: new Date().toISOString(),
         };
         setSignatures((prev) => [...prev, optimisticSignature]);
@@ -593,8 +606,16 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
 
   const requiredDocs = getRequiredDocsStatus();
 
+  function canDeleteEvidence(att: JobAttachment): boolean {
+    if (isClosed) return false;
+    // During rework, prevent deletion of original (version 0) evidence
+    if (isReworkActive && (att.rework_version ?? 0) === 0) return false;
+    return true;
+  }
+
   // ─── Attachment card renderer ─────────────────────────────────────────────
   function renderAttachmentCard(att: JobAttachment) {
+    const canDelete = canDeleteEvidence(att);
     return (
       <div key={att.id} className="border border-gray-200 rounded-xl overflow-hidden">
         {att.mime_type.startsWith('image/') ? (
@@ -605,7 +626,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               className="w-full h-32 object-cover"
               loading="lazy"
             />
-            {!isClosed && (
+            {canDelete && (
             <button
               onClick={() => handleDeleteAttachment(att.id)}
               className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/70 transition-colors"
@@ -627,7 +648,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             </svg>
             <p className="text-xs text-gray-700 truncate">{att.file_name}</p>
             <p className="text-xs text-gray-400">{formatFileSize(att.file_size)}</p>
-            {!isClosed && (
+            {canDelete && (
             <button
               onClick={() => handleDeleteAttachment(att.id)}
               className="mt-1 text-xs text-red-500 hover:text-red-700"
@@ -672,6 +693,11 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${ATTACHMENT_COLORS[att.attachment_type] || ATTACHMENT_COLORS.document}`}>
             {ATTACHMENT_LABELS[att.attachment_type] || 'Document'}
           </span>
+          {(att.rework_version ?? 0) > 0 && (
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+              Rework {att.rework_version}
+            </span>
+          )}
           <span className="text-xs text-gray-400">{att.user_name?.split(' ')[0]}</span>
         </div>
       </div>
@@ -728,6 +754,9 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const statusConfig = STATUS_CONFIG[schedule.status] || STATUS_CONFIG.scheduled;
   const currentStep = statusConfig.step;
   const isClosed = schedule.status === 'closed';
+  const isReworkRequired = schedule.status === 'rework_required';
+  const isReworkActive = schedule.status === 'on_site' && reworkRequests.some((r) => r.status === 'open');
+  const openRework = reworkRequests.find((r) => r.status === 'open');
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -745,6 +774,64 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
           <div className="bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg text-sm font-medium text-center">
             {offlineToast}
+          </div>
+        </div>
+      )}
+
+      {/* Rework Required Banner */}
+      {isReworkRequired && openRework && (
+        <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
+          <div className="bg-orange-50 border-2 border-orange-400 rounded-xl shadow-lg px-4 py-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xl">⚠</span>
+              <h3 className="font-bold text-orange-800 text-base">Rework Requested</h3>
+            </div>
+            <p className="text-sm text-orange-700 mb-1">
+              <span className="font-medium">Reason:</span> {openRework.reason}
+            </p>
+            <p className="text-xs text-orange-600 mb-3">
+              Requested by: {openRework.requested_by_name || 'Unknown'} ·{' '}
+              {new Date(openRework.requested_at).toLocaleString()}
+            </p>
+            <button
+              onClick={async () => {
+                setTransitioning(true);
+                try {
+                  await resumeRework(scheduleId, openRework.id);
+                  await fetchAll();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to resume rework');
+                } finally {
+                  setTransitioning(false);
+                }
+              }}
+              disabled={transitioning}
+              className="w-full bg-orange-600 text-white rounded-xl py-3 text-base font-semibold shadow-lg active:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {transitioning ? 'Resuming...' : 'Resume Work'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rework Active Banner */}
+      {isReworkActive && (
+        <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
+          <div className="bg-blue-50 border-2 border-blue-400 rounded-xl shadow-lg px-4 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-blue-600 font-bold">↻</span>
+              <p className="text-sm text-blue-800 font-medium">
+                Rework in progress — add additional evidence below
+              </p>
+            </div>
+            {openRework && (
+              <p className="text-xs text-blue-600 mt-1 ml-6">
+                Reason: {openRework.reason}
+              </p>
+            )}
+            <p className="text-xs text-blue-500 mt-1 ml-6">
+              Original evidence is read-only. New photos and notes will be appended.
+            </p>
           </div>
         </div>
       )}
@@ -885,6 +972,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Technician Notes
+            {isReworkActive && <span className="ml-2 text-orange-600 font-normal normal-case">(Rework)</span>}
           </h2>
 
           {/* Note Input — hidden for closed (read-only) jobs */}
@@ -1088,7 +1176,12 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                     className="w-full h-16 object-contain bg-white"
                   />
                   <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-500 capitalize">{sig.label}</span>
+                    <span className="text-xs text-gray-500 capitalize">
+                      {sig.label}
+                      {(sig.rework_version ?? 0) > 0 && (
+                        <span className="ml-1 text-orange-600 font-medium">(Rework {sig.rework_version})</span>
+                      )}
+                    </span>
                     <span className="text-xs text-gray-400">
                       {sig.user_name} • {formatDateTime(sig.created_at)}
                       {sig.id.startsWith('offline-') && (
@@ -1108,18 +1201,35 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50">
           <div className="bg-white rounded-t-2xl w-full max-w-md mx-auto px-6 pt-6 pb-10">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Confirm Status Change
+              {isReworkActive ? 'Confirm Rework Complete' : 'Confirm Status Change'}
             </h3>
             <p className="text-sm text-gray-600 mb-6">
-              {NEXT_STATUS[schedule.status]?.confirm || 'Update job status?'}
+              {isReworkActive
+                ? 'Submit this rework as complete? The schedule will go back to office review.'
+                : NEXT_STATUS[schedule.status]?.confirm || 'Update job status?'}
             </p>
             <div className="space-y-3">
               <button
-                onClick={() => handleStatusTransition(confirmStatus)}
+                onClick={async () => {
+                  if (isReworkActive && openRework) {
+                    setTransitioning(true);
+                    setConfirmStatus(null);
+                    try {
+                      await completeRework(scheduleId, openRework.id);
+                      await fetchAll();
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to complete rework');
+                    } finally {
+                      setTransitioning(false);
+                    }
+                  } else {
+                    handleStatusTransition(confirmStatus);
+                  }
+                }}
                 disabled={transitioning}
                 className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {transitioning ? 'Updating...' : `Yes, ${NEXT_STATUS[schedule.status]?.label || 'Update'}`}
+                {transitioning ? 'Updating...' : `Yes, ${isReworkActive ? 'Submit Rework' : NEXT_STATUS[schedule.status]?.label || 'Update'}`}
               </button>
               <button
                 onClick={() => setConfirmStatus(null)}
@@ -1195,6 +1305,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               onClick={() => {
                 if (!requiredDocs.allPresent) {
                   setShowMissingDocsModal(true);
+                } else if (isReworkActive && openRework) {
+                  setConfirmStatus('completed');
                 } else {
                   setConfirmStatus(nextAction.status);
                 }
@@ -1219,7 +1331,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
-                  {nextAction.label}
+                  {isReworkActive ? 'Submit Rework Complete' : nextAction.label}
                 </>
               )}
             </button>
@@ -1263,7 +1375,16 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </div>
         )}
 
-        {schedule.project_address && schedule.status !== 'completed' && (
+        {schedule.status === 'rework_required' && (
+          <div className="w-full bg-orange-50 border border-orange-200 text-orange-700 rounded-xl py-4 text-base font-semibold text-center">
+            ⚠ Rework Required
+            <span className="block text-sm font-normal text-orange-600 mt-0.5">
+              The office has requested changes. Resume work to proceed.
+            </span>
+          </div>
+        )}
+
+        {schedule.project_address && schedule.status !== 'completed' && schedule.status !== 'rework_required' && (
           <button
             onClick={handleStartNavigation}
             className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors flex items-center justify-center gap-2"

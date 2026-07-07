@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { createSignatureSchema } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as signatureQueries from '../../db/queries/signatures';
+import * as reworkQueries from '../../db/queries/rework';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastSignatureEvent } from '../../websocket';
 import { uploadSignatureToCloudinary } from '../../lib/cloudinary-storage';
@@ -58,6 +59,15 @@ export async function signatureRoutes(app: FastifyInstance) {
         console.warn('Cloudinary signature upload failed, storing base64 only:', cloudinaryErr);
       }
 
+      // Determine rework_version: if there's an open rework, use the next version
+      let reworkVersion = 0;
+      if (schedule.status === 'on_site') {
+        const hasOpen = await reworkQueries.hasOpenRework(id);
+        if (hasOpen) {
+          reworkVersion = await reworkQueries.getNextReworkVersion(id);
+        }
+      }
+
       const signature = await signatureQueries.create({
         schedule_id: id,
         user_id: request.user!.id,
@@ -65,6 +75,7 @@ export async function signatureRoutes(app: FastifyInstance) {
         label: parsed.data.label || 'customer',
         cloudinary_public_id: cloudinaryResult?.public_id,
         secure_url: cloudinaryResult?.secure_url,
+        rework_version: reworkVersion,
       });
 
       // Broadcast signature captured event

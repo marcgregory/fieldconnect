@@ -10,6 +10,8 @@ import {
   getJobSignatures,
   updateScheduleStatus,
   addJobNote,
+  requestRework,
+  getReworkRequests,
 } from '@/lib/api';
 import type {
   ScheduleWithDetails,
@@ -18,6 +20,7 @@ import type {
   Signature,
   JobStatus,
   GeofenceStatus,
+  ReworkRequest,
 } from '@fieldconnect/shared';
 import {
   calculateDistance,
@@ -29,6 +32,7 @@ interface ExpandedData {
   notes: JobNote[];
   attachments: JobAttachment[];
   signatures: Signature[];
+  reworkRequests: ReworkRequest[];
   loading: boolean;
 }
 
@@ -181,23 +185,24 @@ export function ReviewClient() {
 
     setExpanded((prev) => ({
       ...prev,
-      [scheduleId]: { notes: [], attachments: [], signatures: [], loading: true },
+      [scheduleId]: { notes: [], attachments: [], signatures: [], reworkRequests: [], loading: true },
     }));
 
     try {
-      const [notes, attachments, signatures] = await Promise.all([
+      const [notes, attachments, signatures, reworkRequests] = await Promise.all([
         getJobNotes(scheduleId),
         getJobAttachments(scheduleId),
         getJobSignatures(scheduleId),
+        getReworkRequests(scheduleId).catch(() => [] as ReworkRequest[]),
       ]);
       setExpanded((prev) => ({
         ...prev,
-        [scheduleId]: { notes, attachments, signatures, loading: false },
+        [scheduleId]: { notes, attachments, signatures, reworkRequests, loading: false },
       }));
     } catch {
       setExpanded((prev) => ({
         ...prev,
-        [scheduleId]: { notes: [], attachments: [], signatures: [], loading: false },
+        [scheduleId]: { notes: [], attachments: [], signatures: [], reworkRequests: [], loading: false },
       }));
     }
   }
@@ -317,11 +322,7 @@ export function ReviewClient() {
     setActionLoading(reworkModal.schedule.id);
     setError('');
     try {
-      await updateScheduleStatus(
-        reworkModal.schedule.id,
-        reworkModal.targetStatus,
-        `Rework requested: ${reworkReason.trim()}`,
-      );
+      await requestRework(reworkModal.schedule.id, reworkReason.trim());
       setReworkModal(null);
       setReworkReason('');
       fetchSchedules();
@@ -470,9 +471,15 @@ export function ReviewClient() {
                     <h3 className="text-lg font-semibold text-gray-900 truncate">
                       {schedule.project_name}
                     </h3>
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
-                      Work Completed
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                      schedule.status === 'rework_required'
+                        ? 'bg-orange-100 text-orange-700'
+                        : 'bg-gray-100 text-gray-700'
+                    }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${
+                        schedule.status === 'rework_required' ? 'bg-orange-500' : 'bg-gray-400'
+                      }`} />
+                      {schedule.status === 'rework_required' ? 'Rework Required' : 'Work Completed'}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
@@ -706,110 +713,205 @@ export function ReviewClient() {
                         )}
                       </div>
 
-                      {/* ── Attachments by type ──────────────────────────── */}
-                      {expandedData.attachments.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                            Attachments ({expandedData.attachments.length})
+                      {/* ── Rework History ──────────────────────────────── */}
+                      {expandedData.reworkRequests.length > 0 && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
+                          <h4 className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
+                            Rework History
                           </h4>
-                          <div className="space-y-1">
-                            {(() => {
-                              const byType: Record<string, JobAttachment[]> = {};
-                              expandedData.attachments.forEach((att) => {
-                                if (!byType[att.attachment_type]) byType[att.attachment_type] = [];
-                                byType[att.attachment_type].push(att);
-                              });
-                              return Object.entries(byType).map(([type, items]) => (
-                                <div key={type}>
-                                  <p className="text-xs font-medium text-gray-500 capitalize mb-1">
-                                    {type} ({items.length})
-                                  </p>
-                                  <div className="flex flex-wrap gap-2">
-                                    {items.map((att) => (
-                                      att.mime_type?.startsWith('image/') ? (
-                                        <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden w-32">
-                                          <div className="w-full h-24 relative">
-                                            <img
-                                              src={getAttachmentUrl(att)}
-                                              alt={att.file_name}
-                                              className="w-full h-full object-cover"
-                                              loading="lazy"
-                                            />
-                                          </div>
-                                          <div className="px-2 py-1.5 space-y-0.5 border-t border-gray-200">
-                                            {att.latitude && att.longitude ? (
-                                              <>
-                                                <p className={`text-xs font-medium flex items-center gap-1 ${
-                                                  att.inside_geofence ? 'text-green-700' : 'text-amber-700'
-                                                }`}>
-                                                  <span className={`h-1.5 w-1.5 rounded-full ${att.inside_geofence ? 'bg-green-500' : 'bg-amber-500'}`} />
-                                                  {att.inside_geofence ? 'Inside' : 'Outside'}
-                                                </p>
-                                                {att.distance_from_site != null && (
-                                                  <p className="text-xs text-gray-500">{att.distance_from_site} m</p>
-                                                )}
-                                                {att.accuracy != null && (
-                                                  <p className="text-xs text-gray-400">±{att.accuracy} m</p>
-                                                )}
-                                                {att.captured_at && (
-                                                  <p className="text-xs text-gray-400">
-                                                    {new Date(att.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                  </p>
-                                                )}
-                                                <a
-                                                  href={`https://www.google.com/maps?q=${att.latitude},${att.longitude}`}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="text-xs text-blue-600 hover:text-blue-800 underline inline-block"
-                                                >
-                                                  View on Map
-                                                </a>
-                                              </>
-                                            ) : (
-                                              <p className="text-xs text-gray-400 flex items-center gap-1">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-gray-400 inline-block" />
-                                                No GPS
-                                              </p>
-                                            )}
-                                          </div>
-                                          <div className="px-2 py-1 text-xs text-gray-500 truncate">
-                                            {att.file_name}
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <div key={att.id} className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center gap-2">
-                                          <span>📎</span>
-                                          <span className="truncate max-w-[180px]">{att.file_name}</span>
-                                          <span className="text-xs text-gray-400">{(att.file_size / 1024).toFixed(0)} KB</span>
-                                        </div>
-                                      )
-                                    ))}
-                                  </div>
-                                </div>
-                              ));
-                            })()}
-                          </div>
+                          {expandedData.reworkRequests.map((rw) => (
+                            <div key={rw.id} className="text-sm text-orange-800">
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium">
+                                  {rw.status === 'open' ? '⚠ Open Rework Request' : '✓ Completed Rework'}
+                                </span>
+                                <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
+                                  rw.status === 'open' ? 'bg-orange-200 text-orange-800' : 'bg-green-200 text-green-800'
+                                }`}>
+                                  {rw.status}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-orange-700">Reason: {rw.reason}</p>
+                              <p className="text-xs text-orange-600 mt-0.5">
+                                {rw.requested_by_name || 'Unknown'} · {new Date(rw.requested_at).toLocaleString()}
+                                {rw.resolved_at && ` → Resolved: ${new Date(rw.resolved_at).toLocaleString()}`}
+                              </p>
+                            </div>
+                          ))}
                         </div>
                       )}
 
-                      {/* ── Signatures ───────────────────────────────────── */}
-                      {expandedData.signatures.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Signatures</h4>
-                          <div className="space-y-2">
-                            {expandedData.signatures.map((sig) => (
-                              <div key={sig.id} className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
-                                <div>
-                                  <p className="text-sm font-medium text-gray-700 capitalize">{sig.label}</p>
-                                  <p className="text-xs text-gray-400">{sig.user_name} · {new Date(sig.created_at).toLocaleString()}</p>
-                                </div>
-                                <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
+                      {/* ── Evidence by Rework Version ────────────────────── */}
+                      {(() => {
+                        // Group attachments by rework_version
+                        const attachmentVersions: Record<number, JobAttachment[]> = {};
+                        expandedData.attachments.forEach((att) => {
+                          const v = att.rework_version ?? 0;
+                          if (!attachmentVersions[v]) attachmentVersions[v] = [];
+                          attachmentVersions[v].push(att);
+                        });
+
+                        // Group signatures by rework_version
+                        const signatureVersions: Record<number, Signature[]> = {};
+                        expandedData.signatures.forEach((sig) => {
+                          const v = sig.rework_version ?? 0;
+                          if (!signatureVersions[v]) signatureVersions[v] = [];
+                          signatureVersions[v].push(sig);
+                        });
+
+                        // Group notes by rework_version
+                        const noteVersions: Record<number, JobNote[]> = {};
+                        expandedData.notes.forEach((note) => {
+                          const v = note.rework_version ?? 0;
+                          if (!noteVersions[v]) noteVersions[v] = [];
+                          noteVersions[v].push(note);
+                        });
+
+                        const allVersions = new Set([
+                          ...Object.keys(attachmentVersions).map(Number),
+                          ...Object.keys(signatureVersions).map(Number),
+                          ...Object.keys(noteVersions).map(Number),
+                        ]);
+                        const sortedVersions = Array.from(allVersions).sort((a, b) => a - b);
+
+                        return sortedVersions.map((version) => (
+                          <div key={version}>
+                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
+                              {version === 0 ? (
+                                <span className="text-gray-600">Original Submission</span>
+                              ) : (
+                                <span className="text-orange-600">Rework {version}</span>
+                              )}
+                              <span className="text-xs font-normal text-gray-400">
+                                ({attachmentVersions[version]?.length || 0} files, {signatureVersions[version]?.length || 0} signatures, {noteVersions[version]?.length || 0} notes)
+                              </span>
+                            </h4>
+
+                            {/* Attachments by type for this version */}
+                            {attachmentVersions[version] && attachmentVersions[version].length > 0 && (
+                              <div className="space-y-1 mb-3">
+                                {(() => {
+                                  const byType: Record<string, JobAttachment[]> = {};
+                                  attachmentVersions[version].forEach((att) => {
+                                    if (!byType[att.attachment_type]) byType[att.attachment_type] = [];
+                                    byType[att.attachment_type].push(att);
+                                  });
+                                  return Object.entries(byType).map(([type, items]) => (
+                                    <div key={type}>
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-xs font-medium text-gray-500 capitalize">{type}</p>
+                                        <span className="text-xs text-gray-400">({items.length})</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {items.map((att) => (
+                                          att.mime_type?.startsWith('image/') ? (
+                                            <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden w-32">
+                                              <div className="w-full h-24 relative">
+                                                <img
+                                                  src={getAttachmentUrl(att)}
+                                                  alt={att.file_name}
+                                                  className="w-full h-full object-cover"
+                                                  loading="lazy"
+                                                />
+                                              </div>
+                                              <div className="px-2 py-1.5 space-y-0.5 border-t border-gray-200">
+                                                {att.latitude && att.longitude ? (
+                                                  <>
+                                                    <p className={`text-xs font-medium flex items-center gap-1 ${
+                                                      att.inside_geofence ? 'text-green-700' : 'text-amber-700'
+                                                    }`}>
+                                                      <span className={`h-1.5 w-1.5 rounded-full ${att.inside_geofence ? 'bg-green-500' : 'bg-amber-500'}`} />
+                                                      {att.inside_geofence ? 'Inside' : 'Outside'}
+                                                    </p>
+                                                    {att.distance_from_site != null && (
+                                                      <p className="text-xs text-gray-500">{att.distance_from_site} m</p>
+                                                    )}
+                                                    {att.accuracy != null && (
+                                                      <p className="text-xs text-gray-400">±{att.accuracy} m</p>
+                                                    )}
+                                                    {att.captured_at && (
+                                                      <p className="text-xs text-gray-400">
+                                                        {new Date(att.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                      </p>
+                                                    )}
+                                                    <a
+                                                      href={`https://www.google.com/maps?q=${att.latitude},${att.longitude}`}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="text-xs text-blue-600 hover:text-blue-800 underline inline-block"
+                                                    >
+                                                      View on Map
+                                                    </a>
+                                                  </>
+                                                ) : (
+                                                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-gray-400 inline-block" />
+                                                    No GPS
+                                                  </p>
+                                                )}
+                                              </div>
+                                              <div className="px-2 py-1 text-xs text-gray-500 truncate">
+                                                {att.file_name}
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <div key={att.id} className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center gap-2">
+                                              <span>📎</span>
+                                              <span className="truncate max-w-[180px]">{att.file_name}</span>
+                                              <span className="text-xs text-gray-400">{(att.file_size / 1024).toFixed(0)} KB</span>
+                                            </div>
+                                          )
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ));
+                                })()}
                               </div>
-                            ))}
+                            )}
+
+                            {/* Signatures for this version */}
+                            {signatureVersions[version] && signatureVersions[version].length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Signatures</p>
+                                <div className="space-y-2">
+                                  {signatureVersions[version].map((sig) => (
+                                    <div key={sig.id} className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
+                                      <div>
+                                        <p className="text-sm font-medium text-gray-700 capitalize">{sig.label}</p>
+                                        <p className="text-xs text-gray-400">{sig.user_name} · {new Date(sig.created_at).toLocaleString()}</p>
+                                      </div>
+                                      <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Technician Notes for this version */}
+                            {noteVersions[version] && noteVersions[version].length > 0 && (
+                              <div className="mb-3">
+                                <p className="text-xs font-medium text-gray-500 mb-1">
+                                  {version === 0 ? 'Technician Notes' : `Rework ${version} Notes`}
+                                </p>
+                                <div className="space-y-2">
+                                  {noteVersions[version].map((note) => (
+                                    <div key={note.id} className="bg-gray-50 rounded-lg px-3 py-2">
+                                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
+                                      <p className="text-xs text-gray-400 mt-1">{note.user_name} · {new Date(note.created_at).toLocaleString()}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        ));
+                      })()}
+
+                      {/* ── Old-style summary (when no attachments) ───────── */}
+                      {expandedData.attachments.length === 0 && expandedData.signatures.length === 0 && expandedData.notes.filter((n) => n.note_type === 'technician').length === 0 && (
+                        <p className="text-sm text-gray-400 italic">No evidence submitted yet</p>
                       )}
 
                       {/* ── Actions ─────────────────────────────────────── */}
@@ -846,13 +948,15 @@ export function ReviewClient() {
                           </button>
                         )}
 
-                        <button
-                          onClick={() => handleRework(schedule, 'on_site')}
-                          disabled={isActionLoading}
-                          className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isActionLoading ? 'Processing...' : 'Request Rework'}
-                        </button>
+                        {schedule.status === 'completed' && (
+                          <button
+                            onClick={() => handleRework(schedule, 'rework_required')}
+                            disabled={isActionLoading}
+                            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isActionLoading ? 'Processing...' : 'Request Rework'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
@@ -869,9 +973,9 @@ export function ReviewClient() {
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Request Rework</h2>
             <p className="text-sm text-gray-500 mb-4">
-              This will move &#34;{reworkModal.schedule.project_name}&#34; from{' '}
-              <strong>Work Completed</strong> to{' '}
-              <strong>{reworkModal.targetStatus.replace('_', ' ')}</strong>.
+              This will create a rework request for &#34;{reworkModal.schedule.project_name}&#34;.{' '}
+              The existing evidence (photos, signature, notes) will be preserved as the
+              original submission. The technician can then add new evidence for the rework.
             </p>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Reason for rework <span className="text-red-500">*</span>

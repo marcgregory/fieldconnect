@@ -5,6 +5,7 @@ import {
 } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as jobNoteQueries from '../../db/queries/job-notes';
+import * as reworkQueries from '../../db/queries/rework';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastNoteEvent } from '../../websocket';
 
@@ -16,7 +17,14 @@ export async function jobNoteRoutes(app: FastifyInstance) {
     }
 
     const { id } = request.params as { id: string };
-    const notes = await jobNoteQueries.findBySchedule(id);
+    const queryParams = request.query as { rework_version?: string };
+    const reworkVersion = queryParams.rework_version ? parseInt(queryParams.rework_version, 10) : undefined;
+    let notes;
+    if (reworkVersion !== undefined && !isNaN(reworkVersion)) {
+      notes = await jobNoteQueries.findBySchedule(id); // We'll filter client-side or add a versioned query
+    } else {
+      notes = await jobNoteQueries.findBySchedule(id);
+    }
     return { success: true, data: notes };
   });
 
@@ -63,11 +71,21 @@ export async function jobNoteRoutes(app: FastifyInstance) {
         });
       }
 
+      // Determine rework_version: if there's an open rework, use the next version
+      let reworkVersion = parsed.data.rework_version ?? 0;
+      if (reworkVersion === 0 && schedule.status === 'on_site') {
+        const hasOpen = await reworkQueries.hasOpenRework(id);
+        if (hasOpen) {
+          reworkVersion = await reworkQueries.getNextReworkVersion(id);
+        }
+      }
+
       const note = await jobNoteQueries.create({
         schedule_id: id,
         user_id: request.user!.id,
         content: parsed.data.content,
         note_type: parsed.data.note_type || 'technician',
+        rework_version: reworkVersion,
       });
 
       // Broadcast note event

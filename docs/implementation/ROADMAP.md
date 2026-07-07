@@ -98,6 +98,14 @@ Last updated: 2026-07-06
 - PDF download link on office review page
 - Email delivery option
 
+### Completed Milestone (Sprint 6.1) — Revision-Based Rework ✅
+
+- `rework_required` status, `rework_requests` table, `rework_version` on evidence
+- API: create/list/resume/complete rework requests
+- Office: evidence grouped by revision, rework history panel
+- Technician: rework banner, read-only originals, append new evidence
+- Audit: `rework_requested`, `rework_resumed`, `rework_completed` actions
+
 ## Future
 
 - Sprint 7: Advanced reporting (PDF export, charts)

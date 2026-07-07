@@ -19,6 +19,7 @@ import type {
   JobAttachment,
   Signature,
   CreateSignatureInput,
+  ReworkRequest,
   TimeEntryReportRow,
   HoursSummaryRow,
   ProjectSummaryRow,
@@ -368,6 +369,42 @@ export async function updateScheduleStatus(
   return bffFetch(`/api/v1/schedules/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status, notes }),
+  });
+}
+
+// ─── Rework API ─────────────────────────────────────────────────────────────
+
+export async function requestRework(
+  scheduleId: string,
+  reason: string,
+): Promise<{ rework: ReworkRequest; schedule: ScheduleWithDetails; audit: AuditLog }> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/rework`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function getReworkRequests(
+  scheduleId: string,
+): Promise<ReworkRequest[]> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/rework`);
+}
+
+export async function resumeRework(
+  scheduleId: string,
+  reworkId: string,
+): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/rework/${reworkId}/resume`, {
+    method: 'PATCH',
+  });
+}
+
+export async function completeRework(
+  scheduleId: string,
+  reworkId: string,
+): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
+  return bffFetch(`/api/v1/schedules/${scheduleId}/rework/${reworkId}/complete`, {
+    method: 'PATCH',
   });
 }
 

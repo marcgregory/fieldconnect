@@ -14,12 +14,14 @@ import { broadcastJobEvent } from '../../websocket';
 import { jobNoteRoutes } from './job-notes';
 import { jobAttachmentRoutes } from './job-attachments';
 import { signatureRoutes } from './signatures';
+import { reworkRoutes } from './rework';
 
 export async function scheduleRoutes(app: FastifyInstance) {
   // --- Register field data sub-routes ----------------------------------------
   await app.register(jobNoteRoutes);
   await app.register(jobAttachmentRoutes);
   await app.register(signatureRoutes);
+  await app.register(reworkRoutes);
 
   // --- List Schedules ---------------------------------------------------------
   app.get('/api/v1/schedules', async (request, reply) => {

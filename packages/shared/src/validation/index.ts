@@ -106,6 +106,11 @@ export const assignTechnicianSchema = z.object({
 export const createJobNoteSchema = z.object({
   content: z.string().min(1, 'Note content is required').max(5000),
   note_type: z.enum(NOTE_TYPES as [string, ...string[]]).default('technician'),
+  rework_version: z.number().int().min(0).default(0),
+});
+
+export const createReworkSchema = z.object({
+  reason: z.string().min(1, 'Reason is required').max(1000),
 });
 
 export const createJobAttachmentSchema = z.object({

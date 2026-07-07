@@ -46,14 +46,16 @@ export async function create(data: {
   width?: number | null;
   height?: number | null;
   format?: string | null;
+  /** Rework version (0 = original submission) */
+  rework_version?: number;
 }): Promise<JobAttachment> {
   const result = await query(
     `INSERT INTO job_attachments
       (schedule_id, user_id, file_name, file_path, mime_type, file_size, attachment_type,
        cloudinary_public_id, secure_url, resource_type,
        latitude, longitude, accuracy, captured_at, distance_from_site, inside_geofence,
-       width, height, format)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+       width, height, format, rework_version)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      RETURNING *`,
     [
       data.schedule_id,
@@ -75,6 +77,7 @@ export async function create(data: {
       data.width ?? null,
       data.height ?? null,
       data.format ?? null,
+      data.rework_version ?? 0,
     ],
   );
   return result.rows[0];

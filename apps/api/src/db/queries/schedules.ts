@@ -16,8 +16,9 @@ const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   scheduled: ['traveling'],
   traveling: ['on_site'],
   on_site: ['completed'],
-  completed: ['closed', 'on_site', 'traveling'],
+  completed: ['closed', 'on_site', 'traveling', 'rework_required'],
   closed: [],
+  rework_required: ['on_site', 'completed', 'closed'],
 };
 
 /**
@@ -46,10 +47,10 @@ export function validateTransition(
     if (!scheduleTechnicianIds.includes(userId)) {
       throw new ValidationError('You can only update your own jobs', 403);
     }
-    const techAllowed: JobStatus[] = ['scheduled', 'traveling', 'on_site'];
+    const techAllowed: JobStatus[] = ['scheduled', 'traveling', 'on_site', 'rework_required'];
     if (!techAllowed.includes(oldStatus)) {
       throw new ValidationError(
-        `Technicians can only advance jobs from scheduled, traveling, or on_site`,
+        `Technicians can only advance jobs from scheduled, traveling, on_site, or rework_required`,
         403,
       );
     }
@@ -57,10 +58,10 @@ export function validateTransition(
 
   // office/dispatcher can review completed + request rework
   if (['office_manager', 'dispatcher'].includes(userRole)) {
-    const officeAllowed: JobStatus[] = ['completed'];
+    const officeAllowed: JobStatus[] = ['completed', 'rework_required'];
     if (!officeAllowed.includes(oldStatus)) {
       throw new ValidationError(
-        `Office staff can only advance jobs from completed`,
+        `Office staff can only advance jobs from completed or rework_required`,
         403,
       );
     }
@@ -239,7 +240,7 @@ export async function findForReview(): Promise<ScheduleWithDetails[]> {
            AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
          ORDER BY te.clock_in LIMIT 1) AS clock_in_time
     ` + SCHEDULE_FROM +
-    ' WHERE s.status = \'completed\'' +
+    ' WHERE s.status IN (\'completed\', \'rework_required\')' +
     ' GROUP BY s.id, p.id' +
     ' ORDER BY s.scheduled_date DESC, s.updated_at DESC',
   );
@@ -521,13 +522,23 @@ export async function updateStatus(data: {
       [data.status, data.id],
     );
 
-    // Insert audit log entry
-    const metadata = data.notes ? JSON.stringify({ notes: data.notes }) : null;
+    // Insert audit log entry with rework-specific actions
+    let auditAction = 'status_change';
+    if (oldStatus === 'completed' && data.status === 'rework_required') {
+      auditAction = 'rework_requested';
+    } else if (oldStatus === 'rework_required' && data.status === 'on_site') {
+      auditAction = 'rework_resumed';
+    } else if (oldStatus === 'on_site' && data.status === 'completed') {
+      // Check if there was a prior rework (indicated by rework_required in history)
+      auditAction = 'rework_completed';
+    }
+
+    const metadata = data.notes ? JSON.stringify({ notes: data.notes, action: auditAction }) : JSON.stringify({ action: auditAction });
     const auditResult = await client.query(
       `INSERT INTO audit_logs (schedule_id, user_id, action, old_status, new_status, metadata)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [data.id, data.user_id, 'status_change', oldStatus, data.status, metadata],
+      [data.id, data.user_id, auditAction, oldStatus, data.status, metadata],
     );
 
     const projectId = lockResult.rows[0].project_id;

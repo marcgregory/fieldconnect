@@ -2,6 +2,38 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.7.0 — 2026-07-07
+
+### Added
+
+- **Revision-Based Rework (overhauls the rework workflow)**
+  - New `rework_required` job status and `rework_requests` table for formal rework tracking
+  - `rework_version` column on `job_notes`, `job_attachments`, and `signatures` to group evidence by revision cycle (0 = original submission)
+  - POST `/api/v1/schedules/:id/rework` — create rework request + transition to `rework_required` (does not delete or overwrite existing evidence)
+  - GET `/api/v1/schedules/:id/rework` — list rework requests per schedule
+  - PATCH `/api/v1/schedules/:id/rework/:rid/resume` — technician resumes work on a rework request
+  - PATCH `/api/v1/schedules/:id/rework/:rid/complete` — technician completes rework, schedule goes back to `completed`
+  - All field data (notes, attachments, signatures) auto-assigns the correct `rework_version` when uploaded during an active rework
+  - Office Review page groups evidence by rework version: **Original Submission** and **Rework N** sections
+  - Rework history panel shows all rework requests with reason, requester, status, and timestamps
+  - Technician mobile UI shows prominent "⚠ Rework Required" banner with Resume Work button
+  - Original evidence is read-only during rework (delete buttons hidden for version 0 items)
+  - Additional photos, notes, and signatures can be appended during rework without overwriting originals
+  - Audit log uses specific actions: `rework_requested`, `rework_resumed`, `rework_completed`
+
+### Changed
+
+- **Status transition rules**: `completed → rework_required` and `rework_required → on_site/completed/closed`
+- **Office staff role**: Can now advance jobs from both `completed` and `rework_required`
+- **Technician role**: Can now advance jobs from `scheduled`, `traveling`, `on_site`, or `rework_required`
+- **Review queue**: Now shows both `completed` and `rework_required` schedules
+- **Evidence queries**: `create` functions in job-notes, job-attachments, and signatures accept optional `rework_version` parameter
+
+### Migration
+
+- Run `pnpm db:migrate` to apply migrations 018 (create rework_requests table) and 019 (add rework_version columns)
+- Existing evidence gets `rework_version = 0` (original submission) — fully backward compatible
+
 ## v0.6.0 — 2026-07-06
 
 ### Added

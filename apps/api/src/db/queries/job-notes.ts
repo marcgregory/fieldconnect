@@ -18,12 +18,13 @@ export async function create(data: {
   user_id: string;
   content: string;
   note_type: string;
+  rework_version?: number;
 }): Promise<JobNote> {
   const result = await query(
-    `INSERT INTO job_notes (schedule_id, user_id, content, note_type)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO job_notes (schedule_id, user_id, content, note_type, rework_version)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [data.schedule_id, data.user_id, data.content, data.note_type],
+    [data.schedule_id, data.user_id, data.content, data.note_type, data.rework_version ?? 0],
   );
   return result.rows[0];
 }
