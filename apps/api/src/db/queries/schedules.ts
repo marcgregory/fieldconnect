@@ -492,6 +492,13 @@ export async function create(data: {
     );
   }
 
+  // Revert project to active if it was completed — a new schedule with
+  // technician assignments means work is happening again.
+  await query(
+    `UPDATE projects SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'completed'`,
+    [data.project_id],
+  );
+
   return schedule;
 }
 
@@ -544,12 +551,25 @@ export async function update(
   // Replace technician assignments if provided
   if (data.technician_ids !== undefined) {
     await query('DELETE FROM schedule_technicians WHERE schedule_id = $1', [id]);
+
+    // Fetch the project_id to revert project if reassigning techs to a completed project
+    const schedResult = await query('SELECT project_id FROM schedules WHERE id = $1', [id]);
+    const schedProjectId = schedResult.rows[0]?.project_id;
+
     if (data.technician_ids.length > 0) {
       const values = data.technician_ids.map((_, i) => `($1, $${i + 2})`).join(', ');
       await query(
         `INSERT INTO schedule_technicians (schedule_id, technician_id) VALUES ${values} ON CONFLICT DO NOTHING`,
         [id, ...data.technician_ids],
       );
+
+      // Revert project to active if technicians were reassigned to a completed project
+      if (schedProjectId) {
+        await query(
+          `UPDATE projects SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'completed'`,
+          [schedProjectId],
+        );
+      }
     }
   }
 
@@ -837,10 +857,15 @@ export async function updateStatus(data: {
       [data.id, data.user_id, auditAction, lockResult.rows[0].status, derivedStatus, auditMetadata],
     );
 
-    // Auto-complete project if this was the last non-closed schedule
+    // Auto-complete project only when ALL schedule_technicians rows for this
+    // project are closed or cancelled (not just schedule-level status).
     if (derivedStatus === 'closed') {
       const remainingResult = await client.query(
-        `SELECT COUNT(*) AS count FROM schedules WHERE project_id = $1 AND status NOT IN ('closed', 'cancelled')`,
+        `SELECT COUNT(*) AS count
+         FROM schedules s
+         JOIN schedule_technicians st ON st.schedule_id = s.id
+         WHERE s.project_id = $1
+           AND st.status NOT IN ('closed', 'cancelled')`,
         [projectId],
       );
       const remaining = parseInt(remainingResult.rows[0].count, 10);
@@ -852,7 +877,8 @@ export async function updateStatus(data: {
       }
     }
 
-    // Revert project to active if a closed schedule is reopened
+    // Revert project to active if a closed schedule is reopened (re-derive
+    // schedule_technicians check already handled by deriveScheduleStatus above).
     if (lockResult.rows[0].status === 'closed' && derivedStatus !== 'closed') {
       await client.query(
         `UPDATE projects SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'completed'`,
