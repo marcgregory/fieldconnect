@@ -345,6 +345,8 @@ export interface JobNote {
   note_type: NoteType;
   rework_version: number;
   created_at: string;
+  /** Which technician this evidence belongs to (NULL for legacy or office-submitted) */
+  technician_id?: string | null;
 }
 
 export interface CreateJobNoteInput {
@@ -364,6 +366,8 @@ export interface JobAttachment {
   attachment_type: AttachmentType;
   rework_version: number;
   created_at: string;
+  /** Which technician this evidence belongs to (NULL for legacy or office-submitted) */
+  technician_id?: string | null;
   cloudinary_public_id?: string;
   secure_url?: string;
   resource_type?: string;
@@ -400,6 +404,8 @@ export interface Signature {
   label: string;
   rework_version: number;
   created_at: string;
+  /** Which technician this evidence belongs to (NULL for legacy or office-submitted) */
+  technician_id?: string | null;
   cloudinary_public_id?: string;
   secure_url?: string;
 }

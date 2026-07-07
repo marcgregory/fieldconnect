@@ -71,6 +71,7 @@ export async function signatureRoutes(app: FastifyInstance) {
       const signature = await signatureQueries.create({
         schedule_id: id,
         user_id: request.user!.id,
+        technician_id: request.user!.id,
         signature_data: parsed.data.signature_data,
         label: parsed.data.label || 'customer',
         cloudinary_public_id: cloudinaryResult?.public_id,
@@ -86,7 +87,7 @@ export async function signatureRoutes(app: FastifyInstance) {
         user_name: request.user!.name,
         label: parsed.data.label || 'customer',
         timestamp: new Date().toISOString(),
-        technician_id: schedule.technician_ids?.[0] || request.user!.id,
+        technician_id: request.user!.id,
       });
 
       return reply.status(201).send({ success: true, data: signature });

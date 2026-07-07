@@ -126,6 +126,52 @@ export function ReviewClient() {
     return att.secure_url || (att.file_path ? getUploadUrl(att.file_path) : '');
   }
 
+  /** Group evidence by technician_id. Items without technician_id go to "Unassigned". */
+  function groupEvidenceByTech(
+    schedule: ScheduleWithDetails,
+    notes: JobNote[],
+    attachments: JobAttachment[],
+    signatures: Signature[],
+  ) {
+    type TechEvidence = { techId: string; techName: string; notes: JobNote[]; attachments: JobAttachment[]; signatures: Signature[] };
+    const techMap = new Map<string, TechEvidence>();
+
+    // Initialize from technician_workflow so we know all techs even if they have no evidence
+    for (const tw of schedule.technician_workflow || []) {
+      if (!techMap.has(tw.technician_id)) {
+        techMap.set(tw.technician_id, {
+          techId: tw.technician_id,
+          techName: tw.technician_name,
+          notes: [],
+          attachments: [],
+          signatures: [],
+        });
+      }
+    }
+
+    // Assign evidence to owning technician
+    for (const n of notes) {
+      const tid = n.technician_id || n.user_id;
+      const group = techMap.get(tid);
+      if (group) group.notes.push(n);
+    }
+    for (const a of attachments) {
+      const tid = a.technician_id || a.user_id;
+      const group = techMap.get(tid);
+      if (group) group.attachments.push(a);
+    }
+    for (const s of signatures) {
+      const tid = s.technician_id || s.user_id;
+      const group = techMap.get(tid);
+      if (group) group.signatures.push(s);
+    }
+
+    // Return only technicians that have evidence or are relevant (have status != scheduled)
+    return Array.from(techMap.values()).filter(
+      (g) => g.attachments.length > 0 || g.signatures.length > 0 || g.notes.length > 0
+    );
+  }
+
   // Rework modal
   const [reworkModal, setReworkModal] = useState<{
     schedule: ScheduleWithDetails;
@@ -601,72 +647,154 @@ export function ReviewClient() {
                         )}
                       </div>
 
-                      {/* ── Completion Score ──────────────────────────────── */}
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                          Documentation
-                        </h4>
-                        {renderScoreBar(score)}
-                        <p className="text-xs text-gray-400 mt-1">
-                          {presentCount} / {totalCount} items — {allRequired ? 'all required items present' : 'missing required items'}
-                        </p>
-                      </div>
-
-                      {/* ── Required Items ────────────────────────────────── */}
-                      {required.some((r) => r.required) && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                            Required
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {required.map(renderChecklistItem)}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Optional Items ────────────────────────────────── */}
-                      {optional.some((o) => o.present) && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                            Optional
-                          </h4>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {optional.map(renderChecklistItem)}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* ── Summary Banner ────────────────────────────────── */}
-                      {allRequired ? (
-                        <div className="flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
-                          <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span>All required documentation present. Ready to close.</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                          <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                          </svg>
-                          <span>Missing required documentation. Close disabled until all required items are present.</span>
-                        </div>
-                      )}
-
-                      {/* ── Technician Notes ─────────────────────────────── */}
-                      {expandedData.notes.filter((n) => n.note_type === 'technician').length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Technician Notes</h4>
-                          <div className="space-y-2">
-                            {expandedData.notes.filter((n) => n.note_type === 'technician').map((note) => (
-                              <div key={note.id} className="bg-gray-50 rounded-lg px-3 py-2">
-                                <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
-                                <p className="text-xs text-gray-400 mt-1">{note.user_name} · {new Date(note.created_at).toLocaleString()}</p>
+                      {/* ── Per-Technician Evidence Panels ──────────────── */}
+                      {(() => {
+                        const techGroups = groupEvidenceByTech(
+                          schedule,
+                          expandedData.notes,
+                          expandedData.attachments,
+                          expandedData.signatures,
+                        );
+                        return techGroups.map((group) => {
+                          const techChecklist = evaluateChecklist(group.notes, group.attachments, group.signatures);
+                          return (
+                            <div key={group.techId} className="border border-gray-200 rounded-lg overflow-hidden">
+                              {/* Technician header */}
+                              <div className="bg-gray-50 px-3 py-2 border-b border-gray-200 flex items-center justify-between">
+                                <h4 className="text-sm font-semibold text-gray-700">{group.techName}</h4>
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                                  techChecklist.allRequired
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-amber-100 text-amber-700'
+                                }`}>
+                                  {techChecklist.allRequired ? '✓ Complete' : `${techChecklist.presentCount}/${techChecklist.totalCount}`}
+                                </span>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                              <div className="p-3 space-y-3">
+                                {/* Checklist */}
+                                {techChecklist.required.some((r) => r.required) && (
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    {techChecklist.required.map((item) => (
+                                      <div key={item.label} className="flex items-center gap-1.5 text-xs">
+                                        {item.present ? (
+                                          <span className="text-green-600 font-bold">✓</span>
+                                        ) : (
+                                          <span className="text-gray-300">○</span>
+                                        )}
+                                        <span className={item.present ? 'text-gray-700' : 'text-gray-400'}>
+                                          {item.label}
+                                          {item.count > 0 && <span className="text-gray-400 ml-0.5">({item.count})</span>}
+                                        </span>
+                                        {item.gpsStatus === 'verified' && <span className="text-green-600 text-[10px]">📍</span>}
+                                        {item.gpsStatus === 'outside' && <span className="text-amber-600 text-[10px]">⚠</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Evidence gallery — group by rework_version */}
+                                {(() => {
+                                  // Group this tech's attachments/signatures/notes by rework_version
+                                  const attVersions: Record<number, JobAttachment[]> = {};
+                                  group.attachments.forEach((a) => {
+                                    const v = a.rework_version ?? 0;
+                                    if (!attVersions[v]) attVersions[v] = [];
+                                    attVersions[v].push(a);
+                                  });
+                                  const sigVersions: Record<number, Signature[]> = {};
+                                  group.signatures.forEach((s) => {
+                                    const v = s.rework_version ?? 0;
+                                    if (!sigVersions[v]) sigVersions[v] = [];
+                                    sigVersions[v].push(s);
+                                  });
+                                  const noteVersions: Record<number, JobNote[]> = {};
+                                  group.notes.filter((n) => n.note_type === 'technician').forEach((n) => {
+                                    const v = n.rework_version ?? 0;
+                                    if (!noteVersions[v]) noteVersions[v] = [];
+                                    noteVersions[v].push(n);
+                                  });
+                                  const allV = new Set([
+                                    ...Object.keys(attVersions).map(Number),
+                                    ...Object.keys(sigVersions).map(Number),
+                                    ...Object.keys(noteVersions).map(Number),
+                                  ]);
+                                  const sortedV = Array.from(allV).sort((a, b) => a - b);
+                                  if (sortedV.length === 0) {
+                                    return <p className="text-xs text-gray-400 italic">No evidence submitted</p>;
+                                  }
+                                  return sortedV.map((version) => (
+                                    <div key={version} className="border-t border-gray-100 pt-2 mt-2 first:border-0 first:pt-0 first:mt-0">
+                                      <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">
+                                        {version === 0 ? 'Original' : `Rework ${version}`}
+                                      </p>
+                                      {/* Photos */}
+                                      {attVersions[version]?.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mb-1.5">
+                                          {(() => {
+                                            const byType: Record<string, JobAttachment[]> = {};
+                                            attVersions[version].forEach((att) => {
+                                              if (!byType[att.attachment_type]) byType[att.attachment_type] = [];
+                                              byType[att.attachment_type].push(att);
+                                            });
+                                            return Object.entries(byType).flatMap(([type, items]) =>
+                                              items.map((att) =>
+                                                att.mime_type?.startsWith('image/') ? (
+                                                  <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden w-28">
+                                                    <div className="w-full h-20 relative">
+                                                      <img
+                                                        src={getAttachmentUrl(att)}
+                                                        alt={att.file_name}
+                                                        className="w-full h-full object-cover"
+                                                        loading="lazy"
+                                                      />
+                                                    </div>
+                                                    <div className="px-1.5 py-1">
+                                                      <p className="text-[10px] text-gray-500 capitalize">{type}</p>
+                                                      {att.inside_geofence != null && (
+                                                        <p className={`text-[10px] ${att.inside_geofence ? 'text-green-600' : 'text-amber-600'}`}>
+                                                          {att.inside_geofence ? '📍 Inside' : '⚠ Outside'}
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <div key={att.id} className="bg-gray-50 rounded px-2 py-1 text-xs text-gray-600">
+                                                    📎 {att.file_name}
+                                                  </div>
+                                                )
+                                              )
+                                            );
+                                          })()}
+                                        </div>
+                                      )}
+                                      {/* Signatures */}
+                                      {sigVersions[version]?.length > 0 && (
+                                        <div className="flex flex-wrap gap-1.5 mb-1.5">
+                                          {sigVersions[version].map((sig) => (
+                                            <div key={sig.id} className="bg-gray-50 rounded px-2 py-1 text-xs text-gray-600">
+                                              ✍️ {sig.label} — {sig.user_name}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {/* Notes */}
+                                      {noteVersions[version]?.length > 0 && (
+                                        <div className="space-y-1">
+                                          {noteVersions[version].map((note) => (
+                                            <p key={note.id} className="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1">
+                                              {note.content}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ));
+                                })()}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
 
                       {/* ── Internal Notes ──────────────────────────────── */}
                       <div>
@@ -739,179 +867,6 @@ export function ReviewClient() {
                             </div>
                           ))}
                         </div>
-                      )}
-
-                      {/* ── Evidence by Rework Version ────────────────────── */}
-                      {(() => {
-                        // Group attachments by rework_version
-                        const attachmentVersions: Record<number, JobAttachment[]> = {};
-                        expandedData.attachments.forEach((att) => {
-                          const v = att.rework_version ?? 0;
-                          if (!attachmentVersions[v]) attachmentVersions[v] = [];
-                          attachmentVersions[v].push(att);
-                        });
-
-                        // Group signatures by rework_version
-                        const signatureVersions: Record<number, Signature[]> = {};
-                        expandedData.signatures.forEach((sig) => {
-                          const v = sig.rework_version ?? 0;
-                          if (!signatureVersions[v]) signatureVersions[v] = [];
-                          signatureVersions[v].push(sig);
-                        });
-
-                        // Group notes by rework_version
-                        const noteVersions: Record<number, JobNote[]> = {};
-                        expandedData.notes.forEach((note) => {
-                          const v = note.rework_version ?? 0;
-                          if (!noteVersions[v]) noteVersions[v] = [];
-                          noteVersions[v].push(note);
-                        });
-
-                        const allVersions = new Set([
-                          ...Object.keys(attachmentVersions).map(Number),
-                          ...Object.keys(signatureVersions).map(Number),
-                          ...Object.keys(noteVersions).map(Number),
-                        ]);
-                        const sortedVersions = Array.from(allVersions).sort((a, b) => a - b);
-
-                        return sortedVersions.map((version) => (
-                          <div key={version}>
-                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-2">
-                              {version === 0 ? (
-                                <span className="text-gray-600">Original Submission</span>
-                              ) : (
-                                <span className="text-orange-600">Rework {version}</span>
-                              )}
-                              <span className="text-xs font-normal text-gray-400">
-                                ({attachmentVersions[version]?.length || 0} files, {signatureVersions[version]?.length || 0} signatures, {noteVersions[version]?.length || 0} notes)
-                              </span>
-                            </h4>
-
-                            {/* Attachments by type for this version */}
-                            {attachmentVersions[version] && attachmentVersions[version].length > 0 && (
-                              <div className="space-y-1 mb-3">
-                                {(() => {
-                                  const byType: Record<string, JobAttachment[]> = {};
-                                  attachmentVersions[version].forEach((att) => {
-                                    if (!byType[att.attachment_type]) byType[att.attachment_type] = [];
-                                    byType[att.attachment_type].push(att);
-                                  });
-                                  return Object.entries(byType).map(([type, items]) => (
-                                    <div key={type}>
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-xs font-medium text-gray-500 capitalize">{type}</p>
-                                        <span className="text-xs text-gray-400">({items.length})</span>
-                                      </div>
-                                      <div className="flex flex-wrap gap-2">
-                                        {items.map((att) => (
-                                          att.mime_type?.startsWith('image/') ? (
-                                            <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden w-32">
-                                              <div className="w-full h-24 relative">
-                                                <img
-                                                  src={getAttachmentUrl(att)}
-                                                  alt={att.file_name}
-                                                  className="w-full h-full object-cover"
-                                                  loading="lazy"
-                                                />
-                                              </div>
-                                              <div className="px-2 py-1.5 space-y-0.5 border-t border-gray-200">
-                                                {att.latitude && att.longitude ? (
-                                                  <>
-                                                    <p className={`text-xs font-medium flex items-center gap-1 ${
-                                                      att.inside_geofence ? 'text-green-700' : 'text-amber-700'
-                                                    }`}>
-                                                      <span className={`h-1.5 w-1.5 rounded-full ${att.inside_geofence ? 'bg-green-500' : 'bg-amber-500'}`} />
-                                                      {att.inside_geofence ? 'Inside' : 'Outside'}
-                                                    </p>
-                                                    {att.distance_from_site != null && (
-                                                      <p className="text-xs text-gray-500">{att.distance_from_site} m</p>
-                                                    )}
-                                                    {att.accuracy != null && (
-                                                      <p className="text-xs text-gray-400">±{att.accuracy} m</p>
-                                                    )}
-                                                    {att.captured_at && (
-                                                      <p className="text-xs text-gray-400">
-                                                        {new Date(att.captured_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                      </p>
-                                                    )}
-                                                    <a
-                                                      href={`https://www.google.com/maps?q=${att.latitude},${att.longitude}`}
-                                                      target="_blank"
-                                                      rel="noopener noreferrer"
-                                                      className="text-xs text-blue-600 hover:text-blue-800 underline inline-block"
-                                                    >
-                                                      View on Map
-                                                    </a>
-                                                  </>
-                                                ) : (
-                                                  <p className="text-xs text-gray-400 flex items-center gap-1">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-gray-400 inline-block" />
-                                                    No GPS
-                                                  </p>
-                                                )}
-                                              </div>
-                                              <div className="px-2 py-1 text-xs text-gray-500 truncate">
-                                                {att.file_name}
-                                              </div>
-                                            </div>
-                                          ) : (
-                                            <div key={att.id} className="bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-700 flex items-center gap-2">
-                                              <span>📎</span>
-                                              <span className="truncate max-w-[180px]">{att.file_name}</span>
-                                              <span className="text-xs text-gray-400">{(att.file_size / 1024).toFixed(0)} KB</span>
-                                            </div>
-                                          )
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ));
-                                })()}
-                              </div>
-                            )}
-
-                            {/* Signatures for this version */}
-                            {signatureVersions[version] && signatureVersions[version].length > 0 && (
-                              <div className="mb-3">
-                                <p className="text-xs font-medium text-gray-500 mb-1">Signatures</p>
-                                <div className="space-y-2">
-                                  {signatureVersions[version].map((sig) => (
-                                    <div key={sig.id} className="bg-gray-50 rounded-lg px-3 py-2 flex items-center justify-between">
-                                      <div>
-                                        <p className="text-sm font-medium text-gray-700 capitalize">{sig.label}</p>
-                                        <p className="text-xs text-gray-400">{sig.user_name} · {new Date(sig.created_at).toLocaleString()}</p>
-                                      </div>
-                                      <svg className="h-5 w-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Technician Notes for this version */}
-                            {noteVersions[version] && noteVersions[version].length > 0 && (
-                              <div className="mb-3">
-                                <p className="text-xs font-medium text-gray-500 mb-1">
-                                  {version === 0 ? 'Technician Notes' : `Rework ${version} Notes`}
-                                </p>
-                                <div className="space-y-2">
-                                  {noteVersions[version].map((note) => (
-                                    <div key={note.id} className="bg-gray-50 rounded-lg px-3 py-2">
-                                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
-                                      <p className="text-xs text-gray-400 mt-1">{note.user_name} · {new Date(note.created_at).toLocaleString()}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ));
-                      })()}
-
-                      {/* ── Old-style summary (when no attachments) ───────── */}
-                      {expandedData.attachments.length === 0 && expandedData.signatures.length === 0 && expandedData.notes.filter((n) => n.note_type === 'technician').length === 0 && (
-                        <p className="text-sm text-gray-400 italic">No evidence submitted yet</p>
                       )}
 
                       {/* ── Actions ─────────────────────────────────────── */}

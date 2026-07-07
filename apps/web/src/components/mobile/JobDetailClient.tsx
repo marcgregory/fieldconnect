@@ -181,16 +181,30 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         getReworkRequests(scheduleId).catch(() => [] as ReworkRequest[]),
       ]);
       setSchedule(scheduleData);
-      setNotes(notesData);
-      setAttachments(attachmentsData);
-      setSignatures(signaturesData);
+
+      // Filter evidence to only show the current technician's own submissions
+      const currentUserId = session?.user?.id;
+      if (currentUserId) {
+        setNotes((notesData || []).filter((n) => ownsEvidence(n, currentUserId)));
+        setAttachments((attachmentsData || []).filter((a) => ownsEvidence(a, currentUserId)));
+        setSignatures((signaturesData || []).filter((s) => ownsEvidence(s, currentUserId)));
+      } else {
+        setNotes(notesData);
+        setAttachments(attachmentsData);
+        setSignatures(signaturesData);
+      }
       setReworkRequests(reworkData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load job details');
     } finally {
       setLoading(false);
     }
-  }, [scheduleId]);
+  }, [scheduleId, session?.user?.id]);
+
+  /** Check whether evidence belongs to the current user (by technician_id if set, else user_id) */
+  function ownsEvidence(item: { technician_id?: string | null; user_id: string }, userId: string): boolean {
+    return item.technician_id != null ? item.technician_id === userId : item.user_id === userId;
+  }
 
   useEffect(() => {
     fetchAll();

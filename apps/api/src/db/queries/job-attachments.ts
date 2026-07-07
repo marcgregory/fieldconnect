@@ -1,15 +1,18 @@
 import { query } from '../index';
 import type { JobAttachment } from '@fieldconnect/shared';
 
-export async function findBySchedule(scheduleId: string): Promise<JobAttachment[]> {
-  const result = await query(
-    `SELECT ja.*, u.name AS user_name
+export async function findBySchedule(scheduleId: string, technicianId?: string): Promise<JobAttachment[]> {
+  let sql = `SELECT ja.*, u.name AS user_name
      FROM job_attachments ja
      JOIN users u ON u.id = ja.user_id
-     WHERE ja.schedule_id = $1
-     ORDER BY ja.created_at DESC`,
-    [scheduleId],
-  );
+     WHERE ja.schedule_id = $1`;
+  const params: unknown[] = [scheduleId];
+  if (technicianId) {
+    params.push(technicianId);
+    sql += ` AND (ja.technician_id = $2 OR ja.technician_id IS NULL)`;
+  }
+  sql += ` ORDER BY ja.created_at DESC`;
+  const result = await query(sql, params);
   return result.rows;
 }
 
@@ -48,14 +51,16 @@ export async function create(data: {
   format?: string | null;
   /** Rework version (0 = original submission) */
   rework_version?: number;
+  /** Technician ownership */
+  technician_id?: string | null;
 }): Promise<JobAttachment> {
   const result = await query(
     `INSERT INTO job_attachments
       (schedule_id, user_id, file_name, file_path, mime_type, file_size, attachment_type,
        cloudinary_public_id, secure_url, resource_type,
        latitude, longitude, accuracy, captured_at, distance_from_site, inside_geofence,
-       width, height, format, rework_version)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+       width, height, format, rework_version, technician_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
      RETURNING *`,
     [
       data.schedule_id,
@@ -78,6 +83,7 @@ export async function create(data: {
       data.height ?? null,
       data.format ?? null,
       data.rework_version ?? 0,
+      data.technician_id ?? null,
     ],
   );
   return result.rows[0];

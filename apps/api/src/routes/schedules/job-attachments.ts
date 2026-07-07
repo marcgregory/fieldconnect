@@ -153,6 +153,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
         const attachment = await jobAttachmentQueries.create({
           schedule_id: id,
           user_id: request.user!.id,
+          technician_id: request.user!.id,
           file_name: fileName,
           file_path: relativePath,
           mime_type: mimeType,
@@ -185,7 +186,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           file_name: fileName,
           attachment_type: typeCheck.data.attachment_type,
           timestamp: new Date().toISOString(),
-          technician_id: schedule.technician_ids?.[0] || request.user!.id,
+          technician_id: request.user!.id,
         });
 
         return reply.status(201).send({ success: true, data: attachment });
@@ -250,7 +251,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           file_name: attachment.file_name,
           attachment_type: attachment.attachment_type,
           timestamp: new Date().toISOString(),
-          technician_id: schedule.technician_ids?.[0] || request.user!.id,
+          technician_id: request.user!.id,
         });
       }
 

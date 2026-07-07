@@ -83,6 +83,7 @@ export async function jobNoteRoutes(app: FastifyInstance) {
       const note = await jobNoteQueries.create({
         schedule_id: id,
         user_id: request.user!.id,
+        technician_id: request.user!.role === 'field_technician' ? request.user!.id : null,
         content: parsed.data.content,
         note_type: parsed.data.note_type || 'technician',
         rework_version: reworkVersion,
@@ -96,7 +97,7 @@ export async function jobNoteRoutes(app: FastifyInstance) {
         user_name: request.user!.name,
         note_type: parsed.data.note_type || 'technician',
         timestamp: new Date().toISOString(),
-        technician_id: schedule.technician_ids?.[0] || schedule.id,
+        technician_id: request.user!.id,
       });
 
       return reply.status(201).send({ success: true, data: note });
