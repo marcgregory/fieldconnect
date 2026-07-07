@@ -650,13 +650,13 @@ export async function updateStatus(data: {
     for (const techId of targetTechIds) {
       await client.query(
         `UPDATE schedule_technicians
-         SET status = $1,
+         SET status = $1::varchar,
              updated_at = NOW(),
-             completed_at = CASE WHEN $1::text = 'completed' THEN NOW() ELSE completed_at END,
-             closed_at = CASE WHEN $1::text = 'closed' THEN NOW() ELSE closed_at END,
+             completed_at = CASE WHEN $1::varchar = 'completed' THEN NOW() ELSE completed_at END,
+             closed_at = CASE WHEN $1::varchar = 'closed' THEN NOW() ELSE closed_at END,
              has_open_rework = CASE
-               WHEN $1::text = 'rework_required' THEN TRUE
-               WHEN $1::text IN ('completed', 'closed') THEN FALSE
+               WHEN $1::varchar = 'rework_required' THEN TRUE
+               WHEN $1::varchar IN ('completed', 'closed') THEN FALSE
                ELSE has_open_rework
              END
          WHERE schedule_id = $2 AND technician_id = $3`,
