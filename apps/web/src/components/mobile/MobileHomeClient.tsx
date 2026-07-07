@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@fieldconnect/ui';
+import { Logo } from '@/components/Logo';
 import { ClockInOut } from './ClockInOut';
 import { TimeHistory } from './TimeHistory';
 
@@ -32,7 +33,10 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
       {/* Header */}
       <div className="bg-blue-600 text-white px-4 pt-12 pb-6">
         <div className="flex items-center justify-between mb-2">
-          <h1 className="text-lg font-bold">FieldConnect</h1>
+          <div className="flex items-center gap-2">
+            <Logo size={22} />
+            <h1 className="text-lg font-bold">FieldConnect</h1>
+          </div>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
             className="text-white/80 text-sm"

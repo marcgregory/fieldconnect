@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@fieldconnect/ui';
 import { Input } from '@fieldconnect/ui';
 import Link from 'next/link';
+import { Logo } from '@/components/Logo';
 import { registerSchema } from '@fieldconnect/shared';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -65,6 +66,9 @@ export default function RegisterPage() {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
       <div className="text-center mb-8">
+        <div className="flex justify-center mb-3">
+          <Logo size={48} />
+        </div>
         <h1 className="text-2xl font-bold text-gray-900">FieldConnect</h1>
         <p className="text-gray-500 mt-1">Create your account</p>
       </div>

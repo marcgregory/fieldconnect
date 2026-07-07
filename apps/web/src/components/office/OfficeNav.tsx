@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useSession, signOut } from 'next-auth/react';
+import { Logo } from '@/components/Logo';
 
 interface NavItem {
   label: string;
@@ -33,7 +34,7 @@ export function OfficeNav() {
         <div className="flex items-center justify-between h-14">
           {/* Logo / Brand */}
           <Link href="/dashboard" className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-lg font-bold text-gray-900">FieldConnect</span>
+            <Logo size={28} showText />
           </Link>
 
           {/* Nav Links */}

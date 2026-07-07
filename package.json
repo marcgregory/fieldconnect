@@ -13,6 +13,7 @@
   },
   "devDependencies": {
     "prettier": "^3.2.0",
+    "sharp": "^0.35.3",
     "turbo": "^1.13.0",
     "typescript": "^5.4.0"
   },

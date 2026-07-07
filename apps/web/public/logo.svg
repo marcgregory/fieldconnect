@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+  <defs>
+    <linearGradient id="bolt-grad" x1="4" y1="36" x2="36" y2="4" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563eb"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="1" y="1" width="38" height="38" rx="9" fill="url(#bolt-grad)"/>
+  <!-- Lightning bolt -->
+  <path d="M22 5L12 21h6l-2 14 12-18h-6l2-12z" fill="#fff"/>
+</svg>
