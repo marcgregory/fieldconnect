@@ -80,6 +80,33 @@ async function bffFetch<T>(
   return json.data as T;
 }
 
+/**
+ * BFF fetch for paginated endpoints — returns both `data` and `pagination`
+ * since bffFetch strips the outer envelope.
+ */
+async function bffFetchPaginated<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<PaginatedResponse<T>> {
+  const url = `/api/proxy${path}`;
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (options.method && options.method !== 'GET' && options.method !== 'HEAD' && options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const res = await fetch(url, { ...options, headers });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Request failed: ${res.status}`);
+  }
+
+  const json = await res.json();
+  return { data: json.data as T[], pagination: json.pagination };
+}
+
 // ─── Project API ──────────────────────────────────────────────────────────
 
 export async function getProjects(filters?: {
@@ -443,7 +470,7 @@ export async function getReportTimeEntries(
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();
-  return bffFetch(`/api/v1/reports/time-entries${qs ? `?${qs}` : ''}`);
+  return bffFetchPaginated<TimeEntryReportRow>(`/api/v1/reports/time-entries${qs ? `?${qs}` : ''}`);
 }
 
 export async function getReportTechnicians(filters?: { from?: string; to?: string }): Promise<HoursSummaryRow[]> {
