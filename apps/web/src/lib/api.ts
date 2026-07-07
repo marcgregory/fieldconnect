@@ -20,6 +20,7 @@ import type {
   Signature,
   CreateSignatureInput,
   ReworkRequest,
+  ReviewItem,
   TimeEntryReportRow,
   HoursSummaryRow,
   ProjectSummaryRow,
@@ -227,7 +228,7 @@ export async function getMyJobs(): Promise<ScheduleWithDetails[]> {
   return bffFetch('/api/v1/schedules/my-jobs');
 }
 
-export async function getReviewQueue(): Promise<ScheduleWithDetails[]> {
+export async function getReviewQueue(): Promise<ReviewItem[]> {
   return bffFetch('/api/v1/schedules/review');
 }
 
@@ -282,8 +283,9 @@ export async function deleteSchedule(id: string): Promise<void> {
 
 // ─── Field Data: Job Notes ─────────────────────────────────────────────────
 
-export async function getJobNotes(scheduleId: string): Promise<JobNote[]> {
-  return bffFetch(`/api/v1/schedules/${scheduleId}/notes`);
+export async function getJobNotes(scheduleId: string, technician_id?: string): Promise<JobNote[]> {
+  const params = technician_id ? `?technician_id=${technician_id}` : '';
+  return bffFetch(`/api/v1/schedules/${scheduleId}/notes${params}`);
 }
 
 export async function addJobNote(
@@ -300,8 +302,10 @@ export async function addJobNote(
 
 export async function getJobAttachments(
   scheduleId: string,
+  technician_id?: string,
 ): Promise<JobAttachment[]> {
-  return bffFetch(`/api/v1/schedules/${scheduleId}/attachments`);
+  const params = technician_id ? `?technician_id=${technician_id}` : '';
+  return bffFetch(`/api/v1/schedules/${scheduleId}/attachments${params}`);
 }
 
 export async function uploadJobAttachment(
@@ -347,8 +351,10 @@ export async function deleteJobAttachment(
 
 export async function getJobSignatures(
   scheduleId: string,
+  technician_id?: string,
 ): Promise<Signature[]> {
-  return bffFetch(`/api/v1/schedules/${scheduleId}/signatures`);
+  const params = technician_id ? `?technician_id=${technician_id}` : '';
+  return bffFetch(`/api/v1/schedules/${scheduleId}/signatures${params}`);
 }
 
 export async function addJobSignature(
@@ -378,10 +384,11 @@ export async function updateScheduleStatus(
 export async function requestRework(
   scheduleId: string,
   reason: string,
+  technician_id?: string,
 ): Promise<{ rework: ReworkRequest; schedule: ScheduleWithDetails; audit: AuditLog }> {
   return bffFetch(`/api/v1/schedules/${scheduleId}/rework`, {
     method: 'POST',
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, technician_id }),
   });
 }
 

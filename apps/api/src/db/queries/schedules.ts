@@ -1,5 +1,5 @@
 import { query, pool } from '../index';
-import type { Schedule, ScheduleWithDetails, JobStatus, AuditLog, TechnicianWorkflowStatus } from '@fieldconnect/shared';
+import type { Schedule, ScheduleWithDetails, JobStatus, AuditLog, TechnicianWorkflowStatus, ReviewItem } from '@fieldconnect/shared';
 
 export class ValidationError extends Error {
   statusCode: number;
@@ -325,6 +325,107 @@ export async function findForReview(): Promise<ScheduleWithDetails[]> {
     ' ORDER BY s.scheduled_date DESC, s.updated_at DESC',
   );
   return result.rows.map(mapScheduleRow);
+}
+
+/**
+ * Find completed technician assignments for the review queue.
+ *
+ * Returns ONE row per completed technician (schedule_technicians.status IN
+ * ('completed', 'rework_required')), fully joined with project and schedule
+ * data. Evidence counts are scoped to each technician, not the entire schedule.
+ *
+ * This is the per-tech replacement for findForReview() — do NOT use
+ * schedules.status to decide who appears in review.
+ */
+export async function findCompletedTechnicians(): Promise<ReviewItem[]> {
+  const result = await query(
+    `
+    SELECT
+      s.id AS schedule_id,
+      st.technician_id,
+      u.name AS technician_name,
+      st.status,
+      st.completed_at::text,
+      s.project_id,
+      p.name AS project_name,
+      p.address AS project_address,
+      s.scheduled_date::text AS scheduled_date,
+      s.start_time,
+      s.end_time,
+      p.latitude AS project_latitude,
+      p.longitude AS project_longitude,
+      p.geofence_radius AS project_geofence_radius,
+      st.current_rework_version,
+      st.has_open_rework,
+      -- Per-tech evidence counts
+      (SELECT COUNT(*)::int FROM job_notes jn WHERE jn.schedule_id = s.id AND jn.technician_id = st.technician_id) AS note_count,
+      (SELECT COUNT(*)::int FROM job_attachments ja WHERE ja.schedule_id = s.id AND ja.technician_id = st.technician_id) AS attachment_count,
+      (SELECT COUNT(*)::int FROM signatures sig WHERE sig.schedule_id = s.id AND sig.technician_id = st.technician_id) AS signature_count,
+      -- Per-tech clock-in GPS (first matching time_entry on this date)
+      (SELECT te.clock_in_lat FROM time_entries te
+         WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_lat,
+      (SELECT te.clock_in_lng FROM time_entries te
+         WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_lng,
+      (SELECT te.clock_in_accuracy FROM time_entries te
+         WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_accuracy,
+      (SELECT te.clock_in::text FROM time_entries te
+         WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_time,
+      -- Other technicians on the same schedule (any status)
+      COALESCE(
+        (SELECT json_agg(
+          json_build_object(
+            'technician_id', st2.technician_id,
+            'technician_name', u2.name,
+            'status', st2.status
+          )
+          ORDER BY u2.name
+        ) FROM schedule_technicians st2
+        JOIN users u2 ON u2.id = st2.technician_id
+        WHERE st2.schedule_id = s.id AND st2.technician_id != st.technician_id),
+        '[]'::json
+      ) AS other_technicians
+    FROM schedule_technicians st
+    JOIN schedules s ON s.id = st.schedule_id
+    JOIN projects p ON p.id = s.project_id
+    JOIN users u ON u.id = st.technician_id
+    WHERE st.status IN ('completed', 'rework_required')
+    ORDER BY s.scheduled_date DESC, s.updated_at DESC, u.name
+    `
+  );
+  return result.rows.map((row: any) => ({
+    schedule_id: row.schedule_id,
+    technician_id: row.technician_id,
+    technician_name: row.technician_name,
+    status: row.status,
+    completed_at: row.completed_at,
+    project_id: row.project_id,
+    project_name: row.project_name,
+    project_address: row.project_address,
+    scheduled_date: row.scheduled_date,
+    start_time: row.start_time,
+    end_time: row.end_time,
+    project_latitude: row.project_latitude,
+    project_longitude: row.project_longitude,
+    project_geofence_radius: row.project_geofence_radius,
+    clock_in_lat: row.clock_in_lat,
+    clock_in_lng: row.clock_in_lng,
+    clock_in_accuracy: row.clock_in_accuracy,
+    clock_in_time: row.clock_in_time,
+    note_count: row.note_count ?? 0,
+    attachment_count: row.attachment_count ?? 0,
+    signature_count: row.signature_count ?? 0,
+    current_rework_version: row.current_rework_version ?? 0,
+    has_open_rework: row.has_open_rework ?? false,
+    other_technicians: row.other_technicians || [],
+  }));
 }
 
 export async function findUnassigned(): Promise<ScheduleWithDetails[]> {

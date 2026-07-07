@@ -524,6 +524,44 @@ export interface DashboardSummary {
   late_jobs_count: number;
 }
 
+// ─── Review Queue (per-technician) ────────────────────────────────────────────
+
+export interface ReviewItem {
+  schedule_id: string;
+  technician_id: string;
+  technician_name: string;
+  status: JobStatus;
+  completed_at: string | null;
+  // Schedule/project info
+  project_id: string;
+  project_name: string;
+  project_address: string | null;
+  scheduled_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  project_latitude: number | null;
+  project_longitude: number | null;
+  project_geofence_radius: number;
+  // Clock-in GPS from this technician
+  clock_in_lat: number | null;
+  clock_in_lng: number | null;
+  clock_in_accuracy: number | null;
+  clock_in_time: string | null;
+  // Per-tech evidence counts
+  note_count: number;
+  attachment_count: number;
+  signature_count: number;
+  // Rework
+  current_rework_version: number;
+  has_open_rework: boolean;
+  // Other technicians on this same schedule (for display context)
+  other_technicians: Array<{
+    technician_id: string;
+    technician_name: string;
+    status: JobStatus;
+  }>;
+}
+
 export interface ReportFilters {
   from?: string;
   to?: string;

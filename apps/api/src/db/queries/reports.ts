@@ -174,8 +174,8 @@ export async function getDashboardSummary(): Promise<DashboardSummaryRow> {
         - (te.break_minutes::numeric / 60.0)
       ), 1), 0) AS hours_this_week,
       (SELECT COUNT(DISTINCT technician_id) FROM schedule_technicians WHERE status IN ('traveling', 'on_site'))::int AS active_technicians,
-      (SELECT COUNT(*)::int FROM schedules WHERE status = 'completed' AND scheduled_date = CURRENT_DATE) AS completed_today,
-      (SELECT COUNT(*)::int FROM schedules WHERE status = 'completed') AS needs_review_count,
+      (SELECT COUNT(*)::int FROM schedule_technicians WHERE status = 'completed' AND schedule_id IN (SELECT id FROM schedules WHERE scheduled_date = CURRENT_DATE)) AS completed_today,
+      (SELECT COUNT(*)::int FROM schedule_technicians WHERE status = 'completed') AS needs_review_count,
       (SELECT COUNT(*)::int FROM schedules WHERE status = 'scheduled' AND scheduled_date < CURRENT_DATE) AS late_jobs_count
     FROM time_entries te
     WHERE te.clock_in >= date_trunc('week', CURRENT_DATE)
