@@ -12,6 +12,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }>
   traveling: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Traveling' },
   on_site: { bg: 'bg-green-100', text: 'text-green-800', label: 'On Site' },
   completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Work Completed' },
+  rework_required: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Rework Required' },
   closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed' },
 };
 
