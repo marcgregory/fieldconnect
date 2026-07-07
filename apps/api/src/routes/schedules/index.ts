@@ -301,34 +301,51 @@ export async function scheduleRoutes(app: FastifyInstance) {
           notes: parsed.data.notes,
         });
 
-        // Broadcast WebSocket event to affected technicians
+        // Build per-technician info map from existing workflow for accurate
+        // per-tech old_status and name (not schedule-level aggregate)
+        const techInfoMap = new Map<string, { name: string; oldTechStatus: string }>();
+        for (const tw of existing.technician_workflow || []) {
+          techInfoMap.set(tw.technician_id, {
+            name: tw.technician_name,
+            oldTechStatus: tw.status,
+          });
+        }
+
+        // Determine which technicians to emit events for
+        const emitTargets: Array<{ techId: string; techName: string; oldTechStatus: string }> = [];
+
         if (targetTechId && existing.technician_ids.includes(targetTechId)) {
+          const info = techInfoMap.get(targetTechId);
+          emitTargets.push({
+            techId: targetTechId,
+            techName: info?.name || targetTechId,
+            oldTechStatus: info?.oldTechStatus || existing.status,
+          });
+        } else {
+          for (const techId of existing.technician_ids) {
+            const info = techInfoMap.get(techId);
+            emitTargets.push({
+              techId,
+              techName: info?.name || techId,
+              oldTechStatus: info?.oldTechStatus || existing.status,
+            });
+          }
+        }
+
+        // Emit one event per technician with their specific old/per-tech status
+        const transitionStatus = parsed.data.status as string;
+        for (const target of emitTargets) {
           broadcastJobEvent({
             type: 'status_change',
             schedule_id: id,
             project_name: result.schedule.project_name,
-            technician_name: result.schedule.technician_name,
-            old_status: existing.status,
-            new_status: result.schedule.status,
+            technician_name: target.techName,
+            old_status: target.oldTechStatus as JobStatus,
+            new_status: transitionStatus as JobStatus,
             changed_by: request.user!.name,
             timestamp: new Date().toISOString(),
-            technician_id: targetTechId,
+            technician_id: target.techId,
           });
-        } else {
-          // Broadcast to all technicians
-          for (const techId of existing.technician_ids) {
-            broadcastJobEvent({
-              type: 'status_change',
-              schedule_id: id,
-              project_name: result.schedule.project_name,
-              technician_name: result.schedule.technician_name,
-              old_status: existing.status,
-              new_status: result.schedule.status,
-              changed_by: request.user!.name,
-              timestamp: new Date().toISOString(),
-              technician_id: techId,
-            });
-          }
         }
 
         return { success: true, data: result };

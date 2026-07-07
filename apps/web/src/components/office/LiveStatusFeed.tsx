@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function LiveStatusFeed() {
-  const { isConnected, lastEvent, events, lastJobEvent, lastNoteEvent, lastAttachmentEvent, lastSignatureEvent } = useSocket();
+  const { isConnected, lastEvent, events, jobEvents, lastJobEvent, lastNoteEvent, lastAttachmentEvent, lastSignatureEvent } = useSocket();
   const listRef = useRef<HTMLDivElement>(null);
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
 
@@ -36,6 +36,7 @@ export function LiveStatusFeed() {
   useEffect(() => {
     const items: FeedItem[] = [];
 
+    // Clock events
     events.forEach((evt, i) => {
       items.push({
         id: `clock-${evt.entry_id}-${i}`,
@@ -56,23 +57,72 @@ export function LiveStatusFeed() {
       });
     });
 
+    // Job status events (all stored, not just latest)
+    jobEvents.forEach((evt, i) => {
+      const statusLabel = (evt.new_status || '').replace(/_/g, ' ');
+      let msg = '';
+      let sub = '';
+      if (evt.type === 'status_change') {
+        if (evt.technician_name) {
+          msg = `${evt.technician_name} started ${statusLabel}`;
+          sub = evt.project_name;
+        } else {
+          msg = `${evt.project_name}: ${evt.old_status || 'scheduled'} → ${evt.new_status}`;
+          sub = `by ${evt.changed_by}`;
+        }
+      } else if (evt.type === 'assignment') {
+        msg = `Assigned: ${evt.project_name} → ${evt.technician_name}`;
+        sub = `by ${evt.changed_by}`;
+      } else if (evt.type === 'reassigned') {
+        msg = `Reassigned: ${evt.project_name} → ${evt.technician_name}`;
+        sub = `by ${evt.changed_by}`;
+      } else {
+        msg = `${evt.project_name}: ${evt.old_status || 'scheduled'} → ${evt.new_status}`;
+        sub = `by ${evt.changed_by}`;
+      }
+      items.push({
+        id: `job-${evt.schedule_id}-${evt.timestamp}-${i}`,
+        type: evt.type,
+        message: msg,
+        subtext: sub,
+        timestamp: new Date(evt.timestamp),
+        color: STATUS_COLORS[evt.type] || 'border-blue-200',
+        icon: (
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        ),
+      });
+    });
+
     // Show the latest job event
     if (lastJobEvent) {
       const evt = lastJobEvent;
       let message = '';
+      let subtext = '';
       let type = evt.type;
       if (evt.type === 'status_change') {
-        message = `${evt.project_name}: ${evt.old_status || 'scheduled'} → ${evt.new_status}`;
+        // Human-readable: "Marc Gregory Turno started traveling — Smith Residence CCTV Installation"
+        const statusLabel = (evt.new_status || '').replace(/_/g, ' ');
+        if (evt.technician_name) {
+          message = `${evt.technician_name} started ${statusLabel}`;
+          subtext = evt.project_name;
+        } else {
+          message = `${evt.project_name}: ${evt.old_status || 'scheduled'} → ${evt.new_status}`;
+          subtext = `by ${evt.changed_by}`;
+        }
       } else if (evt.type === 'assignment') {
         message = `Assigned: ${evt.project_name} → ${evt.technician_name}`;
+        subtext = `by ${evt.changed_by}`;
       } else if (evt.type === 'reassigned') {
         message = `Reassigned: ${evt.project_name} → ${evt.technician_name}`;
+        subtext = `by ${evt.changed_by}`;
       }
       items.push({
         id: `job-${evt.schedule_id}-${evt.timestamp}`,
         type,
         message,
-        subtext: `by ${evt.changed_by}`,
+        subtext,
         timestamp: new Date(evt.timestamp),
         color: STATUS_COLORS[type] || 'border-blue-200',
         icon: (
@@ -139,7 +189,7 @@ export function LiveStatusFeed() {
     // Sort by timestamp descending (newest first), limit to 50 items
     items.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
     setFeedItems(items.slice(0, 50));
-  }, [events, lastJobEvent, lastNoteEvent, lastAttachmentEvent, lastSignatureEvent]);
+  }, [events, jobEvents, lastJobEvent, lastNoteEvent, lastAttachmentEvent, lastSignatureEvent]);
 
   // Auto-scroll to newest event
   useEffect(() => {
