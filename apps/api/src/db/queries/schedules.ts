@@ -636,6 +636,14 @@ export async function updateStatus(data: {
 
       const oldTechStatus = techStatusResult.rows[0].status as JobStatus;
 
+      // Allow no-op: if the target technician is already at the requested status,
+      // skip validation. This handles the case where the frontend uses the derived
+      // schedules.status (which may differ from per-technician status) and sends
+      // a transition the tech has already taken.
+      if (oldTechStatus === data.status) {
+        continue;
+      }
+
       // Validate the transition
       validateTransition(
         oldTechStatus,
