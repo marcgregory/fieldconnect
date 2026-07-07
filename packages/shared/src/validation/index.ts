@@ -68,25 +68,56 @@ export const clockOutSchema = z.object({
 
 // ─── Schedule Validation ────────────────────────────────────────────────────
 
+const timeStringRegex = /^\d{2}:\d{2}$/;
+const BUSINESS_HOURS_START = '06:00';
+
+function isTimeBefore(a: string, b: string): boolean {
+  return a < b;
+}
+
 export const createScheduleSchema = z.object({
   project_id: z.string().uuid('Invalid project ID'),
   technician_ids: z.array(z.string().uuid('Invalid technician ID')).min(1, 'At least one technician required'),
   scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
-  start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
-  end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
+  start_time: z.string().regex(timeStringRegex, 'Time must be HH:MM').optional(),
+  end_time: z.string().regex(timeStringRegex, 'Time must be HH:MM').optional(),
   notes: z.string().max(2000).optional(),
   force: z.boolean().optional(),
-});
+}).refine(
+  (data) => {
+    if (!data.start_time) return true;
+    return !isTimeBefore(data.start_time, BUSINESS_HOURS_START);
+  },
+  { message: 'Schedules cannot start before 6:00 AM.', path: ['start_time'] },
+).refine(
+  (data) => {
+    if (!data.start_time || !data.end_time) return true;
+    return data.end_time > data.start_time;
+  },
+  { message: 'End time must be after start time.', path: ['end_time'] },
+);
 
 export const updateScheduleSchema = z.object({
   project_id: z.string().uuid('Invalid project ID').optional(),
   technician_ids: z.array(z.string().uuid('Invalid technician ID')).min(1, 'At least one technician required').optional(),
   scheduled_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
-  start_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
-  end_time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM').optional(),
+  start_time: z.string().regex(timeStringRegex, 'Time must be HH:MM').optional(),
+  end_time: z.string().regex(timeStringRegex, 'Time must be HH:MM').optional(),
   notes: z.string().max(2000).optional(),
   force: z.boolean().optional(),
-});
+}).refine(
+  (data) => {
+    if (!data.start_time) return true;
+    return !isTimeBefore(data.start_time, BUSINESS_HOURS_START);
+  },
+  { message: 'Schedules cannot start before 6:00 AM.', path: ['start_time'] },
+).refine(
+  (data) => {
+    if (!data.start_time || !data.end_time) return true;
+    return data.end_time > data.start_time;
+  },
+  { message: 'End time must be after start time.', path: ['end_time'] },
+);
 
 // ─── Status Transition Validation ──────────────────────────────────────────
 

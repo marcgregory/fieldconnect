@@ -128,6 +128,35 @@ export async function scheduleRoutes(app: FastifyInstance) {
       // Conflict check (skip if admin sent force: true)
       const { force, ...createData } = parsed.data;
 
+      // Validate project status — disallow scheduling on cancelled/on_hold/completed projects
+      const projectResult = await query('SELECT status FROM projects WHERE id = $1', [createData.project_id]);
+      if (projectResult.rows.length === 0) {
+        return reply.status(404).send({ success: false, error: 'Project not found' });
+      }
+      const projectStatus = projectResult.rows[0].status;
+      if (projectStatus === 'cancelled' || projectStatus === 'on_hold' || projectStatus === 'completed') {
+        return reply.status(400).send({
+          success: false,
+          error: `Cannot create schedule: project is ${projectStatus.replace('_', ' ')}.`,
+        });
+      }
+
+      // Validate business hours
+      if (createData.start_time) {
+        if (createData.start_time < '06:00') {
+          return reply.status(400).send({
+            success: false,
+            error: 'Schedules cannot start before 6:00 AM.',
+          });
+        }
+        if (createData.end_time && createData.end_time <= createData.start_time) {
+          return reply.status(400).send({
+            success: false,
+            error: 'End time must be after start time.',
+          });
+        }
+      }
+
       // Validate each technician is a member of the project team
       const teamIds = await technicianQueries.findProjectTeamIds(createData.project_id);
       const invalidTechs = createData.technician_ids.filter((id) => !teamIds.includes(id));
@@ -204,10 +233,42 @@ export async function scheduleRoutes(app: FastifyInstance) {
 
       // Conflict check on update (skip if admin sent force: true)
       const { force, ...updateData } = parsed.data;
+      const effectiveProjectId = updateData.project_id || existing.project_id;
+
+      // Validate project status — disallow scheduling on cancelled/on_hold/completed projects
+      const projectResult = await query('SELECT status FROM projects WHERE id = $1', [effectiveProjectId]);
+      if (projectResult.rows.length === 0) {
+        return reply.status(404).send({ success: false, error: 'Project not found' });
+      }
+      const projectStatus = projectResult.rows[0].status;
+      if (projectStatus === 'cancelled' || projectStatus === 'on_hold' || projectStatus === 'completed') {
+        return reply.status(400).send({
+          success: false,
+          error: `Cannot update schedule: project is ${projectStatus.replace('_', ' ')}.`,
+        });
+      }
+
+      // Validate business hours
+      const effectiveStartTime = updateData.start_time || existing.start_time || '';
+      const effectiveEndTime = updateData.end_time || existing.end_time || '';
+      if (effectiveStartTime) {
+        if (effectiveStartTime < '06:00') {
+          return reply.status(400).send({
+            success: false,
+            error: 'Schedules cannot start before 6:00 AM.',
+          });
+        }
+        if (effectiveEndTime && effectiveEndTime <= effectiveStartTime) {
+          return reply.status(400).send({
+            success: false,
+            error: 'End time must be after start time.',
+          });
+        }
+      }
+
       if (!force && updateData.start_time && updateData.end_time) {
         const effectiveTechIds = updateData.technician_ids || existing.technician_ids;
         const effectiveDate = updateData.scheduled_date || existing.scheduled_date;
-        const effectiveProjectId = updateData.project_id || existing.project_id;
 
         // Validate each technician is a member of the project team
         const teamIds = await technicianQueries.findProjectTeamIds(effectiveProjectId);

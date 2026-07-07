@@ -155,6 +155,49 @@ A dispatcher can assign a job, a technician can complete it entirely from the mo
 - ✅ Offline queue — Status transitions, notes, photos, signatures all queued and synced
 - ✅ Documentation — CHANGELOG, PROJECT_STATUS, ROADMAP, BUILD_PLAN updated
 
+## 📋 Active Work Item: Project Status Gate + Business Hours Validation
+
+**Started: 2026-07-08**
+
+### Goal
+
+Two changes to the schedule creation/update flow:
+
+1. **Project Status Gate** — Block scheduling when a project is `cancelled`, `on_hold`, or `completed`. Remove the auto-revert that silently changes completed projects back to active.
+2. **Business Hours Validation** — Schedules cannot start before 6:00 AM. End time must be after start time.
+
+### Files Changed
+
+| File | Change |
+|---|---|
+| `packages/shared/src/validation/index.ts` | Add `.refine()` to both schemas for start_time >= 06:00 and end_time > start_time |
+| `apps/api/src/routes/schedules/index.ts` | Add project status check in CREATE and UPDATE; add backend time validation |
+| `apps/api/src/db/queries/schedules.ts` | Remove auto-revert SQL from `create()` and `update()` |
+| `apps/web/src/components/office/ScheduleForm.tsx` | Add frontend business hours validation |
+
+### Step-by-step
+
+1. **Shared Zod validation** — Add `.refine()` to `createScheduleSchema` and `updateScheduleSchema`:
+   - `start_time >= "06:00"` → "Schedules cannot start before 6:00 AM."
+   - `end_time > start_time` → "End time must be after start time."
+
+2. **Backend project status gate** — In both CREATE and UPDATE route handlers, query project status. If `cancelled`, `on_hold`, or `completed`, return 400.
+
+3. **Remove auto-revert** — Delete the `UPDATE projects SET status = 'active' ...` blocks from `create()` and `update()` in `schedules.ts`.
+
+4. **Backend time validation** — In both CREATE and UPDATE handlers, redundant validation for start_time < "06:00" and end_time <= start_time.
+
+5. **Frontend validation** — In `ScheduleForm.tsx` `handleSubmit()`, block save if startTime < "06:00" or endTime <= startTime.
+
+### Acceptance
+
+- Cancelled/on_hold/completed project → 400, cannot create/update schedule
+- Completed project stays completed (no auto-revert)
+- 05:59 start_time → rejected
+- 06:00 start_time → allowed
+- end_time before/equal start_time → rejected
+- `pnpm lint` and `pnpm build` pass
+
 ## ✅ Completed Sprint: Sprint 4 — Reporting & Analytics
 
 **Completed: 2026-07-05**

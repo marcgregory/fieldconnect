@@ -193,6 +193,8 @@ export function ScheduleForm({
     if (!projectId) { setError('Please select a project'); return; }
     if (selectedTechIds.length === 0) { setError('Please select at least one technician'); return; }
     if (!date) { setError('Please select a date'); return; }
+    if (startTime && startTime < '06:00') { setError('Schedules cannot start before 6:00 AM.'); return; }
+    if (startTime && endTime && endTime <= startTime) { setError('End time must be after start time.'); return; }
 
     setSaving(true);
     try {
