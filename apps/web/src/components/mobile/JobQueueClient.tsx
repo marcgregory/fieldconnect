@@ -1,16 +1,30 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@fieldconnect/ui';
+import { useSession } from 'next-auth/react';
 import { getMyJobs } from '@/lib/api';
 import { JobCard } from './JobCard';
-import type { ScheduleWithDetails } from '@fieldconnect/shared';
+import type { ScheduleWithDetails, JobStatus } from '@fieldconnect/shared';
 import { useSocket } from '@/hooks/useSocket';
 
 type JobTab = 'today' | 'upcoming' | 'completed';
 
+/**
+ * Extract the current technician's per-technician status from a schedule's
+ * technician_workflow array. Falls back to the derived schedule.status if
+ * the per-tech entry isn't found (e.g. admin viewing).
+ */
+function getMyStatus(schedule: ScheduleWithDetails, userId?: string): JobStatus {
+  if (!userId) return schedule.status;
+  const myEntry = schedule.technician_workflow?.find((tw) => tw.technician_id === userId);
+  return myEntry?.status ?? schedule.status;
+}
+
 export function JobQueueClient() {
+  const { data: session } = useSession();
+  const userId = session?.user?.id;
   const router = useRouter();
   const [jobs, setJobs] = useState<ScheduleWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +57,14 @@ export function JobQueueClient() {
     return unsub;
   }, [onJobUpdate, fetchJobs]);
 
+  // Compute per-technician status for each job (memoized)
+  const jobsWithStatus = useMemo(() => {
+    return jobs.map((job) => ({
+      ...job,
+      _myStatus: getMyStatus(job, userId),
+    }));
+  }, [jobs, userId]);
+
   // Categorize jobs
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -51,13 +73,13 @@ export function JobQueueClient() {
   const activeStatuses = new Set(['scheduled', 'traveling', 'on_site', 'rework_required']);
   const completedStatuses = new Set(['completed', 'closed']);
 
-  const todayJobs = jobs.filter(
-    (j) => j.scheduled_date === todayStr && activeStatuses.has(j.status),
+  const todayJobs = jobsWithStatus.filter(
+    (j) => j.scheduled_date === todayStr && activeStatuses.has(j._myStatus),
   );
-  const upcomingJobs = jobs.filter(
-    (j) => j.scheduled_date > todayStr && activeStatuses.has(j.status),
+  const upcomingJobs = jobsWithStatus.filter(
+    (j) => j.scheduled_date > todayStr && activeStatuses.has(j._myStatus),
   );
-  const completedJobs = jobs.filter((j) => completedStatuses.has(j.status));
+  const completedJobs = jobsWithStatus.filter((j) => completedStatuses.has(j._myStatus));
 
   const tabs: { key: JobTab; label: string; count: number }[] = [
     { key: 'today', label: "Today's Jobs", count: todayJobs.length },
@@ -170,6 +192,7 @@ export function JobQueueClient() {
             <JobCard
               key={job.id}
               schedule={job}
+              myStatus={job._myStatus}
               onClick={() => handleJobClick(job.id)}
             />
           ))

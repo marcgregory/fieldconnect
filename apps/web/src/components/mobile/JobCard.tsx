@@ -4,6 +4,7 @@ import type { ScheduleWithDetails } from '@fieldconnect/shared';
 
 interface JobCardProps {
   schedule: ScheduleWithDetails;
+  myStatus?: string;
   onClick?: () => void;
 }
 
@@ -25,8 +26,10 @@ function formatTime(time: string | null): string {
   return `${hour12}:${m} ${ampm}`;
 }
 
-export function JobCard({ schedule, onClick }: JobCardProps) {
-  const statusStyle = STATUS_COLORS[schedule.status] || STATUS_COLORS.scheduled;
+export function JobCard({ schedule, myStatus, onClick }: JobCardProps) {
+  // Use per-technician status if available, fall back to derived schedule status
+  const displayStatus = myStatus || schedule.status;
+  const statusStyle = STATUS_COLORS[displayStatus] || STATUS_COLORS.scheduled;
 
   return (
     <button

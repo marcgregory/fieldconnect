@@ -365,10 +365,11 @@ export async function updateScheduleStatus(
   id: string,
   status: JobStatus,
   notes?: string,
+  technician_id?: string,
 ): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
   return bffFetch(`/api/v1/schedules/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status, notes }),
+    body: JSON.stringify({ status, notes, technician_id }),
   });
 }
 
@@ -393,18 +394,22 @@ export async function getReworkRequests(
 export async function resumeRework(
   scheduleId: string,
   reworkId: string,
+  technician_id?: string,
 ): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
   return bffFetch(`/api/v1/schedules/${scheduleId}/rework/${reworkId}/resume`, {
     method: 'PATCH',
+    body: technician_id ? JSON.stringify({ technician_id }) : undefined,
   });
 }
 
 export async function completeRework(
   scheduleId: string,
   reworkId: string,
+  technician_id?: string,
 ): Promise<{ schedule: ScheduleWithDetails; audit: AuditLog }> {
   return bffFetch(`/api/v1/schedules/${scheduleId}/rework/${reworkId}/complete`, {
     method: 'PATCH',
+    body: technician_id ? JSON.stringify({ technician_id }) : undefined,
   });
 }
 

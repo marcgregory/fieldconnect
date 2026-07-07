@@ -24,13 +24,15 @@ import type {
   Signature,
   GeofenceStatus,
   ReworkRequest,
+  TechnicianWorkflowStatus,
 } from '@fieldconnect/shared';
 import {
   calculateDistance,
   evaluateGeofence,
   formatDistance,
 } from '@fieldconnect/shared';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { SignatureCanvas } from './SignatureCanvas';
 import { useSocket } from '@/hooks/useSocket';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
@@ -120,12 +122,25 @@ function getAttachmentUrl(att: JobAttachment): string {
 }
 
 export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
+  const { data: session } = useSession();
   const router = useRouter();
   const [schedule, setSchedule] = useState<ScheduleWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [transitioning, setTransitioning] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState<JobStatus | null>(null);
+
+  // ─── Current technician's workflow status ──────────────────────────────
+  const myWorkflow = useMemo<TechnicianWorkflowStatus | null>(() => {
+    if (!schedule || !session?.user?.id) return null;
+    return schedule.technician_workflow?.find(
+      (tw) => tw.technician_id === session.user.id
+    ) ?? null;
+  }, [schedule, session?.user?.id]);
+
+  // Resolved per-technician status (or derived schedule status as fallback)
+  const myStatus: JobStatus = myWorkflow?.status ?? schedule?.status ?? 'scheduled';
+  const myTechnicianId = session?.user?.id;
 
   // Field data state
   const [notes, setNotes] = useState<JobNote[]>([]);
@@ -240,7 +255,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     }
 
     try {
-      await updateScheduleStatus(scheduleId, newStatus);
+      await updateScheduleStatus(scheduleId, newStatus, undefined, myTechnicianId);
       await fetchAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
@@ -537,7 +552,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     window.open(`tel:${schedule.project_contact_phone}`, '_blank');
   }
 
-  const nextAction = schedule ? NEXT_STATUS[schedule.status] : null;
+  const nextAction = schedule ? NEXT_STATUS[myStatus] : null;
 
   // ─── Compress Image Client-Side ──────────────────────────────────────────
   async function compressImage(
@@ -751,11 +766,11 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     );
   }
 
-  const statusConfig = STATUS_CONFIG[schedule.status] || STATUS_CONFIG.scheduled;
+  const statusConfig = STATUS_CONFIG[myStatus] || STATUS_CONFIG.scheduled;
   const currentStep = statusConfig.step;
-  const isClosed = schedule.status === 'closed';
-  const isReworkRequired = schedule.status === 'rework_required';
-  const isReworkActive = schedule.status === 'on_site' && reworkRequests.some((r) => r.status === 'open');
+  const isClosed = myStatus === 'closed';
+  const isReworkRequired = myStatus === 'rework_required';
+  const isReworkActive = myStatus === 'on_site' && reworkRequests.some((r) => r.status === 'open');
   const openRework = reworkRequests.find((r) => r.status === 'open');
 
   return (
@@ -797,7 +812,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               onClick={async () => {
                 setTransitioning(true);
                 try {
-                  await resumeRework(scheduleId, openRework.id);
+                  await resumeRework(scheduleId, openRework.id, myTechnicianId);
                   await fetchAll();
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Failed to resume rework');
@@ -1206,7 +1221,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             <p className="text-sm text-gray-600 mb-6">
               {isReworkActive
                 ? 'Submit this rework as complete? The schedule will go back to office review.'
-                : NEXT_STATUS[schedule.status]?.confirm || 'Update job status?'}
+                : NEXT_STATUS[myStatus]?.confirm || 'Update job status?'}
             </p>
             <div className="space-y-3">
               <button
@@ -1215,7 +1230,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                     setTransitioning(true);
                     setConfirmStatus(null);
                     try {
-                      await completeRework(scheduleId, openRework.id);
+                      await completeRework(scheduleId, openRework.id, myTechnicianId);
                       await fetchAll();
                     } catch (err) {
                       setError(err instanceof Error ? err.message : 'Failed to complete rework');
@@ -1229,7 +1244,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                 disabled={transitioning}
                 className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {transitioning ? 'Updating...' : `Yes, ${isReworkActive ? 'Submit Rework' : NEXT_STATUS[schedule.status]?.label || 'Update'}`}
+                {transitioning ? 'Updating...' : `Yes, ${isReworkActive ? 'Submit Rework' : NEXT_STATUS[myStatus]?.label || 'Update'}`}
               </button>
               <button
                 onClick={() => setConfirmStatus(null)}
@@ -1299,7 +1314,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         {/* Status transition buttons — hidden for closed (read-only) jobs */}
         {!isClosed && (
           <>
-        {nextAction && nextAction.status === 'completed' && schedule.status === 'on_site' && (
+        {nextAction && nextAction.status === 'completed' && myStatus === 'on_site' && (
           <>
             <button
               onClick={() => {
@@ -1353,7 +1368,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </button>
         )}
 
-        {!isClosed && nextAction == null && schedule.status !== 'completed' && (
+        {!isClosed && nextAction == null && myStatus !== 'completed' && (
           <p className="text-center text-sm text-gray-400 italic">No further actions</p>
         )}
           </>
@@ -1368,14 +1383,14 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </div>
         )}
 
-        {schedule.status === 'completed' && (
+        {myStatus === 'completed' && (
           <div className="w-full bg-purple-50 border border-purple-200 text-purple-700 rounded-xl py-4 text-base font-semibold text-center">
             Work Completed
             <span className="block text-sm font-normal text-purple-600 mt-0.5">Waiting for office approval</span>
           </div>
         )}
 
-        {schedule.status === 'rework_required' && (
+        {myStatus === 'rework_required' && (
           <div className="w-full bg-orange-50 border border-orange-200 text-orange-700 rounded-xl py-4 text-base font-semibold text-center">
             ⚠ Rework Required
             <span className="block text-sm font-normal text-orange-600 mt-0.5">
@@ -1384,7 +1399,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </div>
         )}
 
-        {schedule.project_address && schedule.status !== 'completed' && schedule.status !== 'rework_required' && (
+        {schedule.project_address && myStatus !== 'completed' && myStatus !== 'rework_required' && (
           <button
             onClick={handleStartNavigation}
             className="w-full bg-blue-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-blue-700 transition-colors flex items-center justify-center gap-2"
