@@ -38,8 +38,106 @@ export interface DashboardSummaryRow {
   late_jobs_count: number;
 }
 
+export interface PaginatedResult<T> {
+  rows: T[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+}
+
+function buildSqlWithPagination(
+  baseSelect: string,
+  baseFrom: string,
+  params: unknown[],
+  filters: { from?: string; to?: string; project_id?: string; technician_id?: string },
+  pagination: { page: number; limit: number },
+): { sql: string; countSql: string; params: unknown[] } {
+  let whereClause = ' WHERE 1=1';
+  let idx = params.length + 1;
+
+  if (filters.from) {
+    whereClause += ` AND te.clock_in >= $${idx++}`;
+    params.push(filters.from);
+  }
+  if (filters.to) {
+    whereClause += ` AND te.clock_in <= $${idx++}`;
+    params.push(filters.to);
+  }
+  if (filters.project_id) {
+    whereClause += ` AND te.project_id = $${idx++}`;
+    params.push(filters.project_id);
+  }
+  if (filters.technician_id) {
+    whereClause += ` AND te.user_id = $${idx++}`;
+    params.push(filters.technician_id);
+  }
+
+  const countSql = `SELECT COUNT(*)::int AS total${baseFrom}${whereClause}`;
+  const offset = (pagination.page - 1) * pagination.limit;
+  const sql = `${baseSelect}${baseFrom}${whereClause} ORDER BY te.clock_in DESC LIMIT $${idx++} OFFSET $${idx++}`;
+  params.push(pagination.limit, offset);
+
+  return { sql, countSql, params };
+}
+
 // ─── Time Entries Report ──────────────────────────────────────────────────
-export async function getTimeEntriesReport(filters: {
+export async function getTimeEntriesReport(
+  filters: {
+    from?: string;
+    to?: string;
+    project_id?: string;
+    technician_id?: string;
+  },
+  pagination: { page: number; limit: number } = { page: 1, limit: 20 },
+): Promise<PaginatedResult<TimeEntryReportRow>> {
+  const baseSelect = `
+    SELECT
+      te.id,
+      te.user_id AS technician_id,
+      u.name AS technician_name,
+      te.project_id,
+      p.name AS project_name,
+      p.address AS project_address,
+      s.scheduled_date,
+      te.clock_in,
+      te.clock_out,
+      te.break_minutes,
+      ROUND(
+        EXTRACT(EPOCH FROM (COALESCE(te.clock_out, NOW()) - te.clock_in)) / 3600.0
+        - (te.break_minutes::numeric / 60.0),
+        2
+      ) AS duration_hours,
+      te.notes`;
+  const baseFrom = `
+    FROM time_entries te
+    JOIN users u ON u.id = te.user_id
+    JOIN projects p ON p.id = te.project_id
+    LEFT JOIN schedules s ON s.project_id = te.project_id
+      AND s.scheduled_date = te.clock_in::date
+    LEFT JOIN schedule_technicians st ON st.schedule_id = s.id AND st.technician_id = te.user_id`;
+
+  const params: unknown[] = [];
+  const { sql, countSql, params: allParams } = buildSqlWithPagination(
+    baseSelect, baseFrom, params, filters, pagination,
+  );
+
+  const [dataResult, countResult] = await Promise.all([
+    query(sql, allParams),
+    query(countSql, allParams.slice(0, allParams.length - 2)),
+  ]);
+
+  return {
+    rows: dataResult.rows,
+    total: countResult.rows[0]?.total ?? 0,
+    page: pagination.page,
+    limit: pagination.limit,
+    total_pages: Math.ceil((countResult.rows[0]?.total ?? 0) / pagination.limit),
+  };
+}
+
+/** Non-paginated variant for CSV export — returns ALL matching rows */
+export async function getTimeEntriesReportAll(filters: {
   from?: string;
   to?: string;
   project_id?: string;

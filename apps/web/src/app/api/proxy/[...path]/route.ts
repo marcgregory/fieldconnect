@@ -105,29 +105,12 @@ async function proxyRequest(
         });
 
         if (response.ok) {
-          const data = await response.json();
-          const proxyResponse = NextResponse.json(data, { status: response.status });
-
-          // Set a flag cookie the client can read to update its session
-          // The actual NextAuth JWT refresh token is rotated server-side,
-          // but we need the client to trigger a session update to pick up
-          // the new refreshToken value stored in the JWT.
-          // For now, the old refresh token remains valid briefly during rotation.
-          proxyResponse.cookies.set('refresh_token_rotated', '1', {
-            httpOnly: false,
-            secure: true,
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 60,
-          });
-
-          return proxyResponse;
+          return buildProxyResponse(response);
         }
       }
     }
 
-    const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return buildProxyResponse(response);
   } catch (error) {
     console.error('Proxy error:', error);
     return NextResponse.json(
@@ -135,6 +118,51 @@ async function proxyRequest(
       { status: 500 },
     );
   }
+}
+
+/**
+ * Build a proxied response, handling both JSON and non-JSON (CSV, binary, etc.)
+ * content types without trying to parse the body as JSON.
+ */
+async function buildProxyResponse(response: Response): Promise<NextResponse> {
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    const data = await response.json();
+    const proxyResponse = NextResponse.json(data, { status: response.status });
+
+    // Copy over set-cookie headers if any
+    const setCookie = response.headers.get('set-cookie');
+    if (setCookie) {
+      proxyResponse.headers.set('set-cookie', setCookie);
+    }
+
+    // Set a flag cookie the client can read to update its session
+    // The actual NextAuth JWT refresh token is rotated server-side,
+    // but we need the client to trigger a session update to pick up
+    // the new refreshToken value stored in the JWT.
+    // For now, the old refresh token remains valid briefly during rotation.
+    proxyResponse.cookies.set('refresh_token_rotated', '1', {
+      httpOnly: false,
+      secure: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60,
+    });
+
+    return proxyResponse;
+  }
+
+  // Non-JSON response (CSV, images, etc.) — return as-is with original content type
+  const body = await response.blob();
+  return new NextResponse(body, {
+    status: response.status,
+    headers: {
+      'Content-Type': contentType,
+      'Content-Disposition': response.headers.get('content-disposition') || '',
+      'Content-Length': body.size.toString(),
+    },
+  });
 }
 
 /**

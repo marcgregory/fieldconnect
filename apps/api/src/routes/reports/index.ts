@@ -8,21 +8,21 @@ export async function reportRoutes(app: FastifyInstance) {
     '/api/v1/reports/time-entries',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
     async (request, reply) => {
-      const { from, to, project_id, technician_id } = request.query as {
+      const { from, to, project_id, technician_id, page, limit } = request.query as {
         from?: string;
         to?: string;
         project_id?: string;
         technician_id?: string;
+        page?: string;
+        limit?: string;
       };
 
-      const rows = await reportQueries.getTimeEntriesReport({
-        from,
-        to,
-        project_id,
-        technician_id,
-      });
+      const result = await reportQueries.getTimeEntriesReport(
+        { from, to, project_id, technician_id },
+        { page: parseInt(page || '1', 10), limit: parseInt(limit || '20', 10) },
+      );
 
-      return { success: true, data: rows };
+      return { success: true, data: result.rows, pagination: { total: result.total, page: result.page, limit: result.limit, total_pages: result.total_pages } };
     },
   );
 
@@ -64,7 +64,7 @@ export async function reportRoutes(app: FastifyInstance) {
         technician_id?: string;
       };
 
-      const rows = await reportQueries.getTimeEntriesReport({
+      const rows = await reportQueries.getTimeEntriesReportAll({
         from,
         to,
         project_id,

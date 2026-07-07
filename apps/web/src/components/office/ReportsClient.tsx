@@ -21,6 +21,8 @@ function formatDateTime(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+const PAGE_SIZE = 20;
+
 export function ReportsClient() {
   const [tab, setTab] = useState<Tab>('entries');
   const [from, setFrom] = useState(() => {
@@ -32,19 +34,21 @@ export function ReportsClient() {
 
   // Time entries
   const [entries, setEntries] = useState<TimeEntryReportRow[]>([]);
+  const [entryPagination, setEntryPagination] = useState({ page: 1, total: 0, total_pages: 0 });
   const [technicians, setTechnicians] = useState<HoursSummaryRow[]>([]);
   const [projects, setProjects] = useState<ProjectSummaryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (page = 1) => {
     setLoading(true);
     setError('');
     try {
       switch (tab) {
         case 'entries': {
-          const data = await getReportTimeEntries({ from, to });
-          setEntries(data);
+          const result = await getReportTimeEntries({ from, to, page, limit: PAGE_SIZE });
+          setEntries(result.data);
+          setEntryPagination({ page: result.pagination.page, total: result.pagination.total, total_pages: result.pagination.total_pages });
           break;
         }
         case 'technicians': {
@@ -66,7 +70,7 @@ export function ReportsClient() {
   }, [tab, from, to]);
 
   useEffect(() => {
-    fetchData();
+    fetchData(1);
   }, [fetchData]);
 
   const csvUrl = getCsvExportUrl({ from, to });
@@ -105,7 +109,7 @@ export function ReportsClient() {
               />
             </div>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData(1)}
               disabled={loading}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
             >
@@ -192,6 +196,28 @@ export function ReportsClient() {
                     ))}
                   </tbody>
                 </table>
+                {/* Pagination */}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
+                  <p className="text-sm text-gray-500">
+                    Showing page {entryPagination.page} of {entryPagination.total_pages} ({entryPagination.total} entries)
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => fetchData(entryPagination.page - 1)}
+                      disabled={entryPagination.page <= 1 || loading}
+                      className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => fetchData(entryPagination.page + 1)}
+                      disabled={entryPagination.page >= entryPagination.total_pages || loading}
+                      className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
