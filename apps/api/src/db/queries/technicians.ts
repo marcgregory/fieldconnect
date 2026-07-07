@@ -75,6 +75,13 @@ export async function findAssignmentsByUser(
      JOIN projects p ON p.id = ta.project_id
      JOIN users u ON u.id = ta.user_id
      WHERE ta.user_id = $1
+       AND EXISTS (
+         SELECT 1 FROM schedule_technicians st
+         JOIN schedules s ON s.id = st.schedule_id
+         WHERE st.technician_id = $1
+           AND s.project_id = p.id
+           AND st.status IN ('scheduled', 'traveling', 'on_site', 'rework_required')
+       )
      ORDER BY p.name`,
     [userId],
   );

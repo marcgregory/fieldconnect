@@ -77,9 +77,11 @@ function GeofenceBadge({ status }: { status: GeofenceStatus }) {
 export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
   const [assignments, setAssignments] = useState<TechnicianAssignmentWithDetails[]>([]);
-  // Filter to only clock-in-eligible projects (exclude completed/cancelled work)
+  // Backend now filters by schedule_technicians.status so only actionable
+  // assignments (scheduled/traveling/on_site/rework_required) are returned.
+  // The frontend still guards against project-level cancellation as a safety net.
   const clockableAssignments = assignments.filter(
-    (a) => a.project_status !== 'completed' && a.project_status !== 'cancelled',
+    (a) => a.project_status !== 'cancelled',
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

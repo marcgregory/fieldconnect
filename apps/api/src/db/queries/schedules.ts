@@ -451,6 +451,7 @@ export async function findByTechnician(technicianId: string): Promise<ScheduleWi
   const result = await query(
     SCHEDULE_SELECT + SCHEDULE_FROM +
     ' WHERE st.technician_id = $1' +
+    " AND st.status IN ('scheduled', 'traveling', 'on_site', 'rework_required')" +
     ' GROUP BY s.id, p.id' +
     ' ORDER BY s.scheduled_date DESC, s.start_time NULLS LAST',
     [technicianId],
