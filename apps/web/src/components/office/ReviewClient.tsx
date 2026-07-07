@@ -84,8 +84,10 @@ function buildTechnicianReviewChecklist(
     ];
 
     const allRequired = required.every((r) => r.present);
-    const presentCount = [...required, ...optional].filter((r) => r.present).length;
-    const totalCount = [...required, ...optional].length;
+    // Score counts REQUIRED items only — optional items (During Photos,
+    // Internal Notes, Documents) are display-only and never reduce percentage.
+    const presentCount = required.filter((r) => r.present).length;
+    const totalCount = required.length;
     const score = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
 
     return { required, optional, allRequired, score, presentCount, totalCount };
@@ -106,8 +108,9 @@ function buildTechnicianReviewChecklist(
   ];
 
   const allRequired = required.every((r) => r.present);
-  const presentCount = [...required, ...optional].filter((r) => r.present).length;
-  const totalCount = [...required, ...optional].length;
+  // Score counts REQUIRED items only — same as expanded path.
+  const presentCount = required.filter((r) => r.present).length;
+  const totalCount = required.length;
   const score = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
 
   return { required, optional, allRequired, score, presentCount, totalCount };
