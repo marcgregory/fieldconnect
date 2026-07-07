@@ -173,7 +173,7 @@ export async function getDashboardSummary(): Promise<DashboardSummaryRow> {
         EXTRACT(EPOCH FROM (COALESCE(te.clock_out, NOW()) - te.clock_in)) / 3600.0
         - (te.break_minutes::numeric / 60.0)
       ), 1), 0) AS hours_this_week,
-      (SELECT COUNT(DISTINCT user_id) FROM time_entries WHERE clock_out IS NULL)::int AS active_technicians,
+      (SELECT COUNT(DISTINCT technician_id) FROM schedule_technicians WHERE status IN ('traveling', 'on_site'))::int AS active_technicians,
       (SELECT COUNT(*)::int FROM schedules WHERE status = 'completed' AND scheduled_date = CURRENT_DATE) AS completed_today,
       (SELECT COUNT(*)::int FROM schedules WHERE status = 'completed') AS needs_review_count,
       (SELECT COUNT(*)::int FROM schedules WHERE status = 'scheduled' AND scheduled_date < CURRENT_DATE) AS late_jobs_count
