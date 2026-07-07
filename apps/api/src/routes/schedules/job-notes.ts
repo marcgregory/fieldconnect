@@ -17,14 +17,11 @@ export async function jobNoteRoutes(app: FastifyInstance) {
     }
 
     const { id } = request.params as { id: string };
-    const queryParams = request.query as { rework_version?: string };
-    const reworkVersion = queryParams.rework_version ? parseInt(queryParams.rework_version, 10) : undefined;
-    let notes;
-    if (reworkVersion !== undefined && !isNaN(reworkVersion)) {
-      notes = await jobNoteQueries.findBySchedule(id); // We'll filter client-side or add a versioned query
-    } else {
-      notes = await jobNoteQueries.findBySchedule(id);
-    }
+    const queryParams = request.query as { rework_version?: string; technician_id?: string };
+    const technicianId = request.user!.role === 'field_technician'
+      ? (queryParams.technician_id || request.user!.id)
+      : queryParams.technician_id;
+    const notes = await jobNoteQueries.findBySchedule(id, technicianId);
     return { success: true, data: notes };
   });
 

@@ -15,7 +15,11 @@ export async function signatureRoutes(app: FastifyInstance) {
     }
 
     const { id } = request.params as { id: string };
-    const signatures = await signatureQueries.findBySchedule(id);
+    const queryParams = request.query as { technician_id?: string };
+    const technicianId = request.user!.role === 'field_technician'
+      ? (queryParams.technician_id || request.user!.id)
+      : queryParams.technician_id;
+    const signatures = await signatureQueries.findBySchedule(id, technicianId);
     return { success: true, data: signatures };
   });
 
