@@ -203,6 +203,16 @@ export interface Schedule {
   updated_at: string;
 }
 
+export interface TechnicianWorkflowStatus {
+  technician_id: string;
+  technician_name: string;
+  status: JobStatus;
+  completed_at: string | null;
+  closed_at: string | null;
+  current_rework_version: number;
+  has_open_rework: boolean;
+}
+
 export interface ScheduleWithDetails extends Schedule {
   project_name: string;
   project_address: string | null;
@@ -214,6 +224,8 @@ export interface ScheduleWithDetails extends Schedule {
   technician_ids: string[];
   /** Array of assigned technician names (order matches ids) */
   technician_names: string[];
+  /** Per-technician workflow status (authoritative per-tech state) */
+  technician_workflow: TechnicianWorkflowStatus[];
   note_count?: number;
   attachment_count?: number;
   signature_count?: number;
@@ -225,9 +237,9 @@ export interface ScheduleWithDetails extends Schedule {
   clock_in_lng?: number | null;
   clock_in_accuracy?: number | null;
   clock_in_time?: string | null;
-  /** Current rework version for this schedule (0 = original) */
+  /** @deprecated Use technician_workflow[i].current_rework_version instead */
   current_rework_version?: number;
-  /** Whether this schedule has an open rework request */
+  /** @deprecated Use technician_workflow[i].has_open_rework instead */
   has_open_rework?: boolean;
 }
 

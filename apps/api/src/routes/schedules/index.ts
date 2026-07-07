@@ -269,7 +269,9 @@ export async function scheduleRoutes(app: FastifyInstance) {
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher', 'field_technician')] },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const parsed = updateScheduleStatusSchema.safeParse(request.body);
+      // Also accept technician_id from body for per-technician transitions
+      const { technician_id, ...restBody } = request.body as Record<string, unknown>;
+      const parsed = updateScheduleStatusSchema.safeParse(restBody);
 
       if (!parsed.success) {
         return reply.status(400).send({
@@ -284,18 +286,23 @@ export async function scheduleRoutes(app: FastifyInstance) {
         return reply.status(404).send({ success: false, error: 'Schedule not found' });
       }
 
+      // Determine the target technician
+      // - field_technician must supply their own ID (validated server-side)
+      // - office/admin can omit to update all techs, or target a specific one
+      const targetTechId = (technician_id as string) || (request.user!.role === 'field_technician' ? request.user!.id : '');
+
       try {
         const result = await scheduleQueries.updateStatus({
           id,
           status: parsed.data.status as JobStatus,
           user_id: request.user!.id,
           user_role: request.user!.role,
-          technician_id: existing.technician_ids[0] || '',
+          technician_id: targetTechId,
           notes: parsed.data.notes,
         });
 
-        // Broadcast WebSocket event for each technician
-        for (const techId of existing.technician_ids) {
+        // Broadcast WebSocket event to affected technicians
+        if (targetTechId && existing.technician_ids.includes(targetTechId)) {
           broadcastJobEvent({
             type: 'status_change',
             schedule_id: id,
@@ -305,8 +312,23 @@ export async function scheduleRoutes(app: FastifyInstance) {
             new_status: result.schedule.status,
             changed_by: request.user!.name,
             timestamp: new Date().toISOString(),
-            technician_id: techId,
+            technician_id: targetTechId,
           });
+        } else {
+          // Broadcast to all technicians
+          for (const techId of existing.technician_ids) {
+            broadcastJobEvent({
+              type: 'status_change',
+              schedule_id: id,
+              project_name: result.schedule.project_name,
+              technician_name: result.schedule.technician_name,
+              old_status: existing.status,
+              new_status: result.schedule.status,
+              changed_by: request.user!.name,
+              timestamp: new Date().toISOString(),
+              technician_id: techId,
+            });
+          }
         }
 
         return { success: true, data: result };

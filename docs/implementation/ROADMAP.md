@@ -1,6 +1,6 @@
 # FieldConnect Roadmap
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Completed
 
@@ -86,34 +86,160 @@ Last updated: 2026-07-06
 
 ## Sprint Queue
 
-### Sprint 6 — Customer Completion Report PDF (🚧 In Progress)
+### Sprint 6 — Security & Account Hardening (🚧 In Progress)
+
+**Goal:** Bring FieldConnect to production-grade account security.
+
+#### Phase 1 — Email Infrastructure (Foundation)
+- [ ] Email service abstraction
+- [ ] Resend integration
+- [ ] Email template system (Verify Email, Password Reset, Welcome, Login Alert)
+- [ ] Environment variables for email config
+- [ ] Queue-friendly email sender
+- [ ] Local preview mode for development
+
+#### Phase 2 — Email Verification
+- [ ] `email_verified_at` column on users table
+- [ ] `verification_tokens` table (hashed, expiring, single-use tokens)
+- [ ] Send verification email on registration
+- [ ] Verification link handler (verify token, set `email_verified_at`)
+- [ ] "Pending Verification" state — logged in but restricted to verify/resend/change email
+- [ ] Resend verification email (rate limited)
+- [ ] Change email address flow
+- [ ] Audit events for verification actions
+
+#### Phase 3 — Forgot Password
+- [ ] `password_reset_tokens` table (hashed, expiring, single-use tokens, used_at)
+- [ ] Forgot password request → email with reset link
+- [ ] Reset password page with new password form
+- [ ] Password strength validation
+- [ ] Invalidate all refresh tokens on password change
+- [ ] Force re-login after reset
+- [ ] Audit events for password resets
+
+#### Phase 4 — Login Protection
+- [ ] Rate limiting on: login, register, forgot password, reset password
+- [ ] Temporary account lockout after N failed attempts
+- [ ] Exponential backoff on lockout duration
+- [ ] Generic login error messages (never reveal: email exists, wrong password, account missing)
+- [ ] Audit events for failed logins and lockouts
+
+#### Phase 5 — Session Security
+- [ ] Extend refresh tokens with: device name, browser, last_used_at
+- [ ] View active sessions in user profile
+- [ ] Revoke single session
+- [ ] Revoke all sessions
+- [ ] Audit events for session revocation
+
+#### Phase 6 — File Upload Security
+- [ ] Validate MIME type (whitelist: jpg, jpeg, png, webp, pdf)
+- [ ] Validate file extension
+- [ ] Max file size enforcement
+- [ ] Image dimension validation
+- [ ] Reject executable and script uploads (exe, js, bat, cmd, php, svg)
+
+#### Phase 7 — Security Headers & Server Hardening
+- [ ] Helmet integration for Fastify
+- [ ] Content Security Policy (CSP)
+- [ ] HSTS
+- [ ] X-Frame-Options
+- [ ] Referrer Policy
+- [ ] CORS tightening
+- [ ] Request body size limits
+
+#### Phase 8 — Audit & Monitoring
+- [ ] Audit logging for: user login, failed login, password reset, email verification, role changes, session revoked, rework override, admin actions
+- [ ] Audit log viewer (admin only, future sprint — table + schema only now)
+
+**Definition of Done:**
+- ✓ Email verification with pending state
+- ✓ Forgot password with token rotation
+- ✓ Session management (view + revoke)
+- ✓ Rate limiting on all auth endpoints
+- ✓ Login lockout with backoff
+- ✓ Secure upload validation
+- ✓ Security headers
+- ✓ Audit logging for critical actions
+- ✓ Sprint documentation updated
+
+### Sprint 7 — Notifications (Socket + Push + Email)
+
+- Real-time WebSocket notifications for:
+  - Rework requested
+  - New assignment
+  - Schedule changed
+  - Job cancelled
+  - Job overdue
+- In-app notification center (office + mobile)
+- Push notifications via service worker
+- Email notifications (configurable per user)
+- SMS notifications (optional, future)
+
+### Sprint 8 — Inventory / Materials
+
+- Material catalog (types, SKUs, units, pricing)
+- Job material usage tracking
+- Technician material add/edit on mobile
+- Office inventory overview
+- Stock deduction on job completion
+- Basic costing reports
+
+### Sprint 9 — Customer Completion Report PDF
 
 - Auto-generated PDF with all job evidence
-- Job summary with project info and schedule details
-- Technician name, dates, and signature
-- Before/after photos embedded in report
+- Cover page with company logo and project info
+- Customer and project details
+- Technician(s) name, dates, and signature
+- Timeline overview
+- Before/During/After photos embedded
+- GPS proof (clock-in coordinates, distance from site, geofence status)
 - Customer signature page
-- GPS evidence (clock-in location, distance from site, geofence status)
 - Job notes included
+- Rework history section
+- Materials used section
+- QR code linking back to the job
 - PDF download link on office review page
-- Email delivery option
 
-### Completed Milestone (Sprint 6.1) — Revision-Based Rework ✅
+### Sprint 10 — Analytics & Dashboards
+
+- Charts and trend visualizations
+- Job completion rates
+- Technician productivity metrics
+- Project profitability estimates
+- Exportable reports (CSV, PDF)
+
+### Sprint 11 — Customer Portal
+
+- Customer-facing status page
+- Job timeline view
+- Photo gallery
+- Document download
+
+### Sprint 12 — Offline Improvements
+
+- Enhanced offline queue resilience
+- Conflict resolution UI
+- Background sync improvements
+
+### Sprint 13 — Route History (Optional)
+
+- GPS Route History (Phase E — deferred, optional, expensive)
+
+## Future
+
+- Integration with existing tools data migration
+- File storage migration to S3-compatible cloud
+- Audit log viewer UI for admin
+
+## Completed Milestone (Revision-Based Rework) ✅
+
+Released alongside Sprint 5, ahead of the original Sprint 6 plan.
 
 - `rework_required` status, `rework_requests` table, `rework_version` on evidence
 - API: create/list/resume/complete rework requests
 - Office: evidence grouped by revision, rework history panel
 - Technician: rework banner, read-only originals, append new evidence
 - Audit: `rework_requested`, `rework_resumed`, `rework_completed` actions
-
-## Future
-
-- Sprint 7: Advanced reporting (PDF export, charts)
-- Sprint 8: Push notifications for schedule changes
-- Sprint 9: Audit log viewer UI for admin
-- Sprint 10: Integration with existing tools data migration
-- File storage migration to S3-compatible cloud
-- GPS Route History (Phase E — deferred, optional, expensive)
 
 ## Blocked
 

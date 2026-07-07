@@ -1,5 +1,5 @@
 import { query, pool } from '../index';
-import type { Schedule, ScheduleWithDetails, JobStatus, AuditLog } from '@fieldconnect/shared';
+import type { Schedule, ScheduleWithDetails, JobStatus, AuditLog, TechnicianWorkflowStatus } from '@fieldconnect/shared';
 
 export class ValidationError extends Error {
   statusCode: number;
@@ -22,8 +22,11 @@ const VALID_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
 };
 
 /**
- * Validate that a status transition is allowed based on role and ownership.
- * Throws ValidationError if the transition is not allowed.
+ * Validate that a status transition is allowed based on role, targeting a
+ * specific technician's per-tech status (not the schedule-level summary).
+ *
+ * The `currentTechStatus` comes from `schedule_technicians.status` for the
+ * technician being transitioned, NOT from `schedules.status`.
  */
 export function validateTransition(
   oldStatus: JobStatus,
@@ -42,7 +45,7 @@ export function validateTransition(
     );
   }
 
-  // field_technician can only advance their own jobs
+  // field_technician can only advance their own job
   if (userRole === 'field_technician') {
     if (!scheduleTechnicianIds.includes(userId)) {
       throw new ValidationError('You can only update your own jobs', 403);
@@ -81,12 +84,43 @@ export interface ScheduleRow {
   updated_at: string;
 }
 
+// ─── Schedule Status Derivation ───────────────────────────────────────────
+
+/**
+ * Derive the aggregate schedules.status from per-technician statuses.
+ *
+ * Priority (highest wins):
+ *   1. rework_required  — any tech needs rework
+ *   2. completed        — any tech completed (needs review)
+ *   3. on_site          — any tech is on site
+ *   4. traveling        — any tech is traveling
+ *   5. closed           — ALL techs are closed (or cancelled)
+ *   6. scheduled        — fallback
+ */
+async function deriveScheduleStatus(scheduleId: string): Promise<JobStatus> {
+  const result = await query(
+    `SELECT CASE
+       WHEN COUNT(*) FILTER (WHERE status = 'rework_required') > 0 THEN 'rework_required'
+       WHEN COUNT(*) FILTER (WHERE status = 'completed') > 0 THEN 'completed'
+       WHEN COUNT(*) FILTER (WHERE status = 'on_site') > 0 THEN 'on_site'
+       WHEN COUNT(*) FILTER (WHERE status = 'traveling') > 0 THEN 'traveling'
+       WHEN COUNT(*) FILTER (WHERE status = 'closed') = COUNT(*) THEN 'closed'
+       ELSE 'scheduled'
+     END::text AS derived_status
+     FROM schedule_technicians
+     WHERE schedule_id = $1`,
+    [scheduleId],
+  );
+  return (result.rows[0]?.derived_status as JobStatus) ?? 'scheduled';
+}
+
 // ─── Row mapper ────────────────────────────────────────────────────────────
 
 /**
- * Map a raw query row (joined with schedule_technicians) into ScheduleWithDetails.
- * Expects `technician_ids` and `technician_names` as comma-separated strings from
- * string_agg, or the raw arrays from a subquery.
+ * Map a raw query row into ScheduleWithDetails.
+ *
+ * Expects `technician_workflow` as a JSON array from json_agg, plus
+ * `technician_ids` and `technician_names` as comma-separated strings.
  */
 function mapScheduleRow(row: any): ScheduleWithDetails {
   const techIds: string[] = row.technician_ids
@@ -99,6 +133,19 @@ function mapScheduleRow(row: any): ScheduleWithDetails {
       ? row.technician_names.split(',').filter(Boolean)
       : row.technician_names
     : [];
+
+  // Parse the JSON workflow array from the subquery
+  let technicianWorkflow: TechnicianWorkflowStatus[] = [];
+  if (row.technician_workflow) {
+    if (typeof row.technician_workflow === 'string') {
+      try { technicianWorkflow = JSON.parse(row.technician_workflow); } catch { /* ignore */ }
+    } else if (Array.isArray(row.technician_workflow)) {
+      technicianWorkflow = row.technician_workflow;
+    }
+  }
+
+  // Derive rework_version / has_open_rework from the workflow for backward compat
+  const anyTech = technicianWorkflow[0] ?? {};
 
   return {
     id: row.id,
@@ -118,6 +165,10 @@ function mapScheduleRow(row: any): ScheduleWithDetails {
     technician_name: techNames.join(', '),
     technician_ids: techIds,
     technician_names: techNames,
+    technician_workflow: technicianWorkflow,
+    // Backward compat fields — derived from the first tech's workflow
+    current_rework_version: anyTech.current_rework_version ?? 0,
+    has_open_rework: anyTech.has_open_rework ?? false,
     note_count: row.note_count ?? 0,
     attachment_count: row.attachment_count ?? 0,
     signature_count: row.signature_count ?? 0,
@@ -130,6 +181,26 @@ function mapScheduleRow(row: any): ScheduleWithDetails {
     clock_in_time: row.clock_in_time,
   };
 }
+
+const WORKFLOW_SUBQUERY = `
+  COALESCE(
+    (SELECT json_agg(
+      json_build_object(
+        'technician_id', st2.technician_id,
+        'technician_name', u2.name,
+        'status', st2.status,
+        'completed_at', st2.completed_at,
+        'closed_at', st2.closed_at,
+        'current_rework_version', st2.current_rework_version,
+        'has_open_rework', st2.has_open_rework
+      )
+      ORDER BY u2.name
+    ) FROM schedule_technicians st2
+    JOIN users u2 ON u2.id = st2.technician_id
+    WHERE st2.schedule_id = s.id),
+    '[]'::json
+  ) AS technician_workflow
+`;
 
 const SCHEDULE_SELECT = `
   SELECT s.id, s.project_id,
@@ -145,7 +216,8 @@ const SCHEDULE_SELECT = `
          ) AS technician_ids,
          COALESCE(
            string_agg(DISTINCT u.name, ',' ORDER BY u.name), ''
-         ) AS technician_names
+         ) AS technician_names,
+         ${WORKFLOW_SUBQUERY}
 `;
 
 const SCHEDULE_FROM = `
@@ -213,7 +285,7 @@ export async function findByDateRange(from: string, to: string): Promise<Schedul
 }
 
 export async function findForReview(): Promise<ScheduleWithDetails[]> {
-  // For review we also need clock-in data from the first tech who clocked in
+  // Return schedules where ANY technician has work completed or needs rework
   const result = await query(
     SCHEDULE_SELECT + `,
       (SELECT COUNT(*)::int FROM job_notes WHERE schedule_id = s.id) AS note_count,
@@ -240,7 +312,12 @@ export async function findForReview(): Promise<ScheduleWithDetails[]> {
            AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
          ORDER BY te.clock_in LIMIT 1) AS clock_in_time
     ` + SCHEDULE_FROM +
-    ' WHERE s.status IN (\'completed\', \'rework_required\')' +
+    // Filter: any technician is completed, closed-but-unreviewed, or rework_required
+    ` WHERE EXISTS (
+      SELECT 1 FROM schedule_technicians st4
+      WHERE st4.schedule_id = s.id
+        AND st4.status IN ('completed', 'rework_required')
+    )` +
     ' GROUP BY s.id, p.id' +
     ' ORDER BY s.scheduled_date DESC, s.updated_at DESC',
   );
@@ -293,7 +370,7 @@ export async function create(data: {
   );
   const schedule = schedResult.rows[0];
 
-  // Insert each schedule_technician row
+  // Insert each schedule_technician row (defaults to status='scheduled')
   if (data.technician_ids.length > 0) {
     const values = data.technician_ids.map((_, i) => `($1, $${i + 2})`).join(', ');
     await query(
@@ -475,6 +552,17 @@ export interface UpdateStatusResult {
   audit: AuditLog;
 }
 
+/**
+ * Update a specific technician's workflow status on a schedule.
+ *
+ * - Writes to `schedule_technicians.status` (the authoritative per-tech state).
+ * - Derives and updates `schedules.status` from the aggregate of all techs.
+ * - Sets `completed_at` / `closed_at` on the per-tech row at transition time.
+ *
+ * @param data.technician_id - Required for field_technician; optional for
+ *   office/admin. If omitted for office/admin, updates ALL technicians on
+ *   the schedule (useful for bulk close).
+ */
 export async function updateStatus(data: {
   id: string;
   status: JobStatus;
@@ -498,53 +586,114 @@ export async function updateStatus(data: {
       throw new ValidationError('Schedule not found', 404);
     }
 
-    const oldStatus = lockResult.rows[0].status as JobStatus;
+    const projectId = lockResult.rows[0].project_id;
 
-    // Fetch assigned technician IDs for ownership check
+    // Fetch all assigned technicians for ownership check
     const techResult = await client.query(
       'SELECT technician_id FROM schedule_technicians WHERE schedule_id = $1',
       [data.id],
     );
     const techIds = techResult.rows.map((r: any) => r.technician_id);
 
-    // Validate the transition
-    validateTransition(
-      oldStatus,
-      data.status,
-      data.user_role,
-      techIds,
-      data.user_id,
-    );
-
-    // Update the schedule status
-    const updateResult = await client.query(
-      `UPDATE schedules SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [data.status, data.id],
-    );
-
-    // Insert audit log entry with rework-specific actions
-    let auditAction = 'status_change';
-    if (oldStatus === 'completed' && data.status === 'rework_required') {
-      auditAction = 'rework_requested';
-    } else if (oldStatus === 'rework_required' && data.status === 'on_site') {
-      auditAction = 'rework_resumed';
-    } else if (oldStatus === 'on_site' && data.status === 'completed') {
-      // Check if there was a prior rework (indicated by rework_required in history)
-      auditAction = 'rework_completed';
+    // Determine which technician(s) to update
+    const targetTechIds: string[] = [];
+    if (data.technician_id) {
+      // Validate the target is actually assigned to this schedule
+      if (!techIds.includes(data.technician_id)) {
+        await client.query('ROLLBACK');
+        throw new ValidationError('Technician is not assigned to this schedule', 400);
+      }
+      targetTechIds.push(data.technician_id);
+    } else {
+      // No specific tech — field_technician must target themselves
+      if (data.user_role === 'field_technician') {
+        await client.query('ROLLBACK');
+        throw new ValidationError('Technician ID is required', 400);
+      }
+      // Office/admin with no tech_id: update all
+      targetTechIds.push(...techIds);
     }
 
-    const metadata = data.notes ? JSON.stringify({ notes: data.notes, action: auditAction }) : JSON.stringify({ action: auditAction });
+    if (targetTechIds.length === 0) {
+      await client.query('ROLLBACK');
+      throw new ValidationError('No technicians to update', 400);
+    }
+
+    // For each target technician, get their current per-tech status and validate
+    for (const techId of targetTechIds) {
+      const techStatusResult = await client.query(
+        'SELECT status FROM schedule_technicians WHERE schedule_id = $1 AND technician_id = $2',
+        [data.id, techId],
+      );
+
+      if (techStatusResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        throw new ValidationError(`Technician ${techId} not found on this schedule`, 404);
+      }
+
+      const oldTechStatus = techStatusResult.rows[0].status as JobStatus;
+
+      // Validate the transition
+      validateTransition(
+        oldTechStatus,
+        data.status,
+        data.user_role,
+        [techId], // For field_technician: check they own this row
+        data.technician_id || data.user_id,
+      );
+    }
+
+    // Update each target technician's schedule_technicians row
+    for (const techId of targetTechIds) {
+      await client.query(
+        `UPDATE schedule_technicians
+         SET status = $1,
+             updated_at = NOW(),
+             completed_at = CASE WHEN $1 = 'completed' THEN NOW() ELSE completed_at END,
+             closed_at = CASE WHEN $1 = 'closed' THEN NOW() ELSE closed_at END,
+             has_open_rework = CASE
+               WHEN $1 = 'rework_required' THEN TRUE
+               WHEN $1 IN ('completed', 'closed') THEN FALSE
+               ELSE has_open_rework
+             END
+         WHERE schedule_id = $2 AND technician_id = $3`,
+        [data.status, data.id, techId],
+      );
+    }
+
+    // Derive the aggregate schedule status from per-tech rows
+    const derivedStatus = await deriveScheduleStatus(data.id);
+
+    // Update the schedule row with the derived status
+    await client.query(
+      `UPDATE schedules SET status = $1, updated_at = NOW() WHERE id = $2`,
+      [derivedStatus, data.id],
+    );
+
+    // Insert audit log entry
+    const techDescription = targetTechIds.length === 1
+      ? `technician ${targetTechIds[0]}`
+      : `${targetTechIds.length} technicians`;
+    let auditAction = 'status_change';
+    if (data.status === 'rework_required') {
+      auditAction = 'rework_requested';
+    } else if (data.status === 'closed') {
+      auditAction = 'review_closed';
+    }
+
+    const auditMetadata = data.notes
+      ? JSON.stringify({ notes: data.notes, action: auditAction, technicians: targetTechIds })
+      : JSON.stringify({ action: auditAction, technicians: targetTechIds });
+
     const auditResult = await client.query(
       `INSERT INTO audit_logs (schedule_id, user_id, action, old_status, new_status, metadata)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [data.id, data.user_id, auditAction, oldStatus, data.status, metadata],
+      [data.id, data.user_id, auditAction, lockResult.rows[0].status, derivedStatus, auditMetadata],
     );
 
-    const projectId = lockResult.rows[0].project_id;
-
-    // Auto-complete project if this was the last non-closed, non-cancelled schedule
-    if (data.status === 'closed') {
+    // Auto-complete project if this was the last non-closed schedule
+    if (derivedStatus === 'closed') {
       const remainingResult = await client.query(
         `SELECT COUNT(*) AS count FROM schedules WHERE project_id = $1 AND status NOT IN ('closed', 'cancelled')`,
         [projectId],
@@ -559,7 +708,7 @@ export async function updateStatus(data: {
     }
 
     // Revert project to active if a closed schedule is reopened
-    if (oldStatus === 'closed' && data.status !== 'closed') {
+    if (lockResult.rows[0].status === 'closed' && derivedStatus !== 'closed') {
       await client.query(
         `UPDATE projects SET status = 'active', updated_at = NOW() WHERE id = $1 AND status = 'completed'`,
         [projectId],
