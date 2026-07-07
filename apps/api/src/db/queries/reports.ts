@@ -66,8 +66,9 @@ export async function getTimeEntriesReport(filters: {
     FROM time_entries te
     JOIN users u ON u.id = te.user_id
     JOIN projects p ON p.id = te.project_id
-    LEFT JOIN schedules s ON s.project_id = te.project_id AND s.technician_id = te.user_id
+    LEFT JOIN schedules s ON s.project_id = te.project_id
       AND s.scheduled_date = te.clock_in::date
+    LEFT JOIN schedule_technicians st ON st.schedule_id = s.id AND st.technician_id = te.user_id
     WHERE 1=1`;
   const params: unknown[] = [];
   let idx = 1;
