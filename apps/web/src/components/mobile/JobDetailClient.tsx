@@ -223,19 +223,28 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     // Refetch when a note is added to this schedule
     const unsubNote = onNoteAdded((event) => {
       if (event.schedule_id === scheduleId) {
-        getJobNotes(scheduleId).then(setNotes).catch(() => {});
+        getJobNotes(scheduleId).then((data) => {
+          const uid = session?.user?.id;
+          setNotes(uid ? data.filter((n) => n.technician_id ? n.technician_id === uid : n.user_id === uid) : data);
+        }).catch(() => {});
       }
     });
     // Refetch when an attachment is uploaded/deleted for this schedule
     const unsubAttachment = onAttachmentUpdate((event) => {
       if (event.schedule_id === scheduleId) {
-        getJobAttachments(scheduleId).then(setAttachments).catch(() => {});
+        getJobAttachments(scheduleId).then((data) => {
+          const uid = session?.user?.id;
+          setAttachments(uid ? data.filter((a) => a.technician_id ? a.technician_id === uid : a.user_id === uid) : data);
+        }).catch(() => {});
       }
     });
     // Refetch when a signature is captured for this schedule
     const unsubSignature = onSignatureCaptured((event) => {
       if (event.schedule_id === scheduleId) {
-        getJobSignatures(scheduleId).then(setSignatures).catch(() => {});
+        getJobSignatures(scheduleId).then((data) => {
+          const uid = session?.user?.id;
+          setSignatures(uid ? data.filter((s) => s.technician_id ? s.technician_id === uid : s.user_id === uid) : data);
+        }).catch(() => {});
       }
     });
 
