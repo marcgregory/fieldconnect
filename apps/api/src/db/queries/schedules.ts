@@ -358,9 +358,14 @@ export async function findCompletedTechnicians(): Promise<ReviewItem[]> {
       st.current_rework_version,
       st.has_open_rework,
       -- Per-tech evidence counts
-      (SELECT COUNT(*)::int FROM job_notes jn WHERE jn.schedule_id = s.id AND jn.technician_id = st.technician_id) AS note_count,
+      (SELECT COUNT(*)::int FROM job_notes jn WHERE jn.schedule_id = s.id AND jn.technician_id = st.technician_id AND jn.note_type = 'technician') AS note_count,
       (SELECT COUNT(*)::int FROM job_attachments ja WHERE ja.schedule_id = s.id AND ja.technician_id = st.technician_id) AS attachment_count,
       (SELECT COUNT(*)::int FROM signatures sig WHERE sig.schedule_id = s.id AND sig.technician_id = st.technician_id) AS signature_count,
+      -- Per-type attachment counts for accurate collapsed checklist
+      (SELECT COUNT(*)::int FROM job_attachments ja WHERE ja.schedule_id = s.id AND ja.technician_id = st.technician_id AND ja.attachment_type = 'before') AS before_photo_count,
+      (SELECT COUNT(*)::int FROM job_attachments ja WHERE ja.schedule_id = s.id AND ja.technician_id = st.technician_id AND ja.attachment_type = 'during') AS during_photo_count,
+      (SELECT COUNT(*)::int FROM job_attachments ja WHERE ja.schedule_id = s.id AND ja.technician_id = st.technician_id AND ja.attachment_type = 'after') AS after_photo_count,
+      (SELECT COUNT(*)::int FROM job_attachments ja WHERE ja.schedule_id = s.id AND ja.technician_id = st.technician_id AND ja.attachment_type = 'document') AS document_count,
       -- Per-tech clock-in GPS (first matching time_entry on this date)
       (SELECT te.clock_in_lat FROM time_entries te
          WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
@@ -422,6 +427,10 @@ export async function findCompletedTechnicians(): Promise<ReviewItem[]> {
     note_count: row.note_count ?? 0,
     attachment_count: row.attachment_count ?? 0,
     signature_count: row.signature_count ?? 0,
+    before_photo_count: row.before_photo_count ?? 0,
+    during_photo_count: row.during_photo_count ?? 0,
+    after_photo_count: row.after_photo_count ?? 0,
+    document_count: row.document_count ?? 0,
     current_rework_version: row.current_rework_version ?? 0,
     has_open_rework: row.has_open_rework ?? false,
     other_technicians: row.other_technicians || [],

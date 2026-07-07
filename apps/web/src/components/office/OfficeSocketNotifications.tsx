@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { useSocket } from '@/hooks/useSocket';
 import { useToast } from '@/components/Toast';
 
@@ -9,6 +10,7 @@ import { useToast } from '@/components/Toast';
  * Only visible when mounted under ToastProvider.
  */
 export function OfficeSocketNotifications() {
+  const { data: session } = useSession();
   const { addToast } = useToast();
   const {
     isConnected,
@@ -18,9 +20,10 @@ export function OfficeSocketNotifications() {
     lastSignatureEvent,
   } = useSocket();
 
-  // Job status change notifications
+  // Job status change notifications (skip if I'm the actor)
   useEffect(() => {
     if (!lastJobEvent) return;
+    if (lastJobEvent.changed_by === session?.user?.name) return;
 
     const event = lastJobEvent;
     switch (event.type) {
@@ -46,22 +49,24 @@ export function OfficeSocketNotifications() {
         });
         break;
     }
-  }, [lastJobEvent, addToast]);
+  }, [lastJobEvent, addToast, session?.user?.name]);
 
-  // Note added notifications
+  // Note added notifications (skip if I'm the actor)
   useEffect(() => {
     if (!lastNoteEvent) return;
+    if (lastNoteEvent.user_name === session?.user?.name) return;
 
     addToast({
       message: `Note added to ${lastNoteEvent.project_name} by ${lastNoteEvent.user_name}`,
       type: 'info',
       duration: 4000,
     });
-  }, [lastNoteEvent, addToast]);
+  }, [lastNoteEvent, addToast, session?.user?.name]);
 
-  // Attachment notifications
+  // Attachment notifications (skip if I'm the actor)
   useEffect(() => {
     if (!lastAttachmentEvent) return;
+    if (lastAttachmentEvent.user_name === session?.user?.name) return;
 
     if (lastAttachmentEvent.type === 'attachment_uploaded') {
       addToast({
@@ -76,18 +81,19 @@ export function OfficeSocketNotifications() {
         duration: 4000,
       });
     }
-  }, [lastAttachmentEvent, addToast]);
+  }, [lastAttachmentEvent, addToast, session?.user?.name]);
 
-  // Signature notifications
+  // Signature notifications (skip if I'm the actor)
   useEffect(() => {
     if (!lastSignatureEvent) return;
+    if (lastSignatureEvent.user_name === session?.user?.name) return;
 
     addToast({
       message: `Signature captured on ${lastSignatureEvent.project_name} by ${lastSignatureEvent.user_name}`,
       type: 'success',
       duration: 5000,
     });
-  }, [lastSignatureEvent, addToast]);
+  }, [lastSignatureEvent, addToast, session?.user?.name]);
 
   return null; // This component doesn't render anything
 }

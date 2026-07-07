@@ -352,6 +352,8 @@ export interface JobNote {
 export interface CreateJobNoteInput {
   content: string;
   note_type?: NoteType;
+  /** For internal notes added from a specific technician's review card */
+  technician_id?: string;
 }
 
 export interface JobAttachment {
@@ -551,6 +553,11 @@ export interface ReviewItem {
   note_count: number;
   attachment_count: number;
   signature_count: number;
+  // Per-type attachment counts for collapsed checklist accuracy
+  before_photo_count: number;
+  during_photo_count: number;
+  after_photo_count: number;
+  document_count: number;
   // Rework
   current_rework_version: number;
   has_open_rework: boolean;

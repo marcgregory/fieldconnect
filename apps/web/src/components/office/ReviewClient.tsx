@@ -44,60 +44,66 @@ interface ChecklistItem {
   gpsStatus?: 'verified' | 'outside' | 'unavailable' | null;
 }
 
-const REQUIRED_ITEMS: ChecklistItem[] = [
-  { label: 'Technician Notes', present: false, count: 0, required: true },
-  { label: 'Before Photo', present: false, count: 0, required: true },
-  { label: 'After Photo', present: false, count: 0, required: true },
-  { label: 'Customer Signature', present: false, count: 0, required: true },
-];
+/**
+ * Build a per-technician checklist from either expanded data or ReviewItem
+ * summary counts. This is the SINGLE source of truth — used identically in
+ * collapsed and expanded views so they always agree.
+ */
+function buildTechnicianReviewChecklist(
+  item: ReviewItem,
+  data?: ExpandedData,
+) {
+  // Expanded mode: use full data
+  if (data && !data.loading) {
+    const techNotes = data.notes.filter((n) => n.note_type === 'technician');
+    const internalNotes = data.notes.filter((n) => n.note_type === 'internal');
+    const beforePhotos = data.attachments.filter((a) => a.attachment_type === 'before');
+    const duringPhotos = data.attachments.filter((a) => a.attachment_type === 'during');
+    const afterPhotos = data.attachments.filter((a) => a.attachment_type === 'after');
+    const documents = data.attachments.filter((a) => a.attachment_type === 'document');
 
-const OPTIONAL_ITEMS: ChecklistItem[] = [
-  { label: 'During Photos', present: false, count: 0, required: false },
-  { label: 'Internal Notes', present: false, count: 0, required: false },
-  { label: 'Documents', present: false, count: 0, required: false },
-];
+    function photoGpsStatus(photos: JobAttachment[]): ChecklistItem['gpsStatus'] {
+      if (photos.length === 0) return null;
+      const allInside = photos.every((p) => p.inside_geofence === true);
+      const anyGps = photos.some((p) => p.latitude != null);
+      if (!anyGps) return 'unavailable';
+      return allInside ? 'verified' : 'outside';
+    }
 
-function evaluateChecklist(notes: JobNote[], attachments: JobAttachment[], signatures: Signature[]) {
-  const techNotes = notes.filter((n) => n.note_type === 'technician');
-  const internalNotes = notes.filter((n) => n.note_type === 'internal');
-  const beforePhotos = attachments.filter((a) => a.attachment_type === 'before');
-  const duringPhotos = attachments.filter((a) => a.attachment_type === 'during');
-  const afterPhotos = attachments.filter((a) => a.attachment_type === 'after');
-  const documents = attachments.filter((a) => a.attachment_type === 'document');
+    const required: ChecklistItem[] = [
+      { label: 'Technician Notes', present: techNotes.length > 0, count: techNotes.length, required: true },
+      { label: 'Before Photo', present: beforePhotos.length > 0, count: beforePhotos.length, required: true, gpsStatus: photoGpsStatus(beforePhotos) },
+      { label: 'After Photo', present: afterPhotos.length > 0, count: afterPhotos.length, required: true, gpsStatus: photoGpsStatus(afterPhotos) },
+      { label: 'Customer Signature', present: data.signatures.length > 0, count: data.signatures.length, required: true },
+    ];
 
-  /** Determine GPS quality for a set of photos */
-  function photoGpsStatus(photos: JobAttachment[]): ChecklistItem['gpsStatus'] {
-    if (photos.length === 0) return null;
-    const allInside = photos.every((p) => p.inside_geofence === true);
-    const anyGps = photos.some((p) => p.latitude != null);
-    if (!anyGps) return 'unavailable';
-    return allInside ? 'verified' : 'outside';
+    const optional: ChecklistItem[] = [
+      { label: 'During Photos', present: duringPhotos.length > 0, count: duringPhotos.length, required: false, gpsStatus: photoGpsStatus(duringPhotos) },
+      { label: 'Internal Notes', present: internalNotes.length > 0, count: internalNotes.length, required: false },
+      { label: 'Documents', present: documents.length > 0, count: documents.length, required: false },
+    ];
+
+    const allRequired = required.every((r) => r.present);
+    const presentCount = [...required, ...optional].filter((r) => r.present).length;
+    const totalCount = [...required, ...optional].length;
+    const score = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+
+    return { required, optional, allRequired, score, presentCount, totalCount };
   }
 
-  const required = REQUIRED_ITEMS.map((item) => {
-    switch (item.label) {
-      case 'Technician Notes': return { ...item, present: techNotes.length > 0, count: techNotes.length };
-      case 'Before Photo': {
-        const base = { ...item, present: beforePhotos.length > 0, count: beforePhotos.length };
-        return { ...base, gpsStatus: photoGpsStatus(beforePhotos) };
-      }
-      case 'After Photo': {
-        const base = { ...item, present: afterPhotos.length > 0, count: afterPhotos.length };
-        return { ...base, gpsStatus: photoGpsStatus(afterPhotos) };
-      }
-      case 'Customer Signature': return { ...item, present: signatures.length > 0, count: signatures.length };
-      default: return item;
-    }
-  });
+  // Collapsed mode: use per-type summary counts from the review query
+  const required: ChecklistItem[] = [
+    { label: 'Technician Notes', present: item.note_count > 0, count: item.note_count, required: true },
+    { label: 'Before Photo', present: item.before_photo_count > 0, count: item.before_photo_count, required: true },
+    { label: 'After Photo', present: item.after_photo_count > 0, count: item.after_photo_count, required: true },
+    { label: 'Customer Signature', present: item.signature_count > 0, count: item.signature_count, required: true },
+  ];
 
-  const optional = OPTIONAL_ITEMS.map((item) => {
-    switch (item.label) {
-      case 'During Photos': return { ...item, present: duringPhotos.length > 0, count: duringPhotos.length, gpsStatus: photoGpsStatus(duringPhotos) };
-      case 'Internal Notes': return { ...item, present: internalNotes.length > 0, count: internalNotes.length };
-      case 'Documents': return { ...item, present: documents.length > 0, count: documents.length };
-      default: return item;
-    }
-  });
+  const optional: ChecklistItem[] = [
+    { label: 'During Photos', present: item.during_photo_count > 0, count: item.during_photo_count, required: false },
+    { label: 'Internal Notes', present: false, count: 0, required: false },
+    { label: 'Documents', present: item.document_count > 0, count: item.document_count, required: false },
+  ];
 
   const allRequired = required.every((r) => r.present);
   const presentCount = [...required, ...optional].filter((r) => r.present).length;
@@ -216,31 +222,7 @@ export function ReviewClient() {
   }
 
   function getChecklistData(item: ReviewItem, data: ExpandedData | undefined) {
-    if (data && !data.loading) {
-      return evaluateChecklist(data.notes, data.attachments, data.signatures);
-    }
-    // Fallback: use summary counts from query (already per-tech)
-    const hasNotes = (item.note_count ?? 0) > 0;
-    const hasAttachments = (item.attachment_count ?? 0) > 0;
-    const hasSig = (item.signature_count ?? 0) > 0;
-
-    const required = REQUIRED_ITEMS.map((r) => {
-      switch (r.label) {
-        case 'Technician Notes': return { ...r, present: hasNotes, count: item.note_count ?? 0 };
-        case 'Before Photo': return { ...r, present: hasAttachments, count: item.attachment_count ?? 0 };
-        case 'After Photo': return { ...r, present: hasAttachments, count: item.attachment_count ?? 0 };
-        case 'Customer Signature': return { ...r, present: hasSig, count: item.signature_count ?? 0 };
-        default: return r;
-      }
-    });
-    const optional = OPTIONAL_ITEMS.map(() => ({ ...OPTIONAL_ITEMS[0], present: false, count: 0 }));
-
-    const allRequired = required.every((r) => r.present);
-    const presentCount = [...required, ...optional].filter((r) => r.present).length;
-    const totalCount = [...required, ...optional].length;
-    const score = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
-
-    return { required, optional, allRequired, score, presentCount, totalCount };
+    return buildTechnicianReviewChecklist(item, data);
   }
 
   async function handleClose(item: ReviewItem) {
@@ -301,7 +283,7 @@ export function ReviewClient() {
     setSavingInternalNote((prev) => ({ ...prev, [key]: true }));
     setError('');
     try {
-      await addJobNote(item.schedule_id, { content, note_type: 'internal' });
+      await addJobNote(item.schedule_id, { content, note_type: 'internal', technician_id: item.technician_id });
       setInternalNotes((prev) => ({ ...prev, [key]: '' }));
       const notes = await getJobNotes(item.schedule_id, item.technician_id);
       setExpanded((prev) => ({

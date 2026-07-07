@@ -9,7 +9,9 @@ export async function findBySchedule(scheduleId: string, technicianId?: string):
   const params: unknown[] = [scheduleId];
   if (technicianId) {
     params.push(technicianId);
-    sql += ` AND (jn.technician_id = $2 OR jn.technician_id IS NULL)`;
+    // For technician notes: include notes created without technician_id (legacy).
+    // For internal notes: match the requested technician only (never bleed across cards).
+    sql += ` AND (jn.technician_id = $2 OR (jn.technician_id IS NULL AND jn.note_type = 'technician'))`;
   }
   sql += ` ORDER BY jn.created_at DESC`;
   const result = await query(sql, params);
