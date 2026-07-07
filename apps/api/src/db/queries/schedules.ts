@@ -652,11 +652,11 @@ export async function updateStatus(data: {
         `UPDATE schedule_technicians
          SET status = $1,
              updated_at = NOW(),
-             completed_at = CASE WHEN $1 = 'completed' THEN NOW() ELSE completed_at END,
-             closed_at = CASE WHEN $1 = 'closed' THEN NOW() ELSE closed_at END,
+             completed_at = CASE WHEN $1::text = 'completed' THEN NOW() ELSE completed_at END,
+             closed_at = CASE WHEN $1::text = 'closed' THEN NOW() ELSE closed_at END,
              has_open_rework = CASE
-               WHEN $1 = 'rework_required' THEN TRUE
-               WHEN $1 IN ('completed', 'closed') THEN FALSE
+               WHEN $1::text = 'rework_required' THEN TRUE
+               WHEN $1::text IN ('completed', 'closed') THEN FALSE
                ELSE has_open_rework
              END
          WHERE schedule_id = $2 AND technician_id = $3`,
