@@ -89,21 +89,24 @@ export interface ScheduleRow {
 /**
  * Derive the aggregate schedules.status from per-technician statuses.
  *
- * Priority (highest wins):
+ * Represents the **operational state** — what's actually happening — not
+ * the most advanced state:
+ *
  *   1. rework_required  — any tech needs rework
- *   2. completed        — any tech completed (needs review)
- *   3. on_site          — any tech is on site
- *   4. traveling        — any tech is traveling
- *   5. closed           — ALL techs are closed (or cancelled)
- *   6. scheduled        — fallback
+ *   2. on_site          — any tech is currently on site
+ *   3. traveling        — any tech is traveling
+ *   4. scheduled        — any tech is still scheduled (hasn't started)
+ *   5. completed        — all active techs have completed (awaiting review)
+ *   6. closed           — ALL techs are closed
  */
 async function deriveScheduleStatus(scheduleId: string): Promise<JobStatus> {
   const result = await query(
     `SELECT CASE
        WHEN COUNT(*) FILTER (WHERE status = 'rework_required') > 0 THEN 'rework_required'
-       WHEN COUNT(*) FILTER (WHERE status = 'completed') > 0 THEN 'completed'
        WHEN COUNT(*) FILTER (WHERE status = 'on_site') > 0 THEN 'on_site'
        WHEN COUNT(*) FILTER (WHERE status = 'traveling') > 0 THEN 'traveling'
+       WHEN COUNT(*) FILTER (WHERE status = 'scheduled') > 0 THEN 'scheduled'
+       WHEN COUNT(*) FILTER (WHERE status = 'completed') > 0 THEN 'completed'
        WHEN COUNT(*) FILTER (WHERE status = 'closed') = COUNT(*) THEN 'closed'
        ELSE 'scheduled'
      END::text AS derived_status
