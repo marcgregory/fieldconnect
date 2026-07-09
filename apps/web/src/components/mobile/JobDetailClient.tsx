@@ -304,7 +304,11 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
       const isForThisProject = activeTimeEntry?.project_id === schedule.project_id;
 
       if (!activeTimeEntry) {
-        // No active entry — auto-clock-in to this project
+        // No active entry — auto-clock-in to this project.
+        // clockIn() and getCurrentEntry() are intentionally separated so
+        // that a non-critical getCurrentEntry() failure does NOT abort
+        // the subsequent updateScheduleStatus() call.
+        let clockInSucceeded = false;
         try {
           const pos = await captureGps();
           await clockIn(
@@ -314,9 +318,16 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             pos?.lng,
             pos?.accuracy,
           );
-          // Refetch to get the authoritative time entry
-          const entry = await getCurrentEntry();
-          setActiveTimeEntry(entry);
+          clockInSucceeded = true;
+          // Best-effort: refetch to get authoritative time entry
+          // (non-critical — clock-in succeeded, proceed regardless)
+          try {
+            const entry = await getCurrentEntry();
+            setActiveTimeEntry(entry);
+          } catch {
+            // Non-critical — clock-in already succeeded; time entry state
+            // will catch up on the next fetchAll() call
+          }
         } catch (clockErr) {
           setError(
             clockErr instanceof Error
@@ -326,6 +337,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           setTransitioning(false);
           return;
         }
+        if (!clockInSucceeded) return; // safety guard
       } else if (!isForThisProject) {
         // Active entry for a different project — warn
         setError(

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ScheduleWithDetails } from '@fieldconnect/shared';
+import type { ScheduleWithDetails, JobStatus } from '@fieldconnect/shared';
 
 interface ScheduleCardProps {
   schedule: ScheduleWithDetails;
@@ -32,7 +32,17 @@ const CONFLICT_STYLES: Record<string, string> = {
 };
 
 export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, conflictType }: ScheduleCardProps) {
-  const style = STATUS_STYLES[schedule.status] || STATUS_STYLES.scheduled;
+  // Derive per-technician status from technician_workflow when the schedule
+  // has exactly one technician assigned — this is the authoritative status
+  // for that technician, more accurate than the aggregate schedules.status.
+  const effectiveStatus: JobStatus = (() => {
+    if (schedule.technician_workflow?.length === 1) {
+      return schedule.technician_workflow[0].status;
+    }
+    return schedule.status;
+  })();
+
+  const style = STATUS_STYLES[effectiveStatus] || STATUS_STYLES.scheduled;
   const conflictStyle = hasConflict && conflictType ? CONFLICT_STYLES[conflictType] || '' : '';
 
   function handleClick(e: React.MouseEvent) {
@@ -79,7 +89,7 @@ export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, 
         </div>
         <span className={`inline-flex items-center gap-1 text-[10px] font-medium whitespace-nowrap`}>
           <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-          {STATUS_LABELS[schedule.status] || schedule.status}
+          {STATUS_LABELS[effectiveStatus] || effectiveStatus}
         </span>
       </div>
       <div className="flex items-center gap-2 mt-0.5">
