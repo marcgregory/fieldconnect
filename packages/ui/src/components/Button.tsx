@@ -11,13 +11,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
+    'bg-slate-950 text-white shadow-lg shadow-slate-950/20 hover:bg-slate-800 focus:ring-brand-500',
   secondary:
-    'bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-400',
+    'border border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-stone-50 focus:ring-brand-500',
   danger:
-    'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+    'bg-red-600 text-white shadow-lg shadow-red-600/20 hover:bg-red-700 focus:ring-red-500',
   ghost:
-    'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-400',
+    'bg-transparent text-slate-700 hover:bg-slate-100 focus:ring-brand-500',
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -37,13 +37,13 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-px ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
       disabled={disabled || loading}
       {...props}
     >
       {loading && (
         <svg
-          className="animate-spin -ml-1 mr-2 h-4 w-4"
+          className="-ml-1 mr-2 h-4 w-4 animate-spin"
           fill="none"
           viewBox="0 0 24 24"
         >

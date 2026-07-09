@@ -17,13 +17,12 @@ export default async function OfficeLayout({ children }: { children: React.React
     redirect('/login');
   }
 
-  // Field technicians should not access office routes
   if (session.user.role === 'field_technician') {
     redirect('/mobile');
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen surface-grid">
       <OfficeClientWrapper>
         <OfficeNav />
         {children}

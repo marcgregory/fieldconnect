@@ -29,63 +29,62 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-blue-600 text-white px-4 pt-12 pb-6">
-        <div className="flex items-center justify-between mb-2">
+    <div className="flex min-h-screen flex-col bg-stone-50">
+      <div className="bg-slate-950 px-4 pb-7 pt-12 text-white">
+        <div className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Logo size={22} />
-            <h1 className="text-lg font-bold">FieldConnect</h1>
+            <Logo size={28} />
+            <h1 className="text-lg font-black tracking-tight">FieldConnect</h1>
           </div>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
-            className="text-white/80 text-sm"
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-white/80"
           >
             Sign Out
           </button>
         </div>
-        <p className="text-white/80 text-sm">Welcome, {user.name}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-200">Field console</p>
+        <p className="mt-1 text-xl font-bold">Welcome, {user.name}</p>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 px-4 py-6 space-y-4">
+      <div className="-mt-4 flex-1 space-y-4 px-4 pb-6">
         {view === 'home' ? (
           <>
-            {/* Clock In/Out */}
             <ClockInOut userId={user.id} onStatusChange={handleStatusChange} />
 
-            {/* Today's Jobs / Quick Links */}
             <Card title="Quick Links">
               <div className="space-y-3">
                 <button
                   onClick={() => setView('history')}
-                  className="w-full text-left px-4 py-3 rounded-lg bg-gray-50 text-gray-700 font-medium active:bg-gray-100 transition-colors"
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left font-bold text-slate-800 shadow-sm transition-colors active:bg-stone-100"
                 >
                   Time History
+                  <span className="text-slate-400">View</span>
                 </button>
                 <button
                   onClick={() => router.push('/jobs')}
-                  className="w-full text-left px-4 py-3 rounded-lg bg-gray-50 text-gray-700 font-medium active:bg-gray-100 transition-colors"
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left font-bold text-slate-800 shadow-sm transition-colors active:bg-stone-100"
                 >
                   My Jobs
+                  <span className="text-brand-700">Open</span>
                 </button>
                 <button
-                  className="w-full text-left px-4 py-3 rounded-lg bg-gray-50 text-gray-700 font-medium active:bg-gray-100 transition-colors"
+                  className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-100/70 px-4 py-3 text-left font-bold text-slate-400"
                   disabled
                 >
                   Profile
+                  <span>Soon</span>
                 </button>
               </div>
             </Card>
 
-            {/* Today's Activity */}
             <TimeHistory refreshTrigger={refreshKey} />
           </>
         ) : (
           <>
             <button
               onClick={() => setView('home')}
-              className="text-blue-600 font-medium text-sm flex items-center gap-1"
+              className="flex items-center gap-1 pt-4 text-sm font-bold text-brand-700"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />

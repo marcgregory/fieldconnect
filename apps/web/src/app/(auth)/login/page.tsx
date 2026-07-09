@@ -40,49 +40,54 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-      <div className="text-center mb-8">
-        <div className="flex justify-center mb-3">
-          <Logo size={48} />
+    <div className="premium-panel overflow-hidden rounded-[1.75rem] p-0">
+      <div className="bg-slate-950 px-8 py-7 text-white">
+        <div className="mb-8 flex items-center justify-between">
+          <Logo size={42} />
+          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-brand-200">
+            Secure
+          </span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">FieldConnect</h1>
-        <p className="text-gray-500 mt-1">Sign in to your account</p>
+        <h1 className="text-3xl font-black tracking-tight">FieldConnect</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-300">Sign in to coordinate crews, schedules, evidence, and field time.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          required
-          placeholder="you@company.com"
-        />
+      <div className="px-8 py-7">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            label="Email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder="you@company.com"
+          />
 
-        <Input
-          label="Password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          placeholder="••••••••"
-        />
+          <Input
+            label="Password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            placeholder="Enter password"
+          />
 
-        {error && (
-          <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{error}</div>
-        )}
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">{error}</div>
+          )}
 
-        <Button type="submit" loading={loading} className="w-full">
-          Sign In
-        </Button>
-      </form>
+          <Button type="submit" loading={loading} className="w-full">
+            Sign In
+          </Button>
+        </form>
 
-      <p className="text-center text-sm text-gray-500 mt-6">
-        Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
-          Sign up
-        </Link>
-      </p>
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Don&apos;t have an account?{' '}
+          <Link href="/register" className="font-bold text-brand-700 hover:text-brand-800">
+            Sign up
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

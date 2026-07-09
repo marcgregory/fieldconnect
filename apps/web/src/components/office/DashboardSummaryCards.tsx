@@ -5,6 +5,16 @@ import { getDashboardSummary } from '@/lib/api';
 import { useSocket } from '@/hooks/useSocket';
 import type { DashboardSummary } from '@fieldconnect/shared';
 
+type CardTone = 'amber' | 'emerald' | 'teal' | 'slate' | 'red';
+
+const toneStyles: Record<CardTone, string> = {
+  amber: 'from-brand-50 to-white text-brand-800 border-brand-200',
+  emerald: 'from-emerald-50 to-white text-emerald-800 border-emerald-200',
+  teal: 'from-teal-50 to-white text-teal-800 border-teal-200',
+  slate: 'from-slate-100 to-white text-slate-700 border-slate-200',
+  red: 'from-red-50 to-white text-red-700 border-red-200',
+};
+
 export function DashboardSummaryCards() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,12 +34,10 @@ export function DashboardSummaryCards() {
 
   useEffect(() => {
     fetchSummary();
-    // Refresh every 60 seconds
     const interval = setInterval(fetchSummary, 60000);
     return () => clearInterval(interval);
   }, [fetchSummary]);
 
-  // Refetch when a technician clocks in or out (real-time via socket)
   const { lastEvent } = useSocket();
   useEffect(() => {
     if (!lastEvent) return;
@@ -38,11 +46,11 @@ export function DashboardSummaryCards() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 animate-pulse">
-            <div className="h-3 bg-gray-200 rounded w-20 mb-3" />
-            <div className="h-8 bg-gray-200 rounded w-12" />
+          <div key={i} className="h-32 animate-pulse rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
+            <div className="mb-5 h-3 w-20 rounded bg-slate-200" />
+            <div className="h-9 w-16 rounded bg-slate-200" />
           </div>
         ))}
       </div>
@@ -51,9 +59,9 @@ export function DashboardSummaryCards() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-        <p className="text-red-700 text-sm">{error}</p>
-        <button onClick={fetchSummary} className="text-sm text-red-600 underline mt-1">
+      <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
+        <p className="text-sm font-medium text-red-700">{error}</p>
+        <button onClick={fetchSummary} className="mt-1 text-sm font-semibold text-red-600 underline">
           Retry
         </button>
       </div>
@@ -67,73 +75,75 @@ export function DashboardSummaryCards() {
       label: 'Hours This Week',
       value: Number(summary.hours_this_week).toFixed(1),
       unit: 'hrs',
-      color: 'bg-blue-50 border-blue-200 text-blue-700',
+      tone: 'amber' as CardTone,
+      detail: 'Logged labor',
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
       ),
     },
     {
-      label: 'Active Technicians',
+      label: 'Active Techs',
       value: summary.active_technicians,
       unit: '',
-      color: 'bg-green-50 border-green-200 text-green-700',
+      tone: 'emerald' as CardTone,
+      detail: 'Clocked in now',
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
       ),
     },
     {
       label: 'Completed Today',
       value: summary.completed_today,
       unit: '',
-      color: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+      tone: 'teal' as CardTone,
+      detail: 'Closed work',
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       ),
     },
     {
       label: 'Needs Review',
       value: summary.needs_review_count,
       unit: '',
-      color: 'bg-purple-50 border-purple-200 text-purple-700',
+      tone: 'slate' as CardTone,
+      detail: 'Awaiting office',
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 12h6m-6 4h4" />
       ),
     },
     {
       label: 'Late Jobs',
       value: summary.late_jobs_count,
       unit: '',
-      color: summary.late_jobs_count > 0 ? 'bg-red-50 border-red-200 text-red-700' : 'bg-gray-50 border-gray-200 text-gray-600',
+      tone: (summary.late_jobs_count > 0 ? 'red' : 'slate') as CardTone,
+      detail: summary.late_jobs_count > 0 ? 'Needs attention' : 'On track',
       icon: (
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-        </svg>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M4.93 19h14.14c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.2 16c-.77 1.33.19 3 1.73 3z" />
       ),
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
       {cards.map((card) => (
         <div
           key={card.label}
-          className={`rounded-xl border p-4 ${card.color}`}
+          className={`rounded-2xl border bg-gradient-to-br p-4 shadow-sm transition-transform hover:-translate-y-0.5 ${toneStyles[card.tone]}`}
         >
-          <div className="flex items-center gap-2 mb-1">
-            {card.icon}
-            <span className="text-xs font-medium opacity-75">{card.label}</span>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] opacity-70">{card.label}</p>
+              <p className="mt-1 text-xs font-medium opacity-70">{card.detail}</p>
+            </div>
+            <div className="rounded-xl bg-white/70 p-2 shadow-sm">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                {card.icon}
+              </svg>
+            </div>
           </div>
-          <p className="text-2xl font-bold">
+          <p className="text-3xl font-black tracking-tight text-slate-950">
             {card.value}
-            {card.unit && <span className="text-sm font-normal ml-0.5">{card.unit}</span>}
+            {card.unit && <span className="ml-1 text-sm font-semibold text-slate-500">{card.unit}</span>}
           </p>
         </div>
       ))}
