@@ -18,7 +18,7 @@ function formatTime(dateStr: string): string {
 
 function formatDateTime(dateStr: string): string {
   const d = new Date(dateStr);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 const PAGE_SIZE = 20;
