@@ -1112,7 +1112,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                     {index < STATUS_STEPS.length - 1 && (
                       <div
                         className={`w-0.5 h-6 ${
-                          index < currentStep || (status === 'completed' && reworkRequests.some(r => r.status === 'closed'))
+                          index < currentStep || (status === 'completed' && reworkRequests.some(r => r.status === 'completed'))
                             ? 'bg-brand-600'
                             : 'bg-slate-200'
                         }`}
