@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     default: 'FieldConnect',
     template: '%s | FieldConnect',
   },
-  description: 'Project management and time tracking for low voltage contractors',
+  description: 'Project management and time tracking for low voltage contractors — manage jobs, schedules, and field technicians in real-time.',
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -17,13 +17,22 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
   },
+  openGraph: {
+    title: 'FieldConnect',
+    description: 'Project management and time tracking for low voltage contractors',
+    type: 'website',
+    siteName: 'FieldConnect',
+    locale: 'en_US',
+  },
+  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  maximumScale: 5,
   themeColor: '#fafaf7',
+  userScalable: true,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -33,6 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="format-detection" content="telephone=yes" />
+        <meta name="application-name" content="FieldConnect" />
+        <link rel="preconnect" href={process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'} />
       </head>
       <body>
         <SessionProvider>{children}</SessionProvider>

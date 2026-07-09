@@ -7,8 +7,7 @@ import { OfflineIndicator } from '@/components/mobile/OfflineIndicator';
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  maximumScale: 5,
 };
 
 export default async function MobileLayout({ children }: { children: React.ReactNode }) {
