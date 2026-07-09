@@ -12,6 +12,8 @@ type FeedItem = {
   timestamp: Date;
   color: string;
   icon: React.ReactNode;
+  /** Normalized content key for cross-source dedup (historical vs socket). */
+  contentKey: string;
 };
 
 type ApiActivityEvent = {
@@ -155,7 +157,7 @@ export function LiveStatusFeed() {
         if (!json.success || !json.data || cancelled) return;
 
         const items: FeedItem[] = json.data.map((evt: ApiActivityEvent) => ({
-          id: `hist-${evt.id}`, // stable DB UUID prefix for dedup
+          id: `hist-${evt.id}`,
           type: evt.event_type,
           message: evt.message,
           subtext: evt.actor_name
@@ -164,6 +166,15 @@ export function LiveStatusFeed() {
           timestamp: new Date(evt.created_at),
           color: STATUS_COLORS[evt.event_type] || 'border-gray-200',
           icon: getIconForEventType(evt.event_type),
+          // contentKey derived from the event fields so cross-source dedup works
+          // against socket events that represent the same occurrence.
+          contentKey: buildContentKey({
+            type: evt.event_type,
+            schedule_id: evt.schedule_id || '',
+            technician_name: evt.technician_name || evt.actor_name || '',
+            technician_id: evt.technician_id || '',
+            timestamp: evt.created_at,
+          }),
         }));
 
         setHistoricalItems(items);
@@ -178,39 +189,69 @@ export function LiveStatusFeed() {
     return () => { cancelled = true; };
   }, []);
 
-  // Merge historical + socket events into unified feed, dedup by id
+  // Merge historical + socket events into unified feed, dedup by contentKey.
+  //
+  // Duplicate sources:
+  //   1. Historical fetch from DB  → event_type='technician_started_traveling'
+  //   2. Socket job:update         → type='status_change', new_status='traveling'
+  //   Both represent the same real-world occurrence.
+  //
+  // Fix: derive a stable contentKey from the semantic identity of the event
+  // and dedup across sources before adding to the list.
   useEffect(() => {
     const seen = new Set<string>();
     const items: FeedItem[] = [];
 
     // 1. Historical items from DB (stable ids)
     for (const item of historicalItems) {
-      seen.add(item.id);
       items.push(item);
+      seen.add(item.contentKey);
     }
 
-    // 2. Socket-based clock events
-    events.forEach((evt, i) => {
-      const id = `clock-${evt.entry_id}-${i}`;
-      if (seen.has(id)) return;
-      seen.add(id);
+    // 2. Socket-based clock events (no schedule_id — use empty string)
+    for (const evt of events) {
+      const ck = buildContentKey({
+        type: evt.type,
+        schedule_id: '',
+        technician_name: evt.user_name,
+        technician_id: evt.user_id,
+        timestamp: evt.timestamp,
+      });
+      if (seen.has(ck)) continue;
+      seen.add(ck);
 
       items.push({
-        id,
+        id: `clock-${evt.entry_id}-${evt.timestamp}`,
         type: evt.type,
         message: `${evt.user_name} ${evt.type === 'clock_in' ? 'clocked in' : 'clocked out'}`,
         subtext: `${evt.project_name}${evt.duration_hours !== undefined ? ` · ${evt.duration_hours.toFixed(1)}h worked` : ''}`,
         timestamp: new Date(evt.timestamp),
         color: STATUS_COLORS[evt.type] || 'border-gray-200',
         icon: getIconForEventType(evt.type),
+        contentKey: ck,
       });
-    });
+    }
 
-    // 3. Socket-based job events (all)
-    jobEvents.forEach((evt, i) => {
-      const id = `job-${evt.schedule_id}-${evt.timestamp}-${i}`;
-      if (seen.has(id)) return;
-      seen.add(id);
+    // 3. Socket-based job events (array already contains the latest — no need
+    //    for the separate lastJobEvent handling)
+    for (const evt of jobEvents) {
+      // Map socket event_type to a normalized type for cross-source dedup:
+      //   status_change → new_status value (e.g. 'traveling')
+      //   assignment    → 'assignment'
+      //   reassigned    → 'reassigned'
+      const normalizedType = evt.type === 'status_change'
+        ? (evt.new_status || 'status_change')
+        : evt.type;
+
+      const ck = buildContentKey({
+        type: normalizedType,
+        schedule_id: evt.schedule_id,
+        technician_name: evt.technician_name,
+        technician_id: evt.technician_id || '',
+        timestamp: evt.timestamp,
+      });
+      if (seen.has(ck)) continue;
+      seen.add(ck);
 
       const statusLabel = (evt.new_status || '').replace(/_/g, ' ');
       let msg = '';
@@ -236,20 +277,33 @@ export function LiveStatusFeed() {
       }
 
       items.push({
-        id,
+        id: `job-${evt.schedule_id}-${evt.timestamp}`,
         type: evt.type,
         message: msg,
         subtext: sub,
         timestamp: new Date(evt.timestamp),
         color: STATUS_COLORS[evt.type] || 'border-blue-200',
         icon: getIconForEventType(evt.type),
+        contentKey: ck,
       });
-    });
+    }
 
-    // 4. Latest job event (if not already in array)
+    // 4. Latest job event from socket (only if not already covered by array)
     if (lastJobEvent) {
-      const lastId = `job-last-${lastJobEvent.schedule_id}-${lastJobEvent.timestamp}`;
-      if (!seen.has(lastId)) {
+      const normalizedType = lastJobEvent.type === 'status_change'
+        ? (lastJobEvent.new_status || 'status_change')
+        : lastJobEvent.type;
+
+      const ck = buildContentKey({
+        type: normalizedType,
+        schedule_id: lastJobEvent.schedule_id,
+        technician_name: lastJobEvent.technician_name,
+        technician_id: lastJobEvent.technician_id || '',
+        timestamp: lastJobEvent.timestamp,
+      });
+      if (!seen.has(ck)) {
+        seen.add(ck);
+
         const evt = lastJobEvent;
         let message = '';
         let subtext = '';
@@ -272,39 +326,55 @@ export function LiveStatusFeed() {
         }
 
         items.push({
-          id: lastId,
+          id: `job-last-${evt.schedule_id}-${evt.timestamp}`,
           type: evt.type,
           message,
           subtext,
           timestamp: new Date(evt.timestamp),
           color: STATUS_COLORS[evt.type] || 'border-blue-200',
           icon: getIconForEventType(evt.type),
+          contentKey: ck,
         });
       }
     }
 
     // 5. Latest note event
     if (lastNoteEvent) {
-      const noteId = `note-${lastNoteEvent.schedule_id}-${lastNoteEvent.timestamp}`;
-      if (!seen.has(noteId)) {
+      const ck = buildContentKey({
+        type: 'note_added',
+        schedule_id: lastNoteEvent.schedule_id,
+        technician_name: lastNoteEvent.user_name,
+        technician_id: lastNoteEvent.technician_id,
+        timestamp: lastNoteEvent.timestamp,
+      });
+      if (!seen.has(ck)) {
+        seen.add(ck);
         items.push({
-          id: noteId,
+          id: `note-${lastNoteEvent.schedule_id}-${lastNoteEvent.timestamp}`,
           type: 'note_added',
           message: `Note added to ${lastNoteEvent.project_name}`,
           subtext: `by ${lastNoteEvent.user_name}`,
           timestamp: new Date(lastNoteEvent.timestamp),
           color: STATUS_COLORS.note_added,
           icon: getIconForEventType('note_added'),
+          contentKey: ck,
         });
       }
     }
 
     // 6. Latest attachment event
     if (lastAttachmentEvent) {
-      const attId = `att-${lastAttachmentEvent.attachment_id}-${lastAttachmentEvent.timestamp}`;
-      if (!seen.has(attId)) {
+      const ck = buildContentKey({
+        type: lastAttachmentEvent.type,
+        schedule_id: lastAttachmentEvent.schedule_id,
+        technician_name: lastAttachmentEvent.user_name,
+        technician_id: lastAttachmentEvent.technician_id,
+        timestamp: lastAttachmentEvent.timestamp,
+      });
+      if (!seen.has(ck)) {
+        seen.add(ck);
         items.push({
-          id: attId,
+          id: `att-${lastAttachmentEvent.attachment_id}-${lastAttachmentEvent.timestamp}`,
           type: lastAttachmentEvent.type,
           message: lastAttachmentEvent.type === 'attachment_uploaded'
             ? `Photo added to ${lastAttachmentEvent.project_name}`
@@ -313,22 +383,31 @@ export function LiveStatusFeed() {
           timestamp: new Date(lastAttachmentEvent.timestamp),
           color: STATUS_COLORS[lastAttachmentEvent.type] || STATUS_COLORS.attachment_uploaded,
           icon: getIconForEventType(lastAttachmentEvent.type),
+          contentKey: ck,
         });
       }
     }
 
     // 7. Latest signature event
     if (lastSignatureEvent) {
-      const sigId = `sig-${lastSignatureEvent.schedule_id}-${lastSignatureEvent.timestamp}`;
-      if (!seen.has(sigId)) {
+      const ck = buildContentKey({
+        type: 'signature_captured',
+        schedule_id: lastSignatureEvent.schedule_id,
+        technician_name: lastSignatureEvent.user_name,
+        technician_id: lastSignatureEvent.technician_id,
+        timestamp: lastSignatureEvent.timestamp,
+      });
+      if (!seen.has(ck)) {
+        seen.add(ck);
         items.push({
-          id: sigId,
+          id: `sig-${lastSignatureEvent.schedule_id}-${lastSignatureEvent.timestamp}`,
           type: 'signature_captured',
           message: `Signature captured on ${lastSignatureEvent.project_name}`,
           subtext: `by ${lastSignatureEvent.user_name} · ${lastSignatureEvent.label}`,
           timestamp: new Date(lastSignatureEvent.timestamp),
           color: STATUS_COLORS.signature_captured,
           icon: getIconForEventType('signature_captured'),
+          contentKey: ck,
         });
       }
     }
@@ -413,4 +492,40 @@ export function LiveStatusFeed() {
       </div>
     </Card>
   );
+}
+
+/**
+ * Build a normalized content-key for cross-source dedup.
+ *
+ * Maps different event representations of the same real-world occurrence
+ * to an identical string:
+ *
+ *   Historical DB: event_type='technician_started_traveling'
+ *   Socket:        type='status_change', new_status='traveling'
+ *
+ * → Both normalize to type='traveling' for dedup.
+ *
+ * Also rounds timestamp to a 2s window so that micro-offsets between the
+ * DB insert and socket emit produce the same key.
+ */
+function buildContentKey(fields: {
+  type: string;
+  schedule_id: string;
+  technician_name: string;
+  technician_id: string;
+  timestamp: string;
+}): string {
+  // Normalize: a historical prefixed event_type like 'technician_started_traveling'
+  // maps to the same final segment as a socket's new_status='traveling'.
+  let type = fields.type;
+  const prefixMatch = type.match(/^(technician_|work_|job_)?(.+)$/);
+  if (prefixMatch) {
+    type = prefixMatch[2]; // strips 'technician_', 'work_', 'job_' prefix
+  }
+
+  const scheduleId = fields.schedule_id || '';
+  const techName = fields.technician_name || '';
+  const techId = fields.technician_id || '';
+  const ts = Math.floor(new Date(fields.timestamp).getTime() / 2000) * 2000;
+  return `${type}|${scheduleId}|${techId}|${techName}|${ts}`;
 }
