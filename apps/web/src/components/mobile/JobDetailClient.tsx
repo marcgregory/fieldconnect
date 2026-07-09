@@ -923,17 +923,24 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             <button
               onClick={async () => {
                 setTransitioning(true);
+                let clockedInThisCall = false;
                 try {
                   // Auto clock-in if not already clocked in
                     if (schedule && (!activeTimeEntry || activeTimeEntry.project_id !== schedule.project_id)) {
                       const pos = await captureGps();
                       await clockIn(schedule.project_id, 'Auto clock-in for rework', pos?.lat, pos?.lng, pos?.accuracy);
+                      clockedInThisCall = true;
                       try { const entry = await getCurrentEntry(); setActiveTimeEntry(entry); } catch {}
                     }
                     await resumeRework(scheduleId, openRework.id, myTechnicianId);
                   await fetchAll();
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Failed to resume rework');
+                  // Rollback: clock out if we clocked in but resume failed
+                  if (clockedInThisCall) {
+                    try { await clockOut(undefined); } catch {}
+                    setActiveTimeEntry(null);
+                  }
                 } finally {
                   setTransitioning(false);
                 }
@@ -1390,7 +1397,9 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                       }
                       await fetchAll();
                     } catch (err) {
-                      setError(err instanceof Error ? err.message : 'Failed to complete rework');
+                      let clockOutFailed = false;
+                      if (err instanceof Error && err.message.includes('clock_out')) { clockOutFailed = true; }
+                      setError(clockOutFailed ? 'Rework submitted but clock-out failed. Please clock out manually.' : err instanceof Error ? err.message : 'Failed to complete rework');
                     } finally {
                       setTransitioning(false);
                     }

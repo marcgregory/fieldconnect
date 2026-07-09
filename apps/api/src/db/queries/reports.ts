@@ -1,5 +1,42 @@
 import { query } from '../index';
 
+// Whitelist of IANA timezones supported by the application
+const VALID_TIMEZONES = new Set([
+  'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos', 'Africa/Nairobi',
+  'America/Argentina/Buenos_Aires', 'America/Bogota', 'America/Caracas',
+  'America/Chicago', 'America/Denver', 'America/Guatemala', 'America/Halifax',
+  'America/Lima', 'America/Los_Angeles', 'America/Mexico_City', 'America/New_York',
+  'America/Panama', 'America/Phoenix', 'America/Puerto_Rico', 'America/Santiago',
+  'America/Sao_Paulo', 'America/St_Johns', 'America/Toronto', 'America/Vancouver',
+  'America/Winnipeg',
+  'Asia/Baghdad', 'Asia/Bangkok', 'Asia/Colombo', 'Asia/Dhaka',
+  'Asia/Dubai', 'Asia/Ho_Chi_Minh', 'Asia/Hong_Kong', 'Asia/Jakarta',
+  'Asia/Karachi', 'Asia/Kathmandu', 'Asia/Kolkata', 'Asia/Kuala_Lumpur',
+  'Asia/Manila', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Singapore',
+  'Asia/Taipei', 'Asia/Tokyo', 'Asia/Yangon',
+  'Australia/Adelaide', 'Australia/Brisbane', 'Australia/Darwin',
+  'Australia/Melbourne', 'Australia/Perth', 'Australia/Sydney',
+  'Canada/Atlantic', 'Canada/Central', 'Canada/Eastern', 'Canada/Mountain', 'Canada/Pacific',
+  'Europe/Amsterdam', 'Europe/Amsterdam', 'Europe/Athens', 'Europe/Berlin',
+  'Europe/Brussels', 'Europe/Budapest', 'Europe/Copenhagen', 'Europe/Dublin',
+  'Europe/Helsinki', 'Europe/Istanbul', 'Europe/Kyiv', 'Europe/Lisbon',
+  'Europe/London', 'Europe/Madrid', 'Europe/Moscow', 'Europe/Oslo',
+  'Europe/Paris', 'Europe/Prague', 'Europe/Rome', 'Europe/Stockholm',
+  'Europe/Vienna', 'Europe/Warsaw', 'Europe/Zurich',
+  'Pacific/Auckland', 'Pacific/Fiji', 'Pacific/Guam', 'Pacific/Honolulu',
+  'Pacific/Samoa', 'Pacific/Tahiti', 'Pacific/Tongatapu',
+  'UTC',
+]);
+
+function validateTimezone(tz: string | undefined): string {
+  if (!tz) return 'Asia/Manila';
+  if (!VALID_TIMEZONES.has(tz)) {
+    // Fallback to a safe default instead of crashing
+    return 'Asia/Manila';
+  }
+  return tz;
+}
+
 export interface TimeEntryReportRow {
   id: string;
   technician_id: string;
@@ -93,7 +130,7 @@ export async function getTimeEntriesReport(
   },
   pagination: { page: number; limit: number } = { page: 1, limit: 20 },
 ): Promise<PaginatedResult<TimeEntryReportRow>> {
-  const timezone = filters?.tz || 'Asia/Manila';
+  const timezone = validateTimezone(filters?.tz);
   const baseSelect = `
     SELECT
       te.id,
@@ -147,7 +184,7 @@ export async function getTimeEntriesReportAll(filters: {
   technician_id?: string;
   tz?: string;
 }): Promise<TimeEntryReportRow[]> {
-  const timezone = filters?.tz || 'Asia/Manila';
+  const timezone = validateTimezone(filters?.tz);
   let sql = `
     SELECT
       te.id,

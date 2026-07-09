@@ -6,7 +6,14 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+  // Delete old caches
+  event.waitUntil(
+    caches.keys().then((names) => {
+      return Promise.all(
+        names.filter((name) => name !== CACHE_NAME).map((name) => caches.delete(name))
+      );
+    }).then(() => clients.claim()),
+  );
 });
 
 self.addEventListener('fetch', (event) => {
