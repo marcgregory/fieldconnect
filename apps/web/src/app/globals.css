@@ -18,15 +18,9 @@
     }
   }
 
-  .surface-grid {
-    background-image:
-      linear-gradient(rgba(15, 23, 42, 0.045) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
-    background-size: 28px 28px;
-  }
 
   .premium-panel {
-    @apply border border-white/70 bg-white/[0.88] shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl;
+    @apply border border-slate-200 bg-white shadow-sm;
   }
 }
 
@@ -36,14 +30,8 @@
   }
 
   body {
-    @apply bg-stone-50 text-slate-950 antialiased;
+    @apply min-h-screen bg-gray-50 text-slate-950 antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "kern";
-    background:
-      radial-gradient(circle at top left, rgba(0, 82, 255, 0.10), transparent 34rem),
-      radial-gradient(circle at top right, rgba(77, 124, 255, 0.08), transparent 30rem),
-      linear-gradient(180deg, #fafaf7 0%, #f1f5f2 52%, #eef2f6 100%);
-    min-height: 100vh;
   }
 }
-
 

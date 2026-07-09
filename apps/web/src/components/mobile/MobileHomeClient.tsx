@@ -29,8 +29,8 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50">
-      <div className="border-b border-brand-100 bg-gradient-to-br from-white via-brand-50 to-stone-50 px-4 pb-6 pt-12 text-slate-950">
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <div className="bg-blue-600 px-4 pb-6 pt-12 text-white">
         <div className="mb-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Logo size={22} />
@@ -43,7 +43,7 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
             Sign Out
           </button>
         </div>
-        <p className="text-sm text-slate-500">Welcome, {user.name}</p>
+        <p className="text-sm text-white/80">Welcome, {user.name}</p>
       </div>
 
       <div className="flex-1 space-y-4 px-4 py-6">
@@ -96,3 +96,4 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
     </div>
   );
 }
+

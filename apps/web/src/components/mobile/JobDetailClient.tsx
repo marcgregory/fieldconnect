@@ -886,7 +886,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
   const openRework = reworkRequests.find((r) => r.status === 'open');
 
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50">
+    <div className="flex min-h-screen flex-col bg-gray-50">
       {/* Signature Canvas Overlay */}
       {showSignaturePad && (
         <SignatureCanvas
@@ -973,24 +973,24 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
       )}
 
       {/* Header */}
-      <div className="border-b border-brand-100 bg-gradient-to-br from-white via-brand-50 to-stone-50 px-4 pb-4 pt-12">
+      <div className="bg-blue-600 px-4 pb-4 pt-12 text-white">
         <button
           onClick={() => router.back()}
-          className="mb-3 flex items-center gap-1 text-sm font-semibold text-brand-700"
+          className="mb-3 flex items-center gap-1 text-sm font-semibold text-white/90"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
           Back
         </button>
-        <h1 className="text-xl font-bold text-slate-950">{schedule.project_name}</h1>
+        <h1 className="text-xl font-bold text-white">{schedule.project_name}</h1>
         <div className="flex items-center gap-2 mt-2">
           <span
             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text}`}
           >
             {statusConfig.label}
           </span>
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-white/80">
             {formatDate(schedule.scheduled_date)}
           </span>
         </div>
@@ -1605,6 +1605,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     </div>
   );
 }
+
 
 
 

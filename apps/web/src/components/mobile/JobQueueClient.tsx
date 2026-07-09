@@ -154,7 +154,7 @@ export function JobQueueClient() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 py-3 text-sm font-medium text-center border-b-2 transition-colors ${
+              className={`flex-1 border-b-2 py-3 text-center text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-inset ${
                 activeTab === tab.key
                   ? 'border-brand-600 text-brand-700'
                   : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -208,4 +208,5 @@ export function JobQueueClient() {
     </div>
   );
 }
+
 

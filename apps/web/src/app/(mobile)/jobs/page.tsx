@@ -20,9 +20,9 @@ export default async function JobsPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-stone-50">
+    <div className="flex min-h-screen flex-col bg-gray-50">
       {/* Header */}
-      <div className="border-b border-brand-100 bg-gradient-to-br from-white via-brand-50 to-stone-50 px-4 pb-4 pt-12 text-slate-950">
+      <div className="bg-blue-600 px-4 pb-4 pt-12 text-white">
         <h1 className="text-lg font-bold tracking-tight">My Jobs</h1>
       </div>
 
@@ -31,3 +31,4 @@ export default async function JobsPage() {
     </div>
   );
 }
+

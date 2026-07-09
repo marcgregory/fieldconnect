@@ -41,7 +41,7 @@ export default function LoginPage() {
 
   return (
     <div className="premium-panel overflow-hidden rounded-[1.75rem] p-0">
-      <div className="border-b border-brand-100 bg-gradient-to-br from-white via-brand-50 to-stone-50 px-8 py-7 text-center text-slate-950">
+      <div className="border-b border-slate-200 bg-white px-8 py-7 text-center text-slate-950">
         <div className="mb-3 flex justify-center">
           <Logo size={48} />
         </div>
@@ -88,3 +88,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
