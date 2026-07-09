@@ -54,7 +54,7 @@ const STATUS_CONFIG: Record<
   on_site: { bg: 'bg-green-100', text: 'text-green-800', label: 'On Site', step: 2 },
   completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Work Completed', step: 3 },
   rework_required: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Rework Required', step: 3 },
-  closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed', step: 4 },
+  closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed', step: 5 },
 };
 
 const STATUS_STEPS = ['scheduled', 'traveling', 'on_site', 'completed', 'rework_required', 'closed'];
