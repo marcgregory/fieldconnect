@@ -1085,7 +1085,15 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           <div className="space-y-0">
             {STATUS_STEPS.map((status, index) => {
               const cfg = STATUS_CONFIG[status];
-              const isComplete = index <= currentStep;
+              // Rework step is only "complete" if there were actual rework requests
+              // that have been resolved. Without rework, it should NOT show as checked.
+              const isReworkWithNoRequests = status === 'rework_required' && reworkRequests.length === 0;
+              const isReworkCompleted = status === 'rework_required' && reworkRequests.some(r => r.status === 'closed');
+              const isComplete = isReworkWithNoRequests
+                ? false
+                : isReworkCompleted
+                  ? true
+                  : index <= currentStep;
               const isCurrent = index === currentStep;
               return (
                 <div key={status} className="flex items-start gap-3">
@@ -1094,20 +1102,24 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                       className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
                         isComplete
                           ? 'bg-brand-600 border-brand-600 text-white'
-                          : 'bg-white border-gray-300 text-gray-400'
+                          : status === 'rework_required'
+                            ? 'bg-white border-gray-300 text-gray-400'
+                            : 'bg-white border-gray-300 text-gray-400'
                       } ${isCurrent ? 'ring-2 ring-brand-300' : ''}`}
                     >
-                      {isComplete && index < currentStep ? '✓' : index + 1}
+                      {isComplete && status !== 'rework_required' && index < currentStep ? '✓' : isComplete && status === 'rework_required' ? '✓' : index + 1}
                     </div>
                     {index < STATUS_STEPS.length - 1 && (
                       <div
                         className={`w-0.5 h-6 ${
-                          index < currentStep ? 'bg-brand-600' : 'bg-slate-200'
+                          index < currentStep || (status === 'completed' && reworkRequests.some(r => r.status === 'closed'))
+                            ? 'bg-brand-600'
+                            : 'bg-slate-200'
                         }`}
                       />
                     )}
                   </div>
-                  <div className={`pb-5 ${index < currentStep ? 'text-gray-500' : index === currentStep ? 'text-brand-700 font-medium' : 'text-gray-400'}`}>
+                  <div className={`pb-5 ${index < currentStep ? 'text-gray-500' : index === currentStep ? 'text-brand-700 font-medium' : isComplete && status === 'rework_required' ? 'text-gray-500' : 'text-gray-400'}`}>
                     <span className="text-sm">{cfg.label}</span>
                   </div>
                 </div>
