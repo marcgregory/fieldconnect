@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Font optimization — use system font stack for zero network cost */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply min-h-screen bg-gray-50 text-slate-950 antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "kern";
+  }
+
+  /* Prevent CLS on images without dimensions */
+  img {
+    @apply max-w-full;
+    height: auto;
+  }
+
+  /* Ensure minimum tap targets on mobile */
+  button, a, input, select, textarea {
+    @apply min-h-[44px];
+  }
+}
+
 @layer utilities {
   .animate-slide-up {
     animation: slide-up 0.3s ease-out;
@@ -21,17 +45,6 @@
 
   .premium-panel {
     @apply border border-slate-200 bg-white shadow-sm;
-  }
-}
-
-@layer base {
-  html {
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  body {
-    @apply min-h-screen bg-gray-50 text-slate-950 antialiased;
-    font-feature-settings: "cv02", "cv03", "cv04", "kern";
   }
 }
 

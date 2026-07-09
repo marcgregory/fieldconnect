@@ -45,6 +45,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="format-detection" content="telephone=yes" />
         <meta name="application-name" content="FieldConnect" />
         <link rel="preconnect" href={process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'} />
+        {/* Preload critical favicon */}
+        <link rel="preload" href="/favicon-32.png" as="image" />
+        {/* System font stack — no network request needed */}
       </head>
       <body>
         <SessionProvider>{children}</SessionProvider>
