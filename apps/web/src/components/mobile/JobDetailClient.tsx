@@ -924,7 +924,13 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               onClick={async () => {
                 setTransitioning(true);
                 try {
-                  await resumeRework(scheduleId, openRework.id, myTechnicianId);
+                  // Auto clock-in if not already clocked in
+                    if (schedule && (!activeTimeEntry || activeTimeEntry.project_id !== schedule.project_id)) {
+                      const pos = await captureGps();
+                      await clockIn(schedule.project_id, 'Auto clock-in for rework', pos?.lat, pos?.lng, pos?.accuracy);
+                      try { const entry = await getCurrentEntry(); setActiveTimeEntry(entry); } catch {}
+                    }
+                    await resumeRework(scheduleId, openRework.id, myTechnicianId);
                   await fetchAll();
                 } catch (err) {
                   setError(err instanceof Error ? err.message : 'Failed to resume rework');
@@ -1376,6 +1382,12 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                     setConfirmStatus(null);
                     try {
                       await completeRework(scheduleId, openRework.id, myTechnicianId);
+                      // Auto clock-out after rework complete
+                      if (activeTimeEntry) {
+                        const pos = await captureGps();
+                        await clockOut(undefined, pos?.lat, pos?.lng, pos?.accuracy);
+                        setActiveTimeEntry(null);
+                      }
                       await fetchAll();
                     } catch (err) {
                       setError(err instanceof Error ? err.message : 'Failed to complete rework');
