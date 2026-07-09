@@ -57,6 +57,7 @@ export const clockInSchema = z.object({
   clock_in_lat: latSchema,
   clock_in_lng: lngSchema,
   clock_in_accuracy: accuracySchema,
+  geofence_override: z.boolean().optional(),
 });
 
 export const clockOutSchema = z.object({

@@ -30,7 +30,7 @@ function googleMapsUrl(lat: number, lng: number): string {
 /** Get current position via browser Geolocation API */
 function getCurrentPosition(
   timeout = 10000,
-): Promise<{ lat: number; lng: number; accuracy: number } | null> {
+): Promise<{ lat: number; lng: number; accuracy: number; gpsDebug: string } | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve(null);
@@ -42,10 +42,25 @@ function getCurrentPosition(
           lat: position.coords.latitude,
           lng: position.coords.longitude,
           accuracy: Math.round(position.coords.accuracy),
+          gpsDebug: `GPS captured (accuracy ±${Math.round(position.coords.accuracy)} m)`,
         });
       },
-      () => {
-        // Permission denied, timeout, or error — degrade gracefully
+      (error) => {
+        let reason: string;
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            reason = 'Location permission denied by user or browser';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            reason = 'GPS unavailable — device/browser could not determine location (common on desktop/laptop without GPS hardware)';
+            break;
+          case error.TIMEOUT:
+            reason = 'GPS request timed out — weak signal or no satellite fix';
+            break;
+          default:
+            reason = `GPS error (code ${error.code})`;
+        }
+        console.warn('[ClockInOut]', reason, error.message);
         resolve(null);
       },
       { enableHighAccuracy: true, timeout, maximumAge: 30000 },
@@ -97,6 +112,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
   const [distanceFromSite, setDistanceFromSite] = useState<number | null>(null);
   const [geofenceStatus, setGeofenceStatus] = useState<GeofenceStatus>('unavailable');
   const [locationLoading, setLocationLoading] = useState(false);
+  const [gpsDebugMessage, setGpsDebugMessage] = useState<string | null>(null);
   // Optimistic rollback snapshot — keeps last known state so we can revert on failure
   const optimisticRollbackRef = useRef<{
     activeEntry: typeof activeEntry;
@@ -108,6 +124,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     try {
       setLoading(true);
       setError('');
+      setGpsDebugMessage(null);
 
       const [current, userAssignments] = await Promise.all([
         getCurrentEntry(),
@@ -198,6 +215,13 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     try {
       // Capture GPS position (best-effort)
       const pos = await getCurrentPosition();
+
+      // Set GPS debug message for feedback
+      if (pos) {
+        setGpsDebugMessage(pos.gpsDebug);
+      } else {
+        setGpsDebugMessage('⚠ GPS unavailable — clock-in proceeds without location');
+      }
 
       await clockIn(selectedProjectId, undefined, pos?.lat, pos?.lng, pos?.accuracy);
 
@@ -339,6 +363,16 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     const selectedAssignment = assignments
       .find((a) => a.project_id === activeEntry.project_id);
 
+    // Calculate distance from clock-in GPS vs project site (works even after refetch)
+    const activeDist = hasClockInCoords && selectedAssignment?.project_latitude && selectedAssignment?.project_longitude
+      ? calculateDistance(
+          activeEntry.clock_in_lat!,
+          activeEntry.clock_in_lng!,
+          selectedAssignment.project_latitude,
+          selectedAssignment.project_longitude,
+        )
+      : null;
+
     return (
       <Card className="text-center">
         {/* Timer Display */}
@@ -350,12 +384,18 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
           )}
 
           {/* Distance from site + geofence indicator */}
-          {distanceFromSite !== null && (
+          {hasClockInCoords && (
             <div className="mb-3 space-y-1">
-              <p className="text-sm text-gray-600 font-medium">
-                📍 {formatDistance(distanceFromSite)} from customer site
-              </p>
-              <GeofenceBadge status={geofenceStatus} />
+              {activeDist !== null ? (
+                <p className="text-sm text-gray-600 font-medium">
+                  📍 {formatDistance(activeDist)} from customer site
+                </p>
+              ) : (
+                <p className="text-sm text-gray-400">
+                  📍 GPS captured — customer site coordinates not configured
+                </p>
+              )}
+              <GeofenceBadge status={activeDist !== null ? evaluateGeofence(activeDist, selectedAssignment?.project_geofence_radius ?? 50) : 'unavailable'} />
             </div>
           )}
 
@@ -378,6 +418,13 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
             Since {new Date(activeEntry.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
+
+        {/* GPS debug information */}
+        {gpsDebugMessage && !locationLoading && (
+          <div className="text-xs text-gray-500 mt-2">
+            {gpsDebugMessage}
+          </div>
+        )}
 
         {/* Location loading indicator */}
         {locationLoading && (
@@ -469,6 +516,13 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* GPS debug information */}
+        {gpsDebugMessage && !locationLoading && (
+          <div className="text-xs text-gray-500 mb-2">
+            {gpsDebugMessage}
           </div>
         )}
 

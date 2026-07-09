@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { clockInSchema, clockOutSchema, checkGeofence } from '@fieldconnect/shared';
+import { clockInSchema, clockOutSchema, checkGeofence, formatDistance } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as timeEntryQueries from '../../db/queries/time-entries';
 import * as projectQueries from '../../db/queries/projects';
@@ -59,6 +59,34 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         project.longitude,
         project.geofence_radius ?? 50,
       );
+
+      // -- Geofence enforcement ------------------------------------------
+      // block_clock_in: GPS must be inside geofence (or null/unavailable)
+      // require_override: block unless override=true flag is sent
+      const geofenceAction = project.geofence_action ?? 'warning';
+      if (geofenceAction === 'block_clock_in') {
+        if (clock_in_lat == null || clock_in_lng == null) {
+          return reply.status(403).send({
+            success: false,
+            error: 'GPS location is required to clock in -- geofence enforcement is active on this project. Please enable location access on your device.',
+          });
+        }
+        if (geofence.inside_geofence === 'outside') {
+          return reply.status(403).send({
+            success: false,
+            error: `You are ${formatDistance(geofence.distance_meters!)} from the customer site, which is outside the ${project.geofence_radius ?? 50}m geofence. Clock-in is blocked for this project.`,
+          });
+        }
+      } else if (geofenceAction === 'require_override') {
+        const override = (parsed.data as any).geofence_override === true;
+        if (!override && clock_in_lat != null && clock_in_lng != null && geofence.inside_geofence === 'outside') {
+          return reply.status(403).send({
+            success: false,
+            error: `You are ${formatDistance(geofence.distance_meters!)} from the customer site (outside geofence). An office override is required to clock in.`,
+            requires_override: true,
+          });
+        }
+      }
 
       // Broadcast clock-in event
       broadcastClockEvent({

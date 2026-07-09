@@ -1,5 +1,5 @@
 import { query } from '../index';
-import type { Project, ProjectStatus } from '@fieldconnect/shared';
+import type { Project, ProjectStatus, GeofenceAction } from '@fieldconnect/shared';
 
 export interface ProjectRow {
   id: string;
@@ -13,6 +13,7 @@ export interface ProjectRow {
   latitude: number | null;
   longitude: number | null;
   geofence_radius: number;
+  geofence_action: string;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -25,6 +26,7 @@ function mapRow(row: ProjectRow): Project {
     latitude: row.latitude ?? null,
     longitude: row.longitude ?? null,
     geofence_radius: row.geofence_radius ?? 50,
+    geofence_action: (row.geofence_action ?? 'warning') as GeofenceAction,
   };
 }
 

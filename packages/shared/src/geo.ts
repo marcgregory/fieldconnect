@@ -1,12 +1,4 @@
-/**
- * Geofence status result for a single fix.
- */
-export type GeofenceStatus = 'inside' | 'outside' | 'unavailable';
-
-export interface GeofenceResult {
-  distance_meters: number | null;
-  inside_geofence: GeofenceStatus;
-}
+import type { GeofenceStatus, GeofenceResult } from './types';
 
 /**
  * Haversine distance in meters between two lat/lng points.

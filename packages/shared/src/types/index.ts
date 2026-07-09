@@ -60,6 +60,21 @@ export const PROJECT_STATUSES: ProjectStatus[] = [
   'cancelled',
 ];
 
+export type GeofenceAction = 'warning' | 'block_clock_in' | 'require_override';
+
+export const GEOFENCE_ACTIONS: GeofenceAction[] = [
+  'warning',
+  'block_clock_in',
+  'require_override',
+];
+
+export type GeofenceStatus = 'inside' | 'outside' | 'unavailable';
+
+export interface GeofenceResult {
+  distance_meters: number | null;
+  inside_geofence: GeofenceStatus;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -72,6 +87,7 @@ export interface Project {
   latitude: number | null;
   longitude: number | null;
   geofence_radius: number;
+  geofence_action: GeofenceAction;
   created_by: string;
   created_at: string;
   updated_at: string;

@@ -682,24 +682,41 @@ export function ReviewClient() {
                                       dist,
                                       item.project_geofence_radius ?? 50,
                                     );
+                                    const hasProjectCoords = item.project_latitude != null && item.project_longitude != null;
+                                    const gpsCaptured = item.clock_in_lat != null && item.clock_in_lng != null;
+                                    let distanceLabel: string;
+                                    if (dist !== null) {
+                                      distanceLabel = formatDistance(dist);
+                                    } else if (!hasProjectCoords && gpsCaptured) {
+                                      distanceLabel = 'Unknown — customer site coordinates not configured';
+                                    } else {
+                                      distanceLabel = 'Unknown from customer site';
+                                    }
                                     return (
                                       <>
                                         <p className="text-sm text-gray-700">
-                                          📍 {dist !== null ? formatDistance(dist) : 'Unknown'} from customer site
+                                          📍 {distanceLabel}
                                         </p>
-                                        <p className="text-sm">
-                                          {gfStatus === 'inside' ? (
-                                            <span className="inline-flex items-center gap-1 text-green-700 font-medium">
-                                              <span className="h-2 w-2 rounded-full bg-green-500" />
-                                              Inside Geofence
-                                            </span>
-                                          ) : (
-                                            <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
-                                              <span className="h-2 w-2 rounded-full bg-amber-500" />
-                                              Outside Geofence
-                                            </span>
-                                          )}
-                                        </p>
+                                        {hasProjectCoords && (
+                                          <p className="text-sm">
+                                            {gfStatus === 'inside' ? (
+                                              <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                                                <span className="h-2 w-2 rounded-full bg-green-500" />
+                                                Inside Geofence
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
+                                                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                                Outside Geofence
+                                              </span>
+                                            )}
+                                          </p>
+                                        )}
+                                        {!hasProjectCoords && gpsCaptured && (
+                                          <p className="text-xs text-gray-400 mt-0.5">
+                                            Set site coordinates in project settings to enable distance tracking.
+                                          </p>
+                                        )}
                                       </>
                                     );
                                   })()}
@@ -726,7 +743,7 @@ export function ReviewClient() {
                                     GPS Unavailable
                                   </p>
                                   <p className="text-xs text-gray-400 mt-1">
-                                    No GPS data captured at clock-in.
+                                    No GPS data captured at clock-in. The device or browser did not provide a location — this can happen on desktop/laptop when GPS access is denied, blocked, or unavailable. Mobile devices typically capture GPS reliably.
                                   </p>
                                 </div>
                               )}
