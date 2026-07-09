@@ -364,6 +364,8 @@ export function LiveStatusFeed() {
 
     // 6. Latest attachment event
     if (lastAttachmentEvent) {
+      const attType = lastAttachmentEvent.attachment_type;
+      const attLabel = getAttachmentLabel(attType);
       const ck = buildContentKey({
         type: lastAttachmentEvent.type,
         schedule_id: lastAttachmentEvent.schedule_id,
@@ -377,9 +379,9 @@ export function LiveStatusFeed() {
           id: `att-${lastAttachmentEvent.attachment_id}-${lastAttachmentEvent.timestamp}`,
           type: lastAttachmentEvent.type,
           message: lastAttachmentEvent.type === 'attachment_uploaded'
-            ? `Photo added to ${lastAttachmentEvent.project_name}`
-            : `Photo removed from ${lastAttachmentEvent.project_name}`,
-          subtext: `by ${lastAttachmentEvent.user_name} · ${lastAttachmentEvent.attachment_type}`,
+            ? `${attLabel} added to ${lastAttachmentEvent.project_name}`
+            : `${attLabel} removed from ${lastAttachmentEvent.project_name}`,
+          subtext: `by ${lastAttachmentEvent.user_name} - ${attLabel}`,
           timestamp: new Date(lastAttachmentEvent.timestamp),
           color: STATUS_COLORS[lastAttachmentEvent.type] || STATUS_COLORS.attachment_uploaded,
           icon: getIconForEventType(lastAttachmentEvent.type),
@@ -515,17 +517,34 @@ function buildContentKey(fields: {
   technician_id: string;
   timestamp: string;
 }): string {
-  // Normalize: a historical prefixed event_type like 'technician_started_traveling'
-  // maps to the same final segment as a socket's new_status='traveling'.
-  let type = fields.type;
-  const prefixMatch = type.match(/^(technician_|work_|job_)?(.+)$/);
-  if (prefixMatch) {
-    type = prefixMatch[2]; // strips 'technician_', 'work_', 'job_' prefix
-  }
+  // Normalize so historical event_type and socket type map to same value:
+  //   'technician_started_traveling' → 'traveling'  (same as socket new_status)
+  //   'photo_uploaded'              → 'attachment_uploaded'  (same as socket type)
+  //   'photo_deleted'              → 'attachment_deleted'
+  const NORMALIZE: Record<string, string> = {
+    technician_started_traveling: 'traveling',
+    arrived_on_site: 'on_site',
+    work_completed: 'completed',
+    job_closed: 'closed',
+    photo_uploaded: 'attachment_uploaded',
+    photo_deleted: 'attachment_deleted',
+  };
+  const type = NORMALIZE[fields.type] || fields.type;
 
   const scheduleId = fields.schedule_id || '';
   const techName = fields.technician_name || '';
   const techId = fields.technician_id || '';
   const ts = Math.floor(new Date(fields.timestamp).getTime() / 2000) * 2000;
   return `${type}|${scheduleId}|${techId}|${techName}|${ts}`;
+}
+
+/** Map attachment_type to a human-readable label. */
+function getAttachmentLabel(type?: string): string {
+  switch (type) {
+    case 'before':  return 'Before photo';
+    case 'during':  return 'During photo';
+    case 'after':   return 'After photo';
+    case 'document': return 'Document';
+    default:        return 'Photo';
+  }
 }

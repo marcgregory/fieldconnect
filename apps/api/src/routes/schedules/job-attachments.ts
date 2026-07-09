@@ -194,14 +194,31 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           technician_id: request.user!.id,
         });
 
-        // Persist to activity feed
+        // Persist to activity feed with attachment_type metadata
+        const attType = typeCheck.data.attachment_type;
+        const typeLabels: Record<string, string> = {
+          before: 'Before photo',
+          during: 'During photo',
+          after: 'After photo',
+          document: 'Document',
+        };
+        const typeLabel = typeLabels[attType] || 'Photo';
+        const verb = attType === 'document' ? 'uploaded' : 'added';
         await insertActivityEvent({
           event_type: 'photo_uploaded',
           schedule_id: id,
           project_id: schedule.project_id,
           technician_id: request.user!.role === 'field_technician' ? request.user!.id : null,
           actor_id: request.user!.id,
-          message: `Photo added to ${schedule.project_name} by ${request.user!.name}`,
+          message: `${typeLabel} ${verb} to ${schedule.project_name} by ${request.user!.name}`,
+          metadata: {
+            attachment_id: attachment.id,
+            attachment_type: attType,
+            original_name: fileName,
+            technician_id: request.user!.id,
+            technician_name: request.user!.name,
+            project_name: schedule.project_name,
+          },
         });
 
         return reply.status(201).send({ success: true, data: attachment });
@@ -269,13 +286,29 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           technician_id: request.user!.id,
         });
 
-        // Persist to activity feed
+        // Persist to activity feed with attachment_type metadata
+        const delAttType = attachment.attachment_type;
+        const delTypeLabels: Record<string, string> = {
+          before: 'Before photo',
+          during: 'During photo',
+          after: 'After photo',
+          document: 'Document',
+        };
+        const delTypeLabel = delTypeLabels[delAttType] || 'Photo';
         await insertActivityEvent({
           event_type: 'photo_deleted',
           schedule_id: id,
           project_id: schedule.project_id,
           actor_id: request.user!.id,
-          message: `Photo removed from ${schedule.project_name} by ${request.user!.name}`,
+          message: `${delTypeLabel} removed from ${schedule.project_name} by ${request.user!.name}`,
+          metadata: {
+            attachment_id: attachmentId,
+            attachment_type: delAttType,
+            original_name: attachment.file_name,
+            technician_id: request.user!.id,
+            technician_name: request.user!.name,
+            project_name: schedule.project_name,
+          },
         });
       }
 

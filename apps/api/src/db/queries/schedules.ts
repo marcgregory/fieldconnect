@@ -99,9 +99,11 @@ export interface ScheduleRow {
  *   5. completed        — all active techs have completed (awaiting review)
  *   6. closed           — ALL techs are closed
  */
-async function deriveScheduleStatus(scheduleId: string): Promise<JobStatus> {
-  const result = await query(
-    `SELECT CASE
+async function deriveScheduleStatus(
+  scheduleId: string,
+  client?: QueryClient,
+): Promise<JobStatus> {
+  const sql = `SELECT CASE
        WHEN COUNT(*) FILTER (WHERE status = 'rework_required') > 0 THEN 'rework_required'
        WHEN COUNT(*) FILTER (WHERE status = 'on_site') > 0 THEN 'on_site'
        WHEN COUNT(*) FILTER (WHERE status = 'traveling') > 0 THEN 'traveling'
@@ -111,11 +113,17 @@ async function deriveScheduleStatus(scheduleId: string): Promise<JobStatus> {
        ELSE 'scheduled'
      END::text AS derived_status
      FROM schedule_technicians
-     WHERE schedule_id = $1`,
-    [scheduleId],
-  );
+     WHERE schedule_id = $1`;
+  const result = client
+    ? await client.query(sql, [scheduleId])
+    : await query(sql, [scheduleId]);
   return (result.rows[0]?.derived_status as JobStatus) ?? 'scheduled';
 }
+
+/** Minimal client interface — accepts both pooled client and pool.query(). */
+type QueryClient = {
+  query(text: string, params?: unknown[]): Promise<{ rows: unknown[] }>;
+};
 
 // ─── Row mapper ────────────────────────────────────────────────────────────
 
@@ -876,7 +884,7 @@ export async function updateStatus(data: {
     }
 
     // Derive the aggregate schedule status from per-tech rows
-    const derivedStatus = await deriveScheduleStatus(data.id);
+    const derivedStatus = await deriveScheduleStatus(data.id, client);
 
     // Update the schedule row with the derived status
     await client.query(
