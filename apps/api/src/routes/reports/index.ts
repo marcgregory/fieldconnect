@@ -32,7 +32,7 @@ function exportValues(row: ExportRow, tz?: string): Array<string | number> {
     row.technician_name || '',
     row.project_name || '',
     row.project_address || '',
-    row.scheduled_date || '',
+    formatDt(row.scheduled_date || row.clock_in, tz),
     formatDt(row.clock_in, tz),
     formatDt(row.clock_out, tz),
     row.break_minutes,
