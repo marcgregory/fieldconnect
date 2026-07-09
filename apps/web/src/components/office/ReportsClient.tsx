@@ -74,7 +74,8 @@ export function ReportsClient() {
     fetchData(1);
   }, [fetchData]);
 
-  const excelUrl = getExcelExportUrl({ from, to });
+  const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
+  const excelUrl = getExcelExportUrl({ from, to, tz });
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'entries', label: 'Time Entries' },

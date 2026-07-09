@@ -4,14 +4,14 @@ import * as reportQueries from '../../db/queries/reports';
 
 type ExportRow = Awaited<ReturnType<typeof reportQueries.getTimeEntriesReportAll>>[number];
 
-function formatDt(dateStr: string | null): string {
+function formatDt(dateStr: string | null, tz?: string): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   return d.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit',
-    timeZone: 'Asia/Manila',
+    ...(tz ? { timeZone: tz } : {}),
   });
 }
 
@@ -27,14 +27,14 @@ const TIME_ENTRY_EXPORT_COLUMNS = [
   'Notes',
 ] as const;
 
-function exportValues(row: ExportRow): Array<string | number> {
+function exportValues(row: ExportRow, tz?: string): Array<string | number> {
   return [
     row.technician_name || '',
     row.project_name || '',
     row.project_address || '',
     row.scheduled_date || '',
-    formatDt(row.clock_in),
-    formatDt(row.clock_out),
+    formatDt(row.clock_in, tz),
+    formatDt(row.clock_out, tz),
     row.break_minutes,
     row.duration_hours,
     row.notes || '',
@@ -60,14 +60,14 @@ function escapeHtml(value: string | number | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
-function buildStyledExcel(rows: ExportRow[]): string {
+function buildStyledExcel(rows: ExportRow[], tz?: string): string {
   const headerCells = TIME_ENTRY_EXPORT_COLUMNS
     .map((column) => `<th>${escapeHtml(column)}</th>`)
     .join('');
 
   const bodyRows = rows
     .map((row, index) => {
-      const cells = exportValues(row)
+      const cells = exportValues(row, tz)
         .map((value, columnIndex) => {
           const align = columnIndex === 6 || columnIndex === 7 ? ' class="number"' : '';
           return `<td${align}>${escapeHtml(value)}</td>`;
@@ -189,11 +189,12 @@ export async function reportRoutes(app: FastifyInstance) {
     '/api/v1/reports/time-entries.xls',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
     async (request, reply) => {
-      const { from, to, project_id, technician_id } = request.query as {
+      const { from, to, project_id, technician_id, tz } = request.query as {
         from?: string;
         to?: string;
         project_id?: string;
         technician_id?: string;
+        tz?: string;
       };
 
       const rows = await reportQueries.getTimeEntriesReportAll({
@@ -205,7 +206,7 @@ export async function reportRoutes(app: FastifyInstance) {
 
       reply.header('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
       reply.header('Content-Disposition', `attachment; filename="time-entries-${from || 'all'}-${to || 'all'}.xls"`);
-      return reply.send(buildStyledExcel(rows));
+      return reply.send(buildStyledExcel(rows, tz));
     },
   );
 }
