@@ -57,11 +57,12 @@ function buildSqlWithPagination(
   let idx = params.length + 1;
 
   if (filters.from) {
-    whereClause += ` AND te.clock_in >= $${idx++}`;
+    whereClause += ` AND te.clock_in >= $${idx++}::timestamptz`;
     params.push(filters.from);
   }
   if (filters.to) {
-    whereClause += ` AND te.clock_in <= $${idx++}`;
+    // Include the full "to" day: clock_in < (to_date + 1 day)
+    whereClause += ` AND te.clock_in < ($${idx++}::timestamptz + INTERVAL '1 day')`;
     params.push(filters.to);
   }
   if (filters.project_id) {
@@ -172,11 +173,11 @@ export async function getTimeEntriesReportAll(filters: {
   let idx = 1;
 
   if (filters.from) {
-    sql += ` AND te.clock_in >= $${idx++}`;
+    sql += ` AND te.clock_in >= $${idx++}::timestamptz`;
     params.push(filters.from);
   }
   if (filters.to) {
-    sql += ` AND te.clock_in <= $${idx++}`;
+    sql += ` AND te.clock_in < ($${idx++}::timestamptz + INTERVAL '1 day')`;
     params.push(filters.to);
   }
   if (filters.project_id) {
@@ -215,11 +216,11 @@ export async function getHoursByTechnician(filters: {
   let idx = 1;
 
   if (filters.from) {
-    sql += ` AND te.clock_in >= $${idx++}`;
+    sql += ` AND te.clock_in >= $${idx++}::timestamptz`;
     params.push(filters.from);
   }
   if (filters.to) {
-    sql += ` AND te.clock_in <= $${idx++}`;
+    sql += ` AND te.clock_in < ($${idx++}::timestamptz + INTERVAL '1 day')`;
     params.push(filters.to);
   }
 
@@ -250,11 +251,11 @@ export async function getHoursByProject(filters: {
   let idx = 1;
 
   if (filters.from) {
-    sql += ` WHERE te.clock_in >= $${idx++}`;
+    sql += ` WHERE te.clock_in >= $${idx++}::timestamptz`;
     params.push(filters.from);
   }
   if (filters.to) {
-    sql += `${params.length === 0 ? ' WHERE' : ' AND'} te.clock_in <= $${idx++}`;
+    sql += `${params.length === 0 ? ' WHERE' : ' AND'} te.clock_in < ($${idx++}::timestamptz + INTERVAL '1 day')`;
     params.push(filters.to);
   }
 

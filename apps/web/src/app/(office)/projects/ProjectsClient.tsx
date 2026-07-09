@@ -68,12 +68,12 @@ export function ProjectsClient() {
     fetchProjects();
   }, [fetchProjects]);
 
-  // ─── Socket: refetch on job/assignment events or clock in/out ────────────
-  const { lastJobEvent, lastEvent } = useSocket();
+  // ─── Socket: refetch on any activity event ───────────────────────────────
+  const { lastJobEvent, lastEvent, lastNoteEvent, lastAttachmentEvent, lastSignatureEvent } = useSocket();
   useEffect(() => {
-    if (!lastJobEvent && !lastEvent) return;
+    if (!lastJobEvent && !lastEvent && !lastNoteEvent && !lastAttachmentEvent && !lastSignatureEvent) return;
     fetchProjects();
-  }, [lastJobEvent, lastEvent, fetchProjects]);
+  }, [lastJobEvent, lastEvent, lastNoteEvent, lastAttachmentEvent, lastSignatureEvent, fetchProjects]);
 
   async function handleStatusChange(projectId: string, newStatus: ProjectStatus) {
     try {
