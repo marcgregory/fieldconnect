@@ -10,15 +10,17 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = event.request.url;
+
+  // Skip non-http(s) requests (chrome-extension, blob, data, etc.)
+  if (!url.startsWith('http')) return;
   // Skip non-GET requests and API calls
-  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
-    return;
-  }
+  if (event.request.method !== 'GET' || url.includes('/api/')) return;
 
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request).then((response) => {
-        // Cache successful responses for static assets
+        // Cache successful responses for same-origin static assets
         if (response.ok && response.type === 'basic') {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
