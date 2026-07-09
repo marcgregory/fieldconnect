@@ -11,6 +11,7 @@ function formatDt(dateStr: string | null): string {
   return d.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit',
+    timeZone: 'Asia/Manila',
   });
 }
 
