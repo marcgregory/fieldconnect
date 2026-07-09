@@ -14,7 +14,7 @@ const sizeStyles = {
 export function Spinner({ size = 'md', className = '' }: SpinnerProps) {
   return (
     <svg
-      className={`animate-spin text-blue-600 ${sizeStyles[size]} ${className}`}
+      className={`animate-spin text-brand-600 ${sizeStyles[size]} ${className}`}
       fill="none"
       viewBox="0 0 24 24"
     >
@@ -34,3 +34,4 @@ export function Spinner({ size = 'md', className = '' }: SpinnerProps) {
     </svg>
   );
 }
+

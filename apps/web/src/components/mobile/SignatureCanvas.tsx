@@ -149,7 +149,7 @@ export function SignatureCanvas({ onSave, onCancel, saving }: SignatureCanvasPro
             <button
               onClick={handleSave}
               disabled={!hasSignature || saving}
-              className="flex-1 py-3 bg-brand-600 text-white rounded-xl text-base font-semibold shadow-sm active:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 py-3 bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl text-base font-semibold shadow-sm active:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
@@ -166,4 +166,5 @@ export function SignatureCanvas({ onSave, onCancel, saving }: SignatureCanvasPro
     </div>
   );
 }
+
 

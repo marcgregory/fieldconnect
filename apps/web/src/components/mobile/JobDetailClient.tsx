@@ -869,7 +869,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           </p>
           <button
             onClick={() => router.push('/jobs')}
-            className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-lg text-sm font-medium"
           >
             Back to Jobs
           </button>
@@ -899,7 +899,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
       {/* Offline Toast */}
       {offlineToast && (
         <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
-          <div className="rounded-xl bg-brand-600 px-4 py-3 text-center text-sm font-medium text-white shadow-lg shadow-brand-700/20">
+          <div className="rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-3 text-center text-sm font-medium text-white shadow-lg shadow-brand-700/20">
             {offlineToast}
           </div>
         </div>
@@ -1143,7 +1143,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             <button
               onClick={handleAddNote}
               disabled={!newNote.trim() || saving}
-              className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed active:bg-brand-700 transition-colors"
+              className="px-4 py-2 bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed active:bg-brand-700 transition-colors"
             >
               {saving ? '...' : 'Add'}
             </button>
@@ -1156,7 +1156,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           ) : (
             <div className="space-y-3 max-h-64 overflow-y-auto">
               {notes.map((note) => (
-                <div key={note.id} className="border-l-2 border-blue-300 pl-3">
+                <div key={note.id} className="border-l-2 border-brand-300 pl-3">
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
                   <p className="text-xs text-gray-400 mt-1">
                     {note.user_name} • {formatDateTime(note.created_at)}
@@ -1190,7 +1190,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                   onClick={() => { setSelectedAttachmentType(type); selectedAttachmentTypeRef.current = type; }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     isSelected
-                      ? 'bg-brand-50 border border-blue-300'
+                      ? 'bg-brand-50 border border-brand-300'
                       : 'bg-gray-50 border border-transparent hover:border-gray-300'
                   }`}
                 >
@@ -1233,7 +1233,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                 className="hidden"
                 disabled={uploading}
               />
-              <div className="flex items-center justify-center gap-2 px-4 py-3 bg-brand-600 text-white rounded-xl text-sm font-medium active:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50 shadow-sm">
+              <div className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl text-sm font-medium active:bg-brand-700 transition-colors cursor-pointer disabled:opacity-50 shadow-sm">
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1375,7 +1375,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                   }
                 }}
                 disabled={transitioning}
-                className="w-full bg-brand-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {transitioning ? 'Updating...' : `Yes, ${isReworkActive ? 'Submit Rework' : NEXT_STATUS[myStatus]?.label || 'Update'}`}
               </button>
@@ -1433,7 +1433,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             <div className="space-y-3">
               <button
                 onClick={() => setShowMissingDocsModal(false)}
-                className="w-full bg-brand-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-brand-700 transition-colors"
+                className="w-full bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-brand-700 transition-colors"
               >
                 Got It
               </button>
@@ -1508,7 +1508,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               disabled={transitioning}
               className={`w-full rounded-xl py-4 text-base font-semibold shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
                 requiredDocs.allPresent
-                  ? 'bg-brand-600 text-white active:bg-brand-700'
+                  ? 'bg-gradient-to-r from-brand-600 to-brand-500 text-white active:bg-brand-700'
                   : 'bg-gray-200 text-gray-500'
               }`}
             >
@@ -1581,7 +1581,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         {schedule.project_address && myStatus !== 'completed' && myStatus !== 'rework_required' && (
           <button
             onClick={handleStartNavigation}
-            className="w-full bg-brand-600 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-brand-700 transition-colors flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-brand-600 to-brand-500 text-white rounded-xl py-4 text-base font-semibold shadow-lg active:bg-brand-700 transition-colors flex items-center justify-center gap-2"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -1605,5 +1605,6 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     </div>
   );
 }
+
 
 

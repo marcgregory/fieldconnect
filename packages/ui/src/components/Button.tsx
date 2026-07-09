@@ -11,13 +11,13 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-brand-600 text-white shadow-lg shadow-brand-700/20 hover:bg-brand-700 focus:ring-brand-500',
+    'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-lg shadow-brand-600/25 hover:brightness-110 hover:shadow-xl hover:shadow-brand-600/30 focus:ring-brand-600',
   secondary:
-    'border border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-stone-50 focus:ring-brand-500',
+    'border border-slate-200 bg-white text-slate-900 shadow-sm hover:border-brand-300 hover:bg-slate-50 focus:ring-brand-600',
   danger:
     'bg-red-600 text-white shadow-lg shadow-red-600/20 hover:bg-red-700 focus:ring-red-500',
   ghost:
-    'bg-transparent text-slate-700 hover:bg-slate-100 focus:ring-brand-500',
+    'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-950 focus:ring-brand-600',
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -37,7 +37,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 active:translate-y-px ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+      className={`inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
       disabled={disabled || loading}
       {...props}
     >
@@ -66,4 +66,3 @@ export function Button({
     </button>
   );
 }
-

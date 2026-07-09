@@ -498,7 +498,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
                   onClick={() => setSelectedProjectId(assignment.project_id)}
                   className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-all ${
                     selectedProjectId === assignment.project_id
-                      ? 'border-blue-500 bg-brand-50'
+                      ? 'border-brand-500 bg-brand-50'
                       : 'border-slate-200 bg-white active:bg-stone-50'
                   }`}
                 >
@@ -538,7 +538,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
         <button
           onClick={handleClockIn}
           disabled={actionLoading || clockableAssignments.length === 0 || !selectedProjectId}
-          className="w-full rounded-xl bg-brand-600 py-5 text-xl font-bold text-white shadow-lg shadow-brand-700/20 transition-colors active:bg-brand-700 disabled:opacity-50 disabled:active:bg-brand-600"
+          className="w-full rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 py-5 text-xl font-bold text-white shadow-lg shadow-brand-700/20 transition-colors active:bg-brand-700 disabled:opacity-50 disabled:active:bg-brand-600"
         >
           {actionLoading ? (
             <span className="flex items-center justify-center gap-2">
@@ -553,5 +553,6 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     </div>
   );
 }
+
 
 
