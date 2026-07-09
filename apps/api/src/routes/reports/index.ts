@@ -16,15 +16,21 @@ function formatDt(dateStr: string | null, tz?: string): string {
   });
 }
 
-/** Format a date-only string (scheduled_date) — no timezone conversion, date-only fields only. */
-function formatDateOnly(dateStr: string | null | unknown): string {
+/** Format a date-only string (scheduled_date) — no timezone conversion. */
+function formatDateOnly(dateStr: string | Date | null | unknown): string {
   if (!dateStr) return '';
-  if (typeof dateStr !== 'string') return String(dateStr);
-  // scheduled_date is YYYY-MM-DD, parse as local date
-  const parts = dateStr.split('-');
-  if (parts.length !== 3) return dateStr;
-  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-  if (isNaN(d.getTime())) return dateStr;
+  let d: Date;
+  if (typeof dateStr === 'string') {
+    // scheduled_date is YYYY-MM-DD, parse as local date
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  } else if (dateStr instanceof Date) {
+    d = dateStr;
+  } else {
+    return String(dateStr);
+  }
+  if (isNaN(d.getTime())) return String(dateStr);
   return d.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   });
