@@ -16,6 +16,8 @@ import { scheduleRoutes } from './routes/schedules';
 // Report routes
 import { reportRoutes } from './routes/reports';
 import { dashboardRoutes } from './routes/dashboard';
+// Activity feed routes
+import { activityRoutes } from './routes/activity';
 import { registerAuth } from './middleware/auth';
 import { initWebSocket } from './websocket';
 
@@ -86,6 +88,9 @@ async function main() {
   // Report routes
   await app.register(reportRoutes);
   await app.register(dashboardRoutes);
+
+  // Activity feed
+  await app.register(activityRoutes);
 
   // Start server
   try {

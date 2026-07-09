@@ -11,6 +11,7 @@ import * as jobAttachmentQueries from '../../db/queries/job-attachments';
 import * as scheduleQueries from '../../db/queries/schedules';
 import * as reworkQueries from '../../db/queries/rework';
 import { broadcastAttachmentEvent } from '../../websocket';
+import { insertActivityEvent } from '../../db/queries/activity-events';
 import { saveUpload, deleteUpload } from '../../lib/file-storage';
 import {
   uploadToCloudinary,
@@ -193,6 +194,16 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           technician_id: request.user!.id,
         });
 
+        // Persist to activity feed
+        await insertActivityEvent({
+          event_type: 'photo_uploaded',
+          schedule_id: id,
+          project_id: schedule.project_id,
+          technician_id: request.user!.role === 'field_technician' ? request.user!.id : null,
+          actor_id: request.user!.id,
+          message: `Photo added to ${schedule.project_name} by ${request.user!.name}`,
+        });
+
         return reply.status(201).send({ success: true, data: attachment });
       } catch (err) {
         // Rollback file if DB insert fails
@@ -256,6 +267,15 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           attachment_type: attachment.attachment_type,
           timestamp: new Date().toISOString(),
           technician_id: request.user!.id,
+        });
+
+        // Persist to activity feed
+        await insertActivityEvent({
+          event_type: 'photo_deleted',
+          schedule_id: id,
+          project_id: schedule.project_id,
+          actor_id: request.user!.id,
+          message: `Photo removed from ${schedule.project_name} by ${request.user!.name}`,
         });
       }
 

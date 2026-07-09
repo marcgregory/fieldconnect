@@ -11,6 +11,7 @@ import { ValidationError } from '../../db/queries/schedules';
 import * as technicianQueries from '../../db/queries/technicians';
 import { query } from '../../db';
 import { broadcastJobEvent } from '../../websocket';
+import { insertActivityEvent } from '../../db/queries/activity-events';
 import { jobNoteRoutes } from './job-notes';
 import { jobAttachmentRoutes } from './job-attachments';
 import { signatureRoutes } from './signatures';
@@ -193,6 +194,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
 
       // Broadcast assignment event for each technician
       const createdWithDetails = await scheduleQueries.findById(schedule.id);
+      const techNames = createdWithDetails?.technician_names || [];
       for (const techId of createData.technician_ids) {
         broadcastJobEvent({
           type: 'assignment',
@@ -206,6 +208,15 @@ export async function scheduleRoutes(app: FastifyInstance) {
           technician_id: techId,
         });
       }
+
+      // Persist to activity feed
+      await insertActivityEvent({
+        event_type: 'schedule_created',
+        schedule_id: schedule.id,
+        project_id: createData.project_id,
+        actor_id: request.user!.id,
+        message: `Schedule created: ${createdWithDetails?.project_name || createData.project_id} → ${techNames.join(', ') || createData.technician_ids.length + ' technician(s)'}`,
+      });
 
       return reply.status(201).send({ success: true, data: schedule });
     },
@@ -304,6 +315,7 @@ export async function scheduleRoutes(app: FastifyInstance) {
       // Broadcast reassignment events if technicians changed
       if (updateData.technician_ids) {
         const updatedWithDetails = await scheduleQueries.findById(id);
+        const techNames = updatedWithDetails?.technician_names || [];
         // Emit for new technicians
         for (const techId of updateData.technician_ids) {
           broadcastJobEvent({
@@ -318,6 +330,15 @@ export async function scheduleRoutes(app: FastifyInstance) {
             technician_id: techId,
           });
         }
+
+        // Persist to activity feed
+        await insertActivityEvent({
+          event_type: 'schedule_reassigned',
+          schedule_id: id,
+          project_id: effectiveProjectId,
+          actor_id: request.user!.id,
+          message: `Reassigned: ${existing.project_name} → ${techNames.join(', ') || updateData.technician_ids.length + ' technician(s)'}`,
+        });
       }
 
       return { success: true, data: schedule };
@@ -408,6 +429,52 @@ export async function scheduleRoutes(app: FastifyInstance) {
             technician_id: target.techId,
           });
         }
+
+        // Map status transitions to activity feed event types
+        const statusEventMap: Record<string, Record<string, string>> = {
+          scheduled: { traveling: 'technician_started_traveling' },
+          traveling: { on_site: 'arrived_on_site' },
+          on_site: { completed: 'work_completed' },
+          completed: { closed: 'job_closed' },
+        };
+        const targetOldStatus = emitTargets.length === 1 ? emitTargets[0].oldTechStatus : existing.status;
+        const activityEventType = statusEventMap[targetOldStatus]?.[transitionStatus] || 'status_change';
+
+        // Build message for activity feed
+        let activityMessage: string;
+        if (transitionStatus === 'closed') {
+          activityMessage = `${result.schedule.project_name} closed by ${request.user!.name}`;
+        } else if (emitTargets.length === 1) {
+          // Per-technician transition
+          const techName = emitTargets[0].techName;
+          const statusLabels: Record<string, string> = {
+            traveling: 'started traveling',
+            on_site: 'arrived on site',
+            completed: 'completed work',
+            closed: 'closed',
+          };
+          activityMessage = `${techName} ${statusLabels[transitionStatus] || transitionStatus} — ${result.schedule.project_name}`;
+        } else {
+          // Bulk transition (office acting on all techs)
+          const techNames = emitTargets.map(t => t.techName).join(', ');
+          const statusLabels: Record<string, string> = {
+            traveling: 'started traveling',
+            on_site: 'arrived on site',
+            completed: 'completed work',
+            closed: 'closed',
+          };
+          activityMessage = `${techNames} ${statusLabels[transitionStatus] || transitionStatus} — ${result.schedule.project_name}`;
+        }
+
+        // Persist to activity feed
+        await insertActivityEvent({
+          event_type: activityEventType,
+          schedule_id: id,
+          project_id: existing.project_id,
+          technician_id: emitTargets.length === 1 ? emitTargets[0].techId : null,
+          actor_id: request.user!.id,
+          message: activityMessage,
+        });
 
         return { success: true, data: result };
       } catch (err) {

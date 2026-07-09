@@ -4,6 +4,7 @@ import { requireRole } from '../../middleware/auth';
 import * as reworkQueries from '../../db/queries/rework';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastJobEvent } from '../../websocket';
+import { insertActivityEvent } from '../../db/queries/activity-events';
 
 export async function reworkRoutes(app: FastifyInstance) {
   // ─── Request Rework ───────────────────────────────────────────────────────
@@ -83,6 +84,19 @@ export async function reworkRoutes(app: FastifyInstance) {
           changed_by: request.user!.name,
           timestamp: new Date().toISOString(),
           technician_id: technician_id as string,
+        });
+
+        // Persist to activity feed
+        const reworkTargetTech = existing.technician_workflow?.find(
+          (tw) => tw.technician_id === technician_id
+        );
+        await insertActivityEvent({
+          event_type: 'rework_requested',
+          schedule_id: id,
+          project_id: existing.project_id,
+          technician_id: technician_id as string,
+          actor_id: request.user!.id,
+          message: `Rework requested for ${reworkTargetTech?.technician_name || 'technician'} — ${result.schedule.project_name}`,
         });
 
         return reply.status(201).send({
@@ -168,6 +182,19 @@ export async function reworkRoutes(app: FastifyInstance) {
           technician_id: targetTechId,
         });
 
+        // Persist to activity feed
+        const resumeTechName = existing.technician_workflow?.find(
+          (tw) => tw.technician_id === targetTechId
+        )?.technician_name || targetTechId;
+        await insertActivityEvent({
+          event_type: 'rework_resumed',
+          schedule_id: id,
+          project_id: existing.project_id,
+          technician_id: targetTechId,
+          actor_id: request.user!.id,
+          message: `${resumeTechName} resumed work (rework) — ${result.schedule.project_name}`,
+        });
+
         return { success: true, data: result };
       } catch (err) {
         if (err instanceof scheduleQueries.ValidationError) {
@@ -230,6 +257,19 @@ export async function reworkRoutes(app: FastifyInstance) {
           changed_by: request.user!.name,
           timestamp: new Date().toISOString(),
           technician_id: targetTechId,
+        });
+
+        // Persist to activity feed
+        const completeReworkTechName = existing.technician_workflow?.find(
+          (tw) => tw.technician_id === targetTechId
+        )?.technician_name || targetTechId;
+        await insertActivityEvent({
+          event_type: 'rework_completed',
+          schedule_id: id,
+          project_id: existing.project_id,
+          technician_id: targetTechId,
+          actor_id: request.user!.id,
+          message: `${completeReworkTechName} completed rework — ${result.schedule.project_name}`,
         });
 
         return { success: true, data: result };

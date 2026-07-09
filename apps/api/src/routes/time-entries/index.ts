@@ -4,6 +4,7 @@ import { requireRole } from '../../middleware/auth';
 import * as timeEntryQueries from '../../db/queries/time-entries';
 import * as projectQueries from '../../db/queries/projects';
 import { broadcastClockEvent } from '../../websocket';
+import { insertActivityEvent } from '../../db/queries/activity-events';
 
 export async function timeEntryRoutes(app: FastifyInstance) {
   // ─── Clock In ───────────────────────────────────────────────────────────
@@ -70,6 +71,14 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         entry_id: entry.id,
         clock_in_lat,
         clock_in_lng,
+      });
+
+      // Persist to activity feed
+      await insertActivityEvent({
+        event_type: 'clock_in',
+        project_id,
+        actor_id: request.user!.id,
+        message: `${request.user!.name} clocked in at ${project.name}`,
       });
 
       return reply.status(201).send({
@@ -149,6 +158,14 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         timestamp: entry.clock_out!,
         entry_id: entry.id,
         duration_hours: durationHours,
+      });
+
+      // Persist to activity feed
+      await insertActivityEvent({
+        event_type: 'clock_out',
+        project_id: entry.project_id,
+        actor_id: request.user!.id,
+        message: `${request.user!.name} clocked out at ${project?.name || 'Unknown'} (${durationHours.toFixed(1)}h)`,
       });
 
       return reply.status(200).send({

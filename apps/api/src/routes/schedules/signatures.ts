@@ -5,6 +5,7 @@ import * as signatureQueries from '../../db/queries/signatures';
 import * as reworkQueries from '../../db/queries/rework';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastSignatureEvent } from '../../websocket';
+import { insertActivityEvent } from '../../db/queries/activity-events';
 import { uploadSignatureToCloudinary } from '../../lib/cloudinary-storage';
 
 export async function signatureRoutes(app: FastifyInstance) {
@@ -92,6 +93,16 @@ export async function signatureRoutes(app: FastifyInstance) {
         label: parsed.data.label || 'customer',
         timestamp: new Date().toISOString(),
         technician_id: request.user!.id,
+      });
+
+      // Persist to activity feed
+      await insertActivityEvent({
+        event_type: 'signature_captured',
+        schedule_id: id,
+        project_id: schedule.project_id,
+        technician_id: request.user!.role === 'field_technician' ? request.user!.id : null,
+        actor_id: request.user!.id,
+        message: `Signature captured on ${schedule.project_name} by ${request.user!.name}`,
       });
 
       return reply.status(201).send({ success: true, data: signature });
