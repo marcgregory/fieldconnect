@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { SessionProvider } from '@/components/SessionProvider';
+import { InstallPrompt } from '@/components/InstallPrompt';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -35,17 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <SessionProvider>{children}</SessionProvider>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js');
-                });
-              }
-            `,
-          }}
-        />
+        <InstallPrompt />
       </body>
     </html>
   );
