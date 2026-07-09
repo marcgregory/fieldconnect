@@ -502,3 +502,14 @@ export function getCsvExportUrl(filters?: ReportFilters): string {
   const qs = params.toString();
   return `/api/proxy/api/v1/reports/time-entries.csv${qs ? `?${qs}` : ''}`;
 }
+
+
+export function getExcelExportUrl(filters?: ReportFilters): string {
+  const params = new URLSearchParams();
+  if (filters?.from) params.set('from', filters.from);
+  if (filters?.to) params.set('to', filters.to);
+  if (filters?.project_id) params.set('project_id', filters.project_id);
+  if (filters?.technician_id) params.set('technician_id', filters.technician_id);
+  const qs = params.toString();
+  return `/api/proxy/api/v1/reports/time-entries.xls${qs ? `?${qs}` : ''}`;
+}

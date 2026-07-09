@@ -2,8 +2,104 @@ import type { FastifyInstance } from 'fastify';
 import { requireRole } from '../../middleware/auth';
 import * as reportQueries from '../../db/queries/reports';
 
+type ExportRow = Awaited<ReturnType<typeof reportQueries.getTimeEntriesReportAll>>[number];
+
+const TIME_ENTRY_EXPORT_COLUMNS = [
+  'Technician',
+  'Project',
+  'Address',
+  'Scheduled Date',
+  'Clock In',
+  'Clock Out',
+  'Break (min)',
+  'Duration (hrs)',
+  'Notes',
+] as const;
+
+function exportValues(row: ExportRow): Array<string | number> {
+  return [
+    row.technician_name || '',
+    row.project_name || '',
+    row.project_address || '',
+    row.scheduled_date || '',
+    row.clock_in || '',
+    row.clock_out || '',
+    row.break_minutes,
+    row.duration_hours,
+    row.notes || '',
+  ];
+}
+
+function escapeCsv(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function escapeHtml(value: string | number | null | undefined): string {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildStyledExcel(rows: ExportRow[]): string {
+  const headerCells = TIME_ENTRY_EXPORT_COLUMNS
+    .map((column) => `<th>${escapeHtml(column)}</th>`)
+    .join('');
+
+  const bodyRows = rows
+    .map((row, index) => {
+      const cells = exportValues(row)
+        .map((value, columnIndex) => {
+          const align = columnIndex === 6 || columnIndex === 7 ? ' class="number"' : '';
+          return `<td${align}>${escapeHtml(value)}</td>`;
+        })
+        .join('');
+      return `<tr class="${index % 2 === 0 ? 'band' : 'plain'}">${cells}</tr>`;
+    })
+    .join('');
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11pt; }
+    th { background: #2563eb; color: #ffffff; font-weight: 700; border: 1px solid #1d4ed8; padding: 4px 6px; white-space: nowrap; }
+    td { border: 1px solid #7dd3fc; padding: 6px; vertical-align: middle; white-space: normal; }
+    tr.band td { background: #c7eef8; }
+    tr.plain td { background: #ffffff; }
+    .number { text-align: right; mso-number-format: "0.00"; }
+  </style>
+</head>
+<body>
+  <table>
+    <colgroup>
+      <col style="width: 120px" />
+      <col style="width: 190px" />
+      <col style="width: 260px" />
+      <col style="width: 120px" />
+      <col style="width: 150px" />
+      <col style="width: 150px" />
+      <col style="width: 95px" />
+      <col style="width: 110px" />
+      <col style="width: 260px" />
+    </colgroup>
+    <thead><tr>${headerCells}</tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+</body>
+</html>`;
+}
+
 export async function reportRoutes(app: FastifyInstance) {
-  // ─── Time Entries Report ──────────────────────────────────────────────────
   app.get(
     '/api/v1/reports/time-entries',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
@@ -26,7 +122,6 @@ export async function reportRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── Hours by Technician ──────────────────────────────────────────────────
   app.get(
     '/api/v1/reports/technicians',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
@@ -39,7 +134,6 @@ export async function reportRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── Hours by Project ─────────────────────────────────────────────────────
   app.get(
     '/api/v1/reports/projects',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
@@ -52,7 +146,6 @@ export async function reportRoutes(app: FastifyInstance) {
     },
   );
 
-  // ─── CSV Export ──────────────────────────────────────────────────────────
   app.get(
     '/api/v1/reports/time-entries.csv',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
@@ -71,35 +164,37 @@ export async function reportRoutes(app: FastifyInstance) {
         technician_id,
       });
 
-      // Build CSV
-      const header = 'Technician,Project,Address,Scheduled Date,Clock In,Clock Out,Break (min),Duration (hrs),Notes';
-      const csvRows = rows.map((r) => {
-        const escape = (s: string | null | undefined) => {
-          if (!s) return '';
-          const str = String(s);
-          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-            return `"${str.replace(/"/g, '""')}"`;
-          }
-          return str;
-        };
-        return [
-          escape(r.technician_name),
-          escape(r.project_name),
-          escape(r.project_address),
-          r.scheduled_date || '',
-          r.clock_in,
-          r.clock_out || '',
-          r.break_minutes,
-          r.duration_hours,
-          escape(r.notes),
-        ].join(',');
-      });
-
+      const header = TIME_ENTRY_EXPORT_COLUMNS.join(',');
+      const csvRows = rows.map((row) => exportValues(row).map(escapeCsv).join(','));
       const csv = [header, ...csvRows].join('\n');
 
       reply.header('Content-Type', 'text/csv');
       reply.header('Content-Disposition', `attachment; filename="time-entries-${from || 'all'}-${to || 'all'}.csv"`);
       return reply.send(csv);
+    },
+  );
+
+  app.get(
+    '/api/v1/reports/time-entries.xls',
+    { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
+    async (request, reply) => {
+      const { from, to, project_id, technician_id } = request.query as {
+        from?: string;
+        to?: string;
+        project_id?: string;
+        technician_id?: string;
+      };
+
+      const rows = await reportQueries.getTimeEntriesReportAll({
+        from,
+        to,
+        project_id,
+        technician_id,
+      });
+
+      reply.header('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
+      reply.header('Content-Disposition', `attachment; filename="time-entries-${from || 'all'}-${to || 'all'}.xls"`);
+      return reply.send(buildStyledExcel(rows));
     },
   );
 }
