@@ -542,17 +542,84 @@ export async function update(
     );
   }
 
-  // Replace technician assignments if provided
+  // Diff-based technician assignment update — preserves per-tech workflow state
   if (data.technician_ids !== undefined) {
-    await query('DELETE FROM schedule_technicians WHERE schedule_id = $1', [id]);
+    // 1. Read existing assignments with their workflow state
+    const existingResult = await query(
+      `SELECT technician_id, status FROM schedule_technicians WHERE schedule_id = $1`,
+      [id],
+    );
+    const existingIds: string[] = existingResult.rows.map((r: any) => r.technician_id);
+    const existingStatusMap = new Map<string, string>(
+      existingResult.rows.map((r: any) => [r.technician_id, r.status]),
+    );
 
-    if (data.technician_ids.length > 0) {
-      const values = data.technician_ids.map((_, i) => `($1, $${i + 2})`).join(', ');
+    const newIds = data.technician_ids;
+    const keptIds = existingIds.filter((eid) => newIds.includes(eid));
+    const addedIds = newIds.filter((nid) => !existingIds.includes(nid));
+    const removedIds = existingIds.filter((eid) => !newIds.includes(eid));
+
+    // 2. Reject removal of technicians with active workflow state
+    const PROTECTED_STATUSES = ['traveling', 'on_site', 'completed', 'rework_required', 'closed'];
+    for (const techId of removedIds) {
+      const techStatus = existingStatusMap.get(techId);
+      if (!techStatus) continue;
+
+      if (PROTECTED_STATUSES.includes(techStatus)) {
+        // Fetch technician name for a helpful error message
+        const nameResult = await query('SELECT name FROM users WHERE id = $1', [techId]);
+        const techName = nameResult.rows[0]?.name || techId;
+        throw new ValidationError(
+          `Cannot remove ${techName}: technician status is '${techStatus}'. Complete or close the technician first.`,
+          400,
+        );
+      }
+
+      // Also check for active time entries on this schedule's project
+      const schedResult = await query('SELECT project_id FROM schedules WHERE id = $1', [id]);
+      if (schedResult.rows.length > 0) {
+        const projectId = schedResult.rows[0].project_id;
+        const teResult = await query(
+          `SELECT 1 FROM time_entries
+           WHERE user_id = $1 AND project_id = $2 AND clock_out IS NULL
+           LIMIT 1`,
+          [techId, projectId],
+        );
+        if (teResult.rows.length > 0) {
+          const nameResult = await query('SELECT name FROM users WHERE id = $1', [techId]);
+          const techName = nameResult.rows[0]?.name || techId;
+          throw new ValidationError(
+            `Cannot remove ${techName}: technician has an active time entry. Stop the timer first.`,
+            400,
+          );
+        }
+      }
+    }
+
+    // 3. Delete removed technicians (only scheduled ones passed the guard above)
+    if (removedIds.length > 0) {
+      const placeholders = removedIds.map((_, i) => `$${i + 2}`).join(', ');
       await query(
-        `INSERT INTO schedule_technicians (schedule_id, technician_id) VALUES ${values} ON CONFLICT DO NOTHING`,
-        [id, ...data.technician_ids],
+        `DELETE FROM schedule_technicians WHERE schedule_id = $1 AND technician_id IN (${placeholders})`,
+        [id, ...removedIds],
       );
     }
+
+    // 4. Insert new technicians (status defaults to 'scheduled')
+    if (addedIds.length > 0) {
+      const values = addedIds.map((_, i) => `($1, $${i + 2})`).join(', ');
+      await query(
+        `INSERT INTO schedule_technicians (schedule_id, technician_id) VALUES ${values} ON CONFLICT DO NOTHING`,
+        [id, ...addedIds],
+      );
+    }
+
+    // 5. Re-derive schedule status from the updated per-tech rows
+    const derivedStatus = await deriveScheduleStatus(id);
+    await query(
+      `UPDATE schedules SET status = $1, updated_at = NOW() WHERE id = $2`,
+      [derivedStatus, id],
+    );
   }
 
   return findById(id);
