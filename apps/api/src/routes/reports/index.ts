@@ -4,6 +4,7 @@ import * as reportQueries from '../../db/queries/reports';
 
 type ExportRow = Awaited<ReturnType<typeof reportQueries.getTimeEntriesReportAll>>[number];
 
+/** Format a full datetime string with timezone support (for clock_in / clock_out). */
 function formatDt(dateStr: string | null, tz?: string): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -12,6 +13,19 @@ function formatDt(dateStr: string | null, tz?: string): string {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: 'numeric', minute: '2-digit',
     ...(tz ? { timeZone: tz } : {}),
+  });
+}
+
+/** Format a date-only string (scheduled_date) — no timezone conversion, date-only fields only. */
+function formatDateOnly(dateStr: string | null): string {
+  if (!dateStr) return '';
+  // scheduled_date is YYYY-MM-DD, parse as local date
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
   });
 }
 
@@ -32,7 +46,7 @@ function exportValues(row: ExportRow, tz?: string): Array<string | number> {
     row.technician_name || '',
     row.project_name || '',
     row.project_address || '',
-    formatDt(row.scheduled_date || row.clock_in, tz),
+    formatDateOnly(row.scheduled_date),
     formatDt(row.clock_in, tz),
     formatDt(row.clock_out, tz),
     row.break_minutes,
