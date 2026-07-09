@@ -17,8 +17,9 @@ function formatDt(dateStr: string | null, tz?: string): string {
 }
 
 /** Format a date-only string (scheduled_date) — no timezone conversion, date-only fields only. */
-function formatDateOnly(dateStr: string | null): string {
+function formatDateOnly(dateStr: string | null | unknown): string {
   if (!dateStr) return '';
+  if (typeof dateStr !== 'string') return String(dateStr);
   // scheduled_date is YYYY-MM-DD, parse as local date
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
