@@ -89,9 +89,11 @@ export async function getTimeEntriesReport(
     to?: string;
     project_id?: string;
     technician_id?: string;
+    tz?: string;
   },
   pagination: { page: number; limit: number } = { page: 1, limit: 20 },
 ): Promise<PaginatedResult<TimeEntryReportRow>> {
+  const timezone = filters?.tz || 'Asia/Manila';
   const baseSelect = `
     SELECT
       te.id,
@@ -115,7 +117,7 @@ export async function getTimeEntriesReport(
     JOIN users u ON u.id = te.user_id
     JOIN projects p ON p.id = te.project_id
     LEFT JOIN schedules s ON s.project_id = te.project_id
-      AND s.scheduled_date = (te.clock_in AT TIME ZONE 'Asia/Manila')::date
+      AND s.scheduled_date = (te.clock_in AT TIME ZONE '${timezone}')::date
     LEFT JOIN schedule_technicians st ON st.schedule_id = s.id AND st.technician_id = te.user_id`;
 
   const params: unknown[] = [];
@@ -143,7 +145,9 @@ export async function getTimeEntriesReportAll(filters: {
   to?: string;
   project_id?: string;
   technician_id?: string;
+  tz?: string;
 }): Promise<TimeEntryReportRow[]> {
+  const timezone = filters?.tz || 'Asia/Manila';
   let sql = `
     SELECT
       te.id,
@@ -166,7 +170,7 @@ export async function getTimeEntriesReportAll(filters: {
     JOIN users u ON u.id = te.user_id
     JOIN projects p ON p.id = te.project_id
     LEFT JOIN schedules s ON s.project_id = te.project_id
-      AND s.scheduled_date = (te.clock_in AT TIME ZONE 'Asia/Manila')::date
+      AND s.scheduled_date = (te.clock_in AT TIME ZONE '${timezone}')::date
     LEFT JOIN schedule_technicians st ON st.schedule_id = s.id AND st.technician_id = te.user_id
     WHERE 1=1`;
   const params: unknown[] = [];

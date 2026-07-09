@@ -460,13 +460,14 @@ export async function completeRework(
 // ─── Report API ────────────────────────────────────────────────────────────
 
 export async function getReportTimeEntries(
-  filters?: ReportFilters & { page?: number; limit?: number },
+  filters?: ReportFilters & { page?: number; limit?: number; tz?: string },
 ): Promise<PaginatedResponse<TimeEntryReportRow>> {
   const params = new URLSearchParams();
   if (filters?.from) params.set('from', filters.from);
   if (filters?.to) params.set('to', filters.to);
   if (filters?.project_id) params.set('project_id', filters.project_id);
   if (filters?.technician_id) params.set('technician_id', filters.technician_id);
+  if (filters?.tz) params.set('tz', filters.tz);
   if (filters?.page) params.set('page', String(filters.page));
   if (filters?.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();

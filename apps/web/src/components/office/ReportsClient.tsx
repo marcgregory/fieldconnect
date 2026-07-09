@@ -41,13 +41,15 @@ export function ReportsClient() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
 
+  const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
+
   const fetchData = useCallback(async (page = 1) => {
     setLoading(true);
     setError('');
     try {
       switch (tab) {
         case 'entries': {
-          const result = await getReportTimeEntries({ from, to, page, limit: PAGE_SIZE });
+          const result = await getReportTimeEntries({ from, to, tz, page, limit: PAGE_SIZE });
           setEntries(result.data);
           setEntryPagination({ page: result.pagination.page, total: result.pagination.total, total_pages: result.pagination.total_pages });
           break;
@@ -68,13 +70,12 @@ export function ReportsClient() {
     } finally {
       setLoading(false);
     }
-  }, [tab, from, to]);
+  }, [tab, from, to, tz]);
 
   useEffect(() => {
     fetchData(1);
   }, [fetchData]);
 
-  const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
   const excelUrl = getExcelExportUrl({ from, to, tz });
 
   const tabs: { key: Tab; label: string }[] = [

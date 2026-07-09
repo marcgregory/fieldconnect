@@ -136,17 +136,18 @@ export async function reportRoutes(app: FastifyInstance) {
     '/api/v1/reports/time-entries',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
     async (request, reply) => {
-      const { from, to, project_id, technician_id, page, limit } = request.query as {
+      const { from, to, project_id, technician_id, tz, page, limit } = request.query as {
         from?: string;
         to?: string;
         project_id?: string;
         technician_id?: string;
+        tz?: string;
         page?: string;
         limit?: string;
       };
 
       const result = await reportQueries.getTimeEntriesReport(
-        { from, to, project_id, technician_id },
+        { from, to, project_id, technician_id, tz },
         { page: parseInt(page || '1', 10), limit: parseInt(limit || '20', 10) },
       );
 
@@ -182,11 +183,12 @@ export async function reportRoutes(app: FastifyInstance) {
     '/api/v1/reports/time-entries.csv',
     { preHandler: [requireRole('admin', 'office_manager', 'dispatcher')] },
     async (request, reply) => {
-      const { from, to, project_id, technician_id } = request.query as {
+      const { from, to, project_id, technician_id, tz } = request.query as {
         from?: string;
         to?: string;
         project_id?: string;
         technician_id?: string;
+        tz?: string;
       };
 
       const rows = await reportQueries.getTimeEntriesReportAll({
@@ -194,10 +196,11 @@ export async function reportRoutes(app: FastifyInstance) {
         to,
         project_id,
         technician_id,
+        tz,
       });
 
       const header = TIME_ENTRY_EXPORT_COLUMNS.join(',');
-      const csvRows = rows.map((row) => exportValues(row).map(escapeCsv).join(','));
+      const csvRows = rows.map((row) => exportValues(row, tz).map(escapeCsv).join(','));
       const csv = [header, ...csvRows].join('\n');
 
       reply.header('Content-Type', 'text/csv');
@@ -223,6 +226,7 @@ export async function reportRoutes(app: FastifyInstance) {
         to,
         project_id,
         technician_id,
+        tz,
       });
 
       reply.header('Content-Type', 'application/vnd.ms-excel; charset=utf-8');
