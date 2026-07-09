@@ -148,7 +148,7 @@ export function JobQueueClient() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Tab Navigation */}
-      <div className="bg-white border-b border-gray-200">
+      <div className="border-b border-slate-200 bg-white/90 backdrop-blur-xl">
         <div className="flex">
           {tabs.map((tab) => (
             <button
@@ -156,16 +156,16 @@ export function JobQueueClient() {
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 py-3 text-sm font-medium text-center border-b-2 transition-colors ${
                 activeTab === tab.key
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-brand-600 text-brand-700'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
               {tab.label}
               <span
                 className={`ml-1.5 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full ${
                   activeTab === tab.key
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-500'
+                    ? 'bg-brand-100 text-brand-800'
+                    : 'bg-slate-100 text-slate-500'
                 }`}
               >
                 {tab.count}
@@ -176,10 +176,10 @@ export function JobQueueClient() {
       </div>
 
       {/* Job List */}
-      <div className="flex-1 px-4 py-4 space-y-3">
+      <div className="flex-1 space-y-3 px-4 py-4">
         {activeJobs.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400 text-sm">
+            <p className="text-slate-400 text-sm">
               {activeTab === 'today'
                 ? 'No jobs scheduled for today.'
                 : activeTab === 'upcoming'
@@ -201,10 +201,11 @@ export function JobQueueClient() {
 
       {/* Auto-refreshes via WebSocket — pull down to force refresh */}
       <div className="px-4 pb-4">
-        <p className="text-center text-xs text-gray-400">
+        <p className="text-center text-xs text-slate-400">
           Updates arrive in real-time
         </p>
       </div>
     </div>
   );
 }
+

@@ -20,10 +20,10 @@ export default async function JobsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="flex min-h-screen flex-col bg-stone-50">
       {/* Header */}
-      <div className="bg-blue-600 text-white px-4 pt-12 pb-4">
-        <h1 className="text-lg font-bold">My Jobs</h1>
+      <div className="border-b border-brand-100 bg-gradient-to-br from-white via-brand-50 to-stone-50 px-4 pb-4 pt-12 text-slate-950">
+        <h1 className="text-lg font-bold tracking-tight">My Jobs</h1>
       </div>
 
       {/* Job Queue */}

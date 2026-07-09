@@ -39,10 +39,11 @@
     @apply bg-stone-50 text-slate-950 antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "kern";
     background:
-      radial-gradient(circle at top left, rgba(245, 158, 11, 0.16), transparent 34rem),
-      radial-gradient(circle at top right, rgba(20, 184, 166, 0.10), transparent 30rem),
+      radial-gradient(circle at top left, rgba(0, 82, 255, 0.10), transparent 34rem),
+      radial-gradient(circle at top right, rgba(77, 124, 255, 0.08), transparent 30rem),
       linear-gradient(180deg, #fafaf7 0%, #f1f5f2 52%, #eef2f6 100%);
     min-height: 100vh;
   }
 }
+
 

@@ -4,13 +4,12 @@ export function Logo({ size = 24, showText = false }: { size?: number; showText?
       <svg width={size} height={size} viewBox="0 0 40 40" fill="none" className="flex-shrink-0 drop-shadow-sm">
         <defs>
           <linearGradient id="logo-grad" x1="4" y1="36" x2="36" y2="4" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#8b5a28" />
-            <stop offset="0.55" stopColor="#cdae79" />
-            <stop offset="1" stopColor="#5a7276" />
+            <stop offset="0" stopColor="#0052FF" />
+            <stop offset="1" stopColor="#4D7CFF" />
           </linearGradient>
         </defs>
         <rect x="1" y="1" width="38" height="38" rx="10" fill="url(#logo-grad)" />
-        <path d="M22 5L12 21h6l-2 14 12-18h-6l2-12z" fill="#fffdf6" />
+        <path d="M22 5L12 21h6l-2 14 12-18h-6l2-12z" fill="#FFFFFF" />
       </svg>
       {showText && (
         <span className="font-black tracking-tight text-slate-950" style={{ fontSize: size * 0.58 }}>
