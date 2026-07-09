@@ -1088,7 +1088,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
               // Rework step is only "complete" if there were actual rework requests
               // that have been resolved. Without rework, it should NOT show as checked.
               const isReworkWithNoRequests = status === 'rework_required' && reworkRequests.length === 0;
-              const isReworkCompleted = status === 'rework_required' && reworkRequests.some(r => r.status === 'closed');
+              const isReworkCompleted = status === 'rework_required' && reworkRequests.some(r => r.status === 'completed');
               const isComplete = isReworkWithNoRequests
                 ? false
                 : isReworkCompleted
