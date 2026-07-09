@@ -23,7 +23,7 @@ export default async function MobileLayout({ children }: { children: React.React
 
   return (
     <div className="mx-auto min-h-screen max-w-md bg-gray-50" style={{ maxWidth: '430px' }}>
-      {children}
+      <main id="main-content">{children}</main>
       <OfflineIndicator />
     </div>
   );

@@ -25,7 +25,7 @@ export default async function OfficeLayout({ children }: { children: React.React
     <div className="min-h-screen bg-gray-50">
       <OfficeClientWrapper>
         <OfficeNav />
-        {children}
+        <main id="main-content">{children}</main>
       </OfficeClientWrapper>
     </div>
   );

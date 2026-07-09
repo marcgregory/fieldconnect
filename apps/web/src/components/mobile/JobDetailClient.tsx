@@ -756,7 +756,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             {canDelete && (
             <button
               onClick={() => handleDeleteAttachment(att.id)}
-              className="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/70 transition-colors"
+              className="absolute top-1 right-1 w-7 h-7 min-w-[44px] min-h-[44px] bg-black/50 rounded-full flex items-center justify-center text-white text-xs hover:bg-black/70 transition-colors"
               title="Delete"
             >
               &times;
