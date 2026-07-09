@@ -194,7 +194,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           technician_id: request.user!.id,
         });
 
-        // Persist to activity feed with attachment_type metadata
+        // Persist to activity feed with structured metadata
         const attType = typeCheck.data.attachment_type;
         const typeLabels: Record<string, string> = {
           before: 'Before photo',
@@ -203,21 +203,23 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           document: 'Document',
         };
         const typeLabel = typeLabels[attType] || 'Photo';
-        const verb = attType === 'document' ? 'uploaded' : 'added';
         await insertActivityEvent({
           event_type: 'photo_uploaded',
           schedule_id: id,
           project_id: schedule.project_id,
-          technician_id: request.user!.role === 'field_technician' ? request.user!.id : null,
+          technician_id: request.user!.id,
           actor_id: request.user!.id,
-          message: `${typeLabel} ${verb} to ${schedule.project_name} by ${request.user!.name}`,
+          message: `${typeLabel} added — ${schedule.project_name}`,
           metadata: {
+            schedule_id: id,
+            project_name: schedule.project_name,
             attachment_id: attachment.id,
             attachment_type: attType,
-            original_name: fileName,
+            event_type: 'photo_uploaded',
             technician_id: request.user!.id,
             technician_name: request.user!.name,
-            project_name: schedule.project_name,
+            actor_id: request.user!.id,
+            actor_name: request.user!.name,
           },
         });
 
@@ -286,7 +288,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           technician_id: request.user!.id,
         });
 
-        // Persist to activity feed with attachment_type metadata
+        // Persist to activity feed with structured metadata
         const delAttType = attachment.attachment_type;
         const delTypeLabels: Record<string, string> = {
           before: 'Before photo',
@@ -299,15 +301,19 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           event_type: 'photo_deleted',
           schedule_id: id,
           project_id: schedule.project_id,
+          technician_id: attachment.technician_id || request.user!.id,
           actor_id: request.user!.id,
-          message: `${delTypeLabel} removed from ${schedule.project_name} by ${request.user!.name}`,
+          message: `${delTypeLabel} removed — ${schedule.project_name}`,
           metadata: {
+            schedule_id: id,
+            project_name: schedule.project_name,
             attachment_id: attachmentId,
             attachment_type: delAttType,
-            original_name: attachment.file_name,
-            technician_id: request.user!.id,
+            event_type: 'photo_deleted',
+            technician_id: attachment.technician_id || request.user!.id,
             technician_name: request.user!.name,
-            project_name: schedule.project_name,
+            actor_id: request.user!.id,
+            actor_name: request.user!.name,
           },
         });
       }

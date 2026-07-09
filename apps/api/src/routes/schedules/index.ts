@@ -210,13 +210,28 @@ export async function scheduleRoutes(app: FastifyInstance) {
       }
 
       // Persist to activity feed
-      await insertActivityEvent({
-        event_type: 'schedule_created',
-        schedule_id: schedule.id,
-        project_id: createData.project_id,
-        actor_id: request.user!.id,
-        message: `Schedule created: ${createdWithDetails?.project_name || createData.project_id} → ${techNames.join(', ') || createData.technician_ids.length + ' technician(s)'}`,
-      });
+      for (const techId of createData.technician_ids) {
+        const techNameForMeta = createdWithDetails?.technician_workflow?.find(
+          tw => tw.technician_id === techId
+        )?.technician_name || techId;
+        await insertActivityEvent({
+          event_type: 'schedule_created',
+          schedule_id: schedule.id,
+          project_id: createData.project_id,
+          technician_id: techId,
+          actor_id: request.user!.id,
+          message: `Schedule created — ${createdWithDetails?.project_name || createData.project_id}`,
+          metadata: {
+            schedule_id: schedule.id,
+            project_name: createdWithDetails?.project_name || createData.project_id,
+            event_type: 'schedule_created',
+            technician_id: techId,
+            technician_name: techNameForMeta,
+            actor_id: request.user!.id,
+            actor_name: request.user!.name,
+          },
+        });
+      }
 
       return reply.status(201).send({ success: true, data: schedule });
     },
@@ -331,14 +346,30 @@ export async function scheduleRoutes(app: FastifyInstance) {
           });
         }
 
-        // Persist to activity feed
-        await insertActivityEvent({
-          event_type: 'schedule_reassigned',
-          schedule_id: id,
-          project_id: effectiveProjectId,
-          actor_id: request.user!.id,
-          message: `Reassigned: ${existing.project_name} → ${techNames.join(', ') || updateData.technician_ids.length + ' technician(s)'}`,
-        });
+        // Persist to activity feed — one event per assigned technician
+        const updatedDetails = await scheduleQueries.findById(id);
+        for (const techId of updateData.technician_ids) {
+          const techMetaName = updatedDetails?.technician_workflow?.find(
+            tw => tw.technician_id === techId
+          )?.technician_name || techId;
+          await insertActivityEvent({
+            event_type: 'schedule_reassigned',
+            schedule_id: id,
+            project_id: effectiveProjectId,
+            technician_id: techId,
+            actor_id: request.user!.id,
+            message: `Reassigned — ${existing.project_name}`,
+            metadata: {
+              schedule_id: id,
+              project_name: existing.project_name,
+              event_type: 'schedule_reassigned',
+              technician_id: techId,
+              technician_name: techMetaName,
+              actor_id: request.user!.id,
+              actor_name: request.user!.name,
+            },
+          });
+        }
       }
 
       return { success: true, data: schedule };
@@ -440,41 +471,42 @@ export async function scheduleRoutes(app: FastifyInstance) {
         const targetOldStatus = emitTargets.length === 1 ? emitTargets[0].oldTechStatus : existing.status;
         const activityEventType = statusEventMap[targetOldStatus]?.[transitionStatus] || 'status_change';
 
-        // Build message for activity feed
-        let activityMessage: string;
-        if (transitionStatus === 'closed') {
-          activityMessage = `${result.schedule.project_name} closed by ${request.user!.name}`;
-        } else if (emitTargets.length === 1) {
-          // Per-technician transition
-          const techName = emitTargets[0].techName;
-          const statusLabels: Record<string, string> = {
-            traveling: 'started traveling',
-            on_site: 'arrived on site',
-            completed: 'completed work',
-            closed: 'closed',
-          };
-          activityMessage = `${techName} ${statusLabels[transitionStatus] || transitionStatus} — ${result.schedule.project_name}`;
-        } else {
-          // Bulk transition (office acting on all techs)
-          const techNames = emitTargets.map(t => t.techName).join(', ');
-          const statusLabels: Record<string, string> = {
-            traveling: 'started traveling',
-            on_site: 'arrived on site',
-            completed: 'completed work',
-            closed: 'closed',
-          };
-          activityMessage = `${techNames} ${statusLabels[transitionStatus] || transitionStatus} — ${result.schedule.project_name}`;
-        }
+        // Build structured message + metadata per technician
+        const statusLabels: Record<string, string> = {
+          traveling: 'started traveling',
+          on_site: 'arrived on site',
+          completed: 'completed work',
+          closed: 'closed',
+        };
 
-        // Persist to activity feed
-        await insertActivityEvent({
-          event_type: activityEventType,
-          schedule_id: id,
-          project_id: existing.project_id,
-          technician_id: emitTargets.length === 1 ? emitTargets[0].techId : null,
-          actor_id: request.user!.id,
-          message: activityMessage,
-        });
+        for (const target of emitTargets) {
+          const isClosed = transitionStatus === 'closed';
+          const activityMessage = isClosed
+            ? `Assignment closed — ${result.schedule.project_name}`
+            : `${target.techName} ${statusLabels[transitionStatus] || transitionStatus} — ${result.schedule.project_name}`;
+
+          const activityMeta: Record<string, unknown> = {
+            schedule_id: id,
+            project_name: result.schedule.project_name,
+            event_type: activityEventType,
+            technician_id: target.techId,
+            technician_name: target.techName,
+            actor_id: request.user!.id,
+            actor_name: request.user!.name,
+            from_status: target.oldTechStatus,
+            to_status: transitionStatus,
+          };
+
+          await insertActivityEvent({
+            event_type: activityEventType,
+            schedule_id: id,
+            project_id: existing.project_id,
+            technician_id: target.techId,
+            actor_id: request.user!.id,
+            message: activityMessage,
+            metadata: activityMeta,
+          });
+        }
 
         return { success: true, data: result };
       } catch (err) {

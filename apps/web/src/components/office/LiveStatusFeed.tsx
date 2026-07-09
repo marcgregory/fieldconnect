@@ -123,7 +123,7 @@ function getIconForEventType(eventType: string): React.ReactNode {
     default:
       return (
         <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-20 0 9 9 0 0120 0z" />
         </svg>
       );
   }
@@ -156,26 +156,26 @@ export function LiveStatusFeed() {
         const json = await res.json();
         if (!json.success || !json.data || cancelled) return;
 
-        const items: FeedItem[] = json.data.map((evt: ApiActivityEvent) => ({
-          id: `hist-${evt.id}`,
-          type: evt.event_type,
-          message: evt.message,
-          subtext: evt.actor_name
-            ? `${evt.actor_name} · ${new Date(evt.created_at).toLocaleTimeString()}`
-            : new Date(evt.created_at).toLocaleTimeString(),
-          timestamp: new Date(evt.created_at),
-          color: STATUS_COLORS[evt.event_type] || 'border-gray-200',
-          icon: getIconForEventType(evt.event_type),
-          // contentKey derived from the event fields so cross-source dedup works
-          // against socket events that represent the same occurrence.
-          contentKey: buildContentKey({
+        const items: FeedItem[] = json.data.map((evt: ApiActivityEvent) => {
+          const meta = evt.metadata || {};
+          const subtext = buildSubtextFromMeta(evt.event_type, meta, evt);
+          return {
+            id: `hist-${evt.id}`,
             type: evt.event_type,
-            schedule_id: evt.schedule_id || '',
-            technician_name: evt.technician_name || evt.actor_name || '',
-            technician_id: evt.technician_id || '',
-            timestamp: evt.created_at,
-          }),
-        }));
+            message: evt.message,
+            subtext,
+            timestamp: new Date(evt.created_at),
+            color: STATUS_COLORS[evt.event_type] || 'border-gray-200',
+            icon: getIconForEventType(evt.event_type),
+            contentKey: buildContentKey({
+              type: evt.event_type,
+              schedule_id: evt.schedule_id || '',
+              technician_name: evt.technician_name || evt.actor_name || '',
+              technician_id: evt.technician_id || '',
+              timestamp: evt.created_at,
+            }),
+          };
+        });
 
         setHistoricalItems(items);
       } catch (err) {
@@ -190,14 +190,6 @@ export function LiveStatusFeed() {
   }, []);
 
   // Merge historical + socket events into unified feed, dedup by contentKey.
-  //
-  // Duplicate sources:
-  //   1. Historical fetch from DB  → event_type='technician_started_traveling'
-  //   2. Socket job:update         → type='status_change', new_status='traveling'
-  //   Both represent the same real-world occurrence.
-  //
-  // Fix: derive a stable contentKey from the semantic identity of the event
-  // and dedup across sources before adding to the list.
   useEffect(() => {
     const seen = new Set<string>();
     const items: FeedItem[] = [];
@@ -232,13 +224,8 @@ export function LiveStatusFeed() {
       });
     }
 
-    // 3. Socket-based job events (array already contains the latest — no need
-    //    for the separate lastJobEvent handling)
+    // 3. Socket-based job events
     for (const evt of jobEvents) {
-      // Map socket event_type to a normalized type for cross-source dedup:
-      //   status_change → new_status value (e.g. 'traveling')
-      //   assignment    → 'assignment'
-      //   reassigned    → 'reassigned'
       const normalizedType = evt.type === 'status_change'
         ? (evt.new_status || 'status_change')
         : evt.type;
@@ -253,26 +240,25 @@ export function LiveStatusFeed() {
       if (seen.has(ck)) continue;
       seen.add(ck);
 
-      const statusLabel = (evt.new_status || '').replace(/_/g, ' ');
-      let msg = '';
-      let sub = '';
+      const isClosed = evt.type === 'status_change' && evt.new_status === 'closed';
+      let msg: string;
+      let sub: string;
 
-      if (evt.type === 'status_change') {
-        if (evt.technician_name) {
-          msg = `${evt.technician_name} started ${statusLabel}`;
-          sub = evt.project_name;
-        } else {
-          msg = `${evt.project_name}: ${evt.old_status || 'scheduled'} → ${evt.new_status}`;
-          sub = `by ${evt.changed_by}`;
-        }
+      if (isClosed) {
+        msg = `Assignment closed — ${evt.project_name}`;
+        sub = `Technician: ${evt.technician_name || 'Unknown'} • Closed by: ${evt.changed_by}`;
+      } else if (evt.type === 'status_change' && evt.technician_name) {
+        const statusLabel = (evt.new_status || '').replace(/_/g, ' ');
+        msg = `${evt.technician_name} ${statusLabel} — ${evt.project_name}`;
+        sub = `Technician: ${evt.technician_name} • By: ${evt.changed_by}`;
       } else if (evt.type === 'assignment') {
-        msg = `Assigned: ${evt.project_name} → ${evt.technician_name}`;
-        sub = `by ${evt.changed_by}`;
+        msg = `Assigned — ${evt.project_name}`;
+        sub = `Technician: ${evt.technician_name} • By: ${evt.changed_by}`;
       } else if (evt.type === 'reassigned') {
-        msg = `Reassigned: ${evt.project_name} → ${evt.technician_name}`;
-        sub = `by ${evt.changed_by}`;
+        msg = `Reassigned — ${evt.project_name}`;
+        sub = `Technician: ${evt.technician_name} • By: ${evt.changed_by}`;
       } else {
-        msg = `${evt.project_name}: ${evt.old_status || 'scheduled'} → ${evt.new_status}`;
+        msg = `${evt.project_name}: → ${evt.new_status}`;
         sub = `by ${evt.changed_by}`;
       }
 
@@ -305,31 +291,33 @@ export function LiveStatusFeed() {
         seen.add(ck);
 
         const evt = lastJobEvent;
-        let message = '';
-        let subtext = '';
-        const statusLabel = (evt.new_status || '').replace(/_/g, ' ');
+        const isClosed = evt.type === 'status_change' && evt.new_status === 'closed';
+        let msg: string;
+        let sub: string;
 
-        if (evt.type === 'status_change') {
-          if (evt.technician_name) {
-            message = `${evt.technician_name} started ${statusLabel}`;
-            subtext = evt.project_name;
-          } else {
-            message = `${evt.project_name}: ${evt.old_status || 'scheduled'} → ${evt.new_status}`;
-            subtext = `by ${evt.changed_by}`;
-          }
+        if (isClosed) {
+          msg = `Assignment closed — ${evt.project_name}`;
+          sub = `Technician: ${evt.technician_name || 'Unknown'} • Closed by: ${evt.changed_by}`;
+        } else if (evt.type === 'status_change' && evt.technician_name) {
+          const statusLabel = (evt.new_status || '').replace(/_/g, ' ');
+          msg = `${evt.technician_name} ${statusLabel} — ${evt.project_name}`;
+          sub = `Technician: ${evt.technician_name} • By: ${evt.changed_by}`;
         } else if (evt.type === 'assignment') {
-          message = `Assigned: ${evt.project_name} → ${evt.technician_name}`;
-          subtext = `by ${evt.changed_by}`;
+          msg = `Assigned — ${evt.project_name}`;
+          sub = `Technician: ${evt.technician_name} • By: ${evt.changed_by}`;
         } else if (evt.type === 'reassigned') {
-          message = `Reassigned: ${evt.project_name} → ${evt.technician_name}`;
-          subtext = `by ${evt.changed_by}`;
+          msg = `Reassigned — ${evt.project_name}`;
+          sub = `Technician: ${evt.technician_name} • By: ${evt.changed_by}`;
+        } else {
+          msg = `${evt.project_name}: → ${evt.new_status}`;
+          sub = `by ${evt.changed_by}`;
         }
 
         items.push({
           id: `job-last-${evt.schedule_id}-${evt.timestamp}`,
           type: evt.type,
-          message,
-          subtext,
+          message: msg,
+          subtext: sub,
           timestamp: new Date(evt.timestamp),
           color: STATUS_COLORS[evt.type] || 'border-blue-200',
           icon: getIconForEventType(evt.type),
@@ -343,17 +331,28 @@ export function LiveStatusFeed() {
       const ck = buildContentKey({
         type: 'note_added',
         schedule_id: lastNoteEvent.schedule_id,
-        technician_name: lastNoteEvent.user_name,
+        technician_name: lastNoteEvent.technician_name || lastNoteEvent.user_name,
         technician_id: lastNoteEvent.technician_id,
         timestamp: lastNoteEvent.timestamp,
       });
       if (!seen.has(ck)) {
         seen.add(ck);
+
+        const noteType = lastNoteEvent.note_type || 'technician';
+        const techName = lastNoteEvent.technician_name || lastNoteEvent.user_name;
+        const isInternal = noteType === 'internal';
+        const msg = isInternal
+          ? `Internal note added — ${lastNoteEvent.project_name}`
+          : `Technician note added — ${lastNoteEvent.project_name}`;
+        const sub = isInternal
+          ? `For: ${techName} • By: ${lastNoteEvent.user_name}`
+          : `Technician: ${techName} • By: ${lastNoteEvent.user_name}`;
+
         items.push({
           id: `note-${lastNoteEvent.schedule_id}-${lastNoteEvent.timestamp}`,
           type: 'note_added',
-          message: `Note added to ${lastNoteEvent.project_name}`,
-          subtext: `by ${lastNoteEvent.user_name}`,
+          message: msg,
+          subtext: sub,
           timestamp: new Date(lastNoteEvent.timestamp),
           color: STATUS_COLORS.note_added,
           icon: getIconForEventType('note_added'),
@@ -375,13 +374,18 @@ export function LiveStatusFeed() {
       });
       if (!seen.has(ck)) {
         seen.add(ck);
+
+        const isUpload = lastAttachmentEvent.type === 'attachment_uploaded';
+        const msg = isUpload
+          ? `${attLabel} added — ${lastAttachmentEvent.project_name}`
+          : `${attLabel} removed — ${lastAttachmentEvent.project_name}`;
+        const sub = `Technician: ${lastAttachmentEvent.user_name} • By: ${lastAttachmentEvent.user_name}`;
+
         items.push({
           id: `att-${lastAttachmentEvent.attachment_id}-${lastAttachmentEvent.timestamp}`,
           type: lastAttachmentEvent.type,
-          message: lastAttachmentEvent.type === 'attachment_uploaded'
-            ? `${attLabel} added to ${lastAttachmentEvent.project_name}`
-            : `${attLabel} removed from ${lastAttachmentEvent.project_name}`,
-          subtext: `by ${lastAttachmentEvent.user_name} - ${attLabel}`,
+          message: msg,
+          subtext: sub,
           timestamp: new Date(lastAttachmentEvent.timestamp),
           color: STATUS_COLORS[lastAttachmentEvent.type] || STATUS_COLORS.attachment_uploaded,
           icon: getIconForEventType(lastAttachmentEvent.type),
@@ -404,8 +408,8 @@ export function LiveStatusFeed() {
         items.push({
           id: `sig-${lastSignatureEvent.schedule_id}-${lastSignatureEvent.timestamp}`,
           type: 'signature_captured',
-          message: `Signature captured on ${lastSignatureEvent.project_name}`,
-          subtext: `by ${lastSignatureEvent.user_name} · ${lastSignatureEvent.label}`,
+          message: `Signature captured — ${lastSignatureEvent.project_name}`,
+          subtext: `Technician: ${lastSignatureEvent.user_name} • By: ${lastSignatureEvent.user_name} • ${lastSignatureEvent.label}`,
           timestamp: new Date(lastSignatureEvent.timestamp),
           color: STATUS_COLORS.signature_captured,
           icon: getIconForEventType('signature_captured'),
@@ -497,18 +501,54 @@ export function LiveStatusFeed() {
 }
 
 /**
+ * Build a subtext line from persisted metadata for historical feed items.
+ */
+function buildSubtextFromMeta(
+  eventType: string,
+  meta: Record<string, unknown>,
+  evt: ApiActivityEvent,
+): string {
+  const techName = (meta.technician_name as string) || evt.technician_name || '';
+  const actorName = (meta.actor_name as string) || evt.actor_name || '';
+  const noteType = meta.note_type as string | undefined;
+  const timeStr = ` · ${new Date(evt.created_at).toLocaleTimeString()}`;
+
+  switch (eventType) {
+    case 'note_added': {
+      if (noteType === 'internal') {
+        return `For: ${techName || 'Unknown'} • By: ${actorName}${timeStr}`;
+      }
+      return `Technician: ${techName || actorName} • By: ${actorName}${timeStr}`;
+    }
+    case 'photo_uploaded':
+    case 'photo_deleted':
+      return `Technician: ${techName} • By: ${actorName}${timeStr}`;
+    case 'signature_captured':
+      return `Technician: ${techName} • By: ${actorName}${timeStr}`;
+    case 'job_closed':
+    case 'work_completed':
+    case 'technician_started_traveling':
+    case 'arrived_on_site':
+      return `Technician: ${techName} • By: ${actorName}${timeStr}`;
+    case 'rework_requested':
+    case 'rework_resumed':
+    case 'rework_completed':
+      return `Technician: ${techName} • By: ${actorName}${timeStr}`;
+    case 'schedule_created':
+    case 'schedule_reassigned':
+      return `Technician: ${techName} • By: ${actorName}${timeStr}`;
+    case 'clock_in':
+    case 'clock_out':
+      return `${actorName}${timeStr}`;
+    default:
+      return (evt.actor_name
+        ? `${evt.actor_name}${timeStr}`
+        : new Date(evt.created_at).toLocaleTimeString());
+  }
+}
+
+/**
  * Build a normalized content-key for cross-source dedup.
- *
- * Maps different event representations of the same real-world occurrence
- * to an identical string:
- *
- *   Historical DB: event_type='technician_started_traveling'
- *   Socket:        type='status_change', new_status='traveling'
- *
- * → Both normalize to type='traveling' for dedup.
- *
- * Also rounds timestamp to a 2s window so that micro-offsets between the
- * DB insert and socket emit produce the same key.
  */
 function buildContentKey(fields: {
   type: string;
@@ -517,10 +557,6 @@ function buildContentKey(fields: {
   technician_id: string;
   timestamp: string;
 }): string {
-  // Normalize so historical event_type and socket type map to same value:
-  //   'technician_started_traveling' → 'traveling'  (same as socket new_status)
-  //   'photo_uploaded'              → 'attachment_uploaded'  (same as socket type)
-  //   'photo_deleted'              → 'attachment_deleted'
   const NORMALIZE: Record<string, string> = {
     technician_started_traveling: 'traveling',
     arrived_on_site: 'on_site',

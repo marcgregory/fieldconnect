@@ -104,9 +104,19 @@ export async function timeEntryRoutes(app: FastifyInstance) {
       // Persist to activity feed
       await insertActivityEvent({
         event_type: 'clock_in',
+        schedule_id: null,
         project_id,
+        technician_id: request.user!.id,
         actor_id: request.user!.id,
         message: `${request.user!.name} clocked in at ${project.name}`,
+        metadata: {
+          project_name: project.name,
+          event_type: 'clock_in',
+          technician_id: request.user!.id,
+          technician_name: request.user!.name,
+          actor_id: request.user!.id,
+          actor_name: request.user!.name,
+        },
       });
 
       return reply.status(201).send({
@@ -191,9 +201,20 @@ export async function timeEntryRoutes(app: FastifyInstance) {
       // Persist to activity feed
       await insertActivityEvent({
         event_type: 'clock_out',
+        schedule_id: null,
         project_id: entry.project_id,
+        technician_id: request.user!.id,
         actor_id: request.user!.id,
         message: `${request.user!.name} clocked out at ${project?.name || 'Unknown'} (${durationHours.toFixed(1)}h)`,
+        metadata: {
+          project_name: project?.name || 'Unknown',
+          event_type: 'clock_out',
+          technician_id: request.user!.id,
+          technician_name: request.user!.name,
+          actor_id: request.user!.id,
+          actor_name: request.user!.name,
+          duration_hours: durationHours,
+        },
       });
 
       return reply.status(200).send({

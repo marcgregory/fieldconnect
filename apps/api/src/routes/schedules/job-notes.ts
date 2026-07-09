@@ -93,25 +93,46 @@ export async function jobNoteRoutes(app: FastifyInstance) {
         rework_version: reworkVersion,
       });
 
+      // Determine the target technician for this note
+      const noteType = parsed.data.note_type || 'technician';
+      const targetTechnicianId = noteType === 'internal' ? (bodyTechId || null) : request.user!.id;
+      const targetTechnicianName = noteType === 'internal'
+        ? (body.technician_name as string) || null
+        : request.user!.name;
+
       // Broadcast note event
       broadcastNoteEvent({
         type: 'note_added',
         schedule_id: id,
         project_name: schedule.project_name,
         user_name: request.user!.name,
-        note_type: parsed.data.note_type || 'technician',
+        note_type: noteType,
         timestamp: new Date().toISOString(),
-        technician_id: request.user!.id,
+        technician_id: targetTechnicianId || request.user!.id,
+        technician_name: targetTechnicianName || request.user!.name,
       });
 
-      // Persist to activity feed
+      // Persist to activity feed with structured metadata
+      const noteMessage = noteType === 'internal'
+        ? `Internal note added — ${schedule.project_name}`
+        : `Technician note added — ${schedule.project_name}`;
+      const noteMetadata: Record<string, unknown> = {
+        schedule_id: id,
+        project_name: schedule.project_name,
+        note_type: noteType,
+        technician_id: targetTechnicianId,
+        technician_name: targetTechnicianName,
+        actor_id: request.user!.id,
+        actor_name: request.user!.name,
+      };
       await insertActivityEvent({
         event_type: 'note_added',
         schedule_id: id,
         project_id: schedule.project_id,
-        technician_id: request.user!.role === 'field_technician' ? request.user!.id : null,
+        technician_id: targetTechnicianId,
         actor_id: request.user!.id,
-        message: `Note added to ${schedule.project_name} by ${request.user!.name}`,
+        message: noteMessage,
+        metadata: noteMetadata,
       });
 
       return reply.status(201).send({ success: true, data: note });

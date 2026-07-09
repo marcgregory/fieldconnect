@@ -457,6 +457,7 @@ export interface NoteEvent {
   note_type: string;
   timestamp: string;
   technician_id: string;
+  technician_name?: string;
 }
 
 // ─── Attachment Event (WebSocket payload) ───────────────────────────────────

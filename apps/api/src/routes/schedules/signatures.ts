@@ -100,9 +100,19 @@ export async function signatureRoutes(app: FastifyInstance) {
         event_type: 'signature_captured',
         schedule_id: id,
         project_id: schedule.project_id,
-        technician_id: request.user!.role === 'field_technician' ? request.user!.id : null,
+        technician_id: request.user!.id,
         actor_id: request.user!.id,
-        message: `Signature captured on ${schedule.project_name} by ${request.user!.name}`,
+        message: `Signature captured — ${schedule.project_name}`,
+        metadata: {
+          schedule_id: id,
+          project_name: schedule.project_name,
+          event_type: 'signature_captured',
+          technician_id: request.user!.id,
+          technician_name: request.user!.name,
+          actor_id: request.user!.id,
+          actor_name: request.user!.name,
+          label: parsed.data.label || 'customer',
+        },
       });
 
       return reply.status(201).send({ success: true, data: signature });

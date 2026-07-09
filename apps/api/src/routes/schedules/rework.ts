@@ -90,13 +90,23 @@ export async function reworkRoutes(app: FastifyInstance) {
         const reworkTargetTech = existing.technician_workflow?.find(
           (tw) => tw.technician_id === technician_id
         );
+        const reworkTechName = reworkTargetTech?.technician_name || 'technician';
         await insertActivityEvent({
           event_type: 'rework_requested',
           schedule_id: id,
           project_id: existing.project_id,
           technician_id: technician_id as string,
           actor_id: request.user!.id,
-          message: `Rework requested for ${reworkTargetTech?.technician_name || 'technician'} — ${result.schedule.project_name}`,
+          message: `Rework requested — ${result.schedule.project_name}`,
+          metadata: {
+            schedule_id: id,
+            project_name: result.schedule.project_name,
+            event_type: 'rework_requested',
+            technician_id: technician_id,
+            technician_name: reworkTechName,
+            actor_id: request.user!.id,
+            actor_name: request.user!.name,
+          },
         });
 
         return reply.status(201).send({
@@ -192,7 +202,16 @@ export async function reworkRoutes(app: FastifyInstance) {
           project_id: existing.project_id,
           technician_id: targetTechId,
           actor_id: request.user!.id,
-          message: `${resumeTechName} resumed work (rework) — ${result.schedule.project_name}`,
+          message: `Rework resumed — ${result.schedule.project_name}`,
+          metadata: {
+            schedule_id: id,
+            project_name: result.schedule.project_name,
+            event_type: 'rework_resumed',
+            technician_id: targetTechId,
+            technician_name: resumeTechName,
+            actor_id: request.user!.id,
+            actor_name: request.user!.name,
+          },
         });
 
         return { success: true, data: result };
@@ -269,7 +288,16 @@ export async function reworkRoutes(app: FastifyInstance) {
           project_id: existing.project_id,
           technician_id: targetTechId,
           actor_id: request.user!.id,
-          message: `${completeReworkTechName} completed rework — ${result.schedule.project_name}`,
+          message: `Rework completed — ${result.schedule.project_name}`,
+          metadata: {
+            schedule_id: id,
+            project_name: result.schedule.project_name,
+            event_type: 'rework_completed',
+            technician_id: targetTechId,
+            technician_name: completeReworkTechName,
+            actor_id: request.user!.id,
+            actor_name: request.user!.name,
+          },
         });
 
         return { success: true, data: result };
