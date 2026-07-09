@@ -43,8 +43,8 @@ const TIME_ENTRY_EXPORT_COLUMNS = [
   'Scheduled Date',
   'Clock In',
   'Clock Out',
-  'Break (min)',
   'Duration (hrs)',
+  'Break (min)',
   'Notes',
 ] as const;
 
@@ -56,9 +56,9 @@ function exportValues(row: ExportRow, tz?: string): Array<string | number> {
     formatDateOnly(row.scheduled_date),
     formatDt(row.clock_in, tz),
     formatDt(row.clock_out, tz),
-    row.break_minutes,
-    row.duration_hours,
-    row.notes || '',
+    `${row.duration_hours}h`,
+    `${row.break_minutes}m`,
+    row.notes || '—',
   ];
 }
 
