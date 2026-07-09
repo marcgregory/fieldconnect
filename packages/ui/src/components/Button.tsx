@@ -11,7 +11,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-brand-600 text-white shadow-lg shadow-brand-700/18 hover:bg-brand-700 focus:ring-brand-500',
+    'bg-brand-600 text-white shadow-lg shadow-brand-700/20 hover:bg-brand-700 focus:ring-brand-500',
   secondary:
     'border border-slate-200 bg-white text-slate-900 shadow-sm hover:bg-stone-50 focus:ring-brand-500',
   danger:
@@ -66,3 +66,4 @@ export function Button({
     </button>
   );
 }
+
