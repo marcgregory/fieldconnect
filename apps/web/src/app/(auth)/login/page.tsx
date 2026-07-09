@@ -41,15 +41,15 @@ export default function LoginPage() {
 
   return (
     <div className="premium-panel overflow-hidden rounded-[1.75rem] p-0">
-      <div className="bg-slate-950 px-8 py-7 text-white">
+      <div className="border-b border-brand-100 bg-gradient-to-br from-white via-brand-50 to-stone-50 px-8 py-7 text-slate-950">
         <div className="mb-8 flex items-center justify-between">
           <Logo size={42} />
-          <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-brand-200">
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
             Secure
           </span>
         </div>
-        <h1 className="text-3xl font-black tracking-tight">FieldConnect</h1>
-        <p className="mt-2 text-sm leading-6 text-slate-300">Sign in to coordinate crews, schedules, evidence, and field time.</p>
+        <h1 className="text-3xl font-black tracking-tight text-slate-950">FieldConnect</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Sign in to coordinate crews, schedules, evidence, and field time.</p>
       </div>
 
       <div className="px-8 py-7">
@@ -91,3 +91,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

@@ -57,7 +57,7 @@ export function OfficeNav() {
   }
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-white/70 bg-stone-50/80 shadow-sm shadow-slate-950/5 backdrop-blur-xl">
+    <nav className="sticky top-0 z-40 border-b border-white/70 bg-stone-50/80 shadow-sm shadow-brand-900/5 backdrop-blur-xl">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-4">
           <Link href="/dashboard" className="flex flex-shrink-0 items-center gap-2">
@@ -73,7 +73,7 @@ export function OfficeNav() {
                   href={item.href}
                   className={`flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold transition-all ${
                     isActive
-                      ? 'bg-slate-950 text-white shadow-lg shadow-slate-950/15'
+                      ? 'border border-brand-200 bg-brand-100 text-brand-900 shadow-sm'
                       : 'text-slate-600 hover:bg-white hover:text-slate-950'
                   }`}
                 >
@@ -105,4 +105,6 @@ export function OfficeNav() {
     </nav>
   );
 }
+
+
 
