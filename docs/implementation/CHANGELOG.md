@@ -2,6 +2,56 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.9.0 — 2026-07-11
+
+### Added
+
+- **Sprint 6 / Phase 2 — Email Verification** ✅
+  - `users.email_verified_at TIMESTAMPTZ NULL` column (migration `025_add-email-verified-at.sql`)
+  - `verification_tokens` table — SHA-256-hashed tokens, 24h TTL, single active token per user (invalidated on resend via `used_at = NOW()`)
+  - `auth_audit_logs` table — auth events keyed by nullable `user_id` (`ON DELETE SET NULL` so audit rows survive user deletion)
+  - `rate_limit_events` table — atomic `INSERT ... ON CONFLICT DO UPDATE` window-based rate limiting, reusable by Sprint 6 Phase 4
+  - `GET /api/v1/auth/verify-email?token=...` — consumes token, marks `email_verified_at = NOW()` and `used_at = NOW()` in a single transaction, writes `email_verified` to audit
+  - `POST /api/v1/auth/resend-verification` — two rate-limit windows (60s × 1, 3600s × 5), generic 200 to prevent email enumeration
+  - `email-verification` service façade — `sendVerificationEmail`, `sendVerificationEmailFireAndForget`, `buildVerifyUrl`
+  - `register.ts` dispatches verification email after user creation (failures logged, not surfaced)
+  - `login.ts` blocks unverified users with 403 `{ code: 'EMAIL_NOT_VERIFIED', canResend: true }`
+  - `refresh.ts` revokes tokens for unverified users (handles pre-Phase-2 tokens cleanly)
+  - `middleware/auth.ts` skip-list now includes `/api/v1/auth/verify-email` and `/api/v1/auth/resend-verification`
+  - Web `/verify-email` page — "check your email" with 60s client cooldown
+  - Web `/verify-email/result` page — four states (success / used / expired / invalid)
+  - Web `/register` now routes to `/verify-email?email=…` instead of `/login`
+  - Web `/login` surfaces 403 `EMAIL_NOT_VERIFIED` banner with a resend-verification link
+
+- **Sprint 6 / Form Architecture — react-hook-form + zod** ✅
+  - shadcn-style `<Form>`, `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormDescription>`, `<FormMessage>`, `useFormField` in `@fieldconnect/ui`, built on `react-hook-form` + `@hookform/resolvers/zod`
+  - All Form primitives wired for accessibility (`htmlFor`/`id` linkage, `aria-invalid`, `aria-describedby`)
+  - `Form` typed as a generic over field values so `useForm<T>()` types flow through the provider
+  - `cn()` helper in `packages/ui/src/lib/cn.ts` (no clsx/tailwind-merge dependency)
+  - `mapApiErrorToFormError` / `mapApiResponseToFormError` in `apps/web/src/lib/map-api-error.ts` — central parser for Fastify error replies; handles `EMAIL_NOT_VERIFIED`, `RATE_LIMITED`, `EMAIL_ALREADY_EXISTS`, `INVALID_CREDENTIALS`, `NETWORK`, and a safe generic fallback (never leaks stack traces or SQL errors)
+  - Auth forms migrated to RHF: `/login`, `/register`, `/verify-email` (resend button)
+  - `ProjectForm` migrated — 7 useStates collapsed into a single `useForm` with `zodResolver(createProjectSchema)`
+  - `loginSchema` password minimum relaxed to "required" (login must accept legacy accounts that pre-date the 8-character rule); `registerSchema` password minimum raised to 8 chars
+  - `PASSWORD_MIN = 8` constant in `@fieldconnect/shared`
+  - Phase 3 schemas added (no pages this turn): `forgotPasswordSchema`, `resetPasswordSchema`, `changePasswordSchema` (with current/new-must-differ refine)
+  - `react-hook-form ^7.51.0` and `@hookform/resolvers ^3.9.0` added to `apps/web/package.json`; both added as peer dependencies on `@fieldconnect/ui`
+
+### Technical Debt
+
+- **TD-008** — Hand-rolled forms in `ScheduleForm` (470 lines), `ClockInOut` (559 lines), `JobDetailClient` (1645 lines) still need migration to react-hook-form + zod. Planned for Sprint 7.
+
+### Security
+
+- Verification tokens never stored in plaintext (SHA-256 hash on insert)
+- `resend-verification` always returns 200 to prevent email enumeration, regardless of whether the user exists or is already verified
+- Two independent rate-limit windows (60s × 1, 3600s × 5) on resend — over-limit attempt increments the row but returns 429
+
+### Migration
+
+- Apply `025_add-email-verified-at.sql`, `026_create-verification-tokens.sql`, `027_create-auth-audit-logs.sql`, `028_create-rate-limit-events.sql` via `pnpm db:migrate`.
+- Existing users get `email_verified_at = NULL`; they must verify on next sign-in.
+- No frontend-only migration step.
+
 ## v0.8.0 — 2026-07-11
 
 ### Added

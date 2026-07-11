@@ -13,6 +13,7 @@ Every item must include Priority, Reason, Impact, Planned Sprint, and Owner.
 | TD-005 | Offline time entry not implemented | Low | Offline support is limited to action queue (notes, photos, signatures, status transitions). Time entry offline not included. | Technicians may lose time entries when connectivity drops. | Sprint 5 | Developer | Open |
 | TD-006 | No Render.com account provisioned | High | Need to create Render account, PostgreSQL instance, and configure env vars. | Cannot deploy or test against real database. | Sprint 4 — deployment | Developer | Open |
 | TD-007 | No GitHub repository initialized | High | Code lives only on local machine. | No version control, collaboration, or CI. | Sprint 4 — deployment | Developer | Open |
+| TD-008 | Hand-rolled forms in ScheduleForm, ClockInOut, JobDetailClient still need migration to react-hook-form + zod | Medium | Sprint 6 form-architecture work migrated auth forms + ProjectForm only. The three larger forms still use the old `useState` + `FormData` + manual `safeParse` pattern, so their validation rules drift from the shared Zod schemas and they have inconsistent error UX. | Form validation drift between client and API; inconsistent user experience across the app. | Sprint 7 (post-Sprint 6) | Developer | Open |
 
 ## Updated Items (Sprint 3)
 

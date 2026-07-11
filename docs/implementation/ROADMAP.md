@@ -84,6 +84,13 @@ Last updated: 2026-07-11
   - **Persistent auth sessions** ✅ — Refresh token rotation, 30-day sessions, device tracking
   - **Geo-action enforcement** ✅ — geofence_action field (warning / block_clock_in / require_override)
 
+## Completed
+
+- **Sprint 6 — Security & Account Hardening** 🚧 (in progress)
+  - **Phase 1 — Email Infrastructure** ✅ — `EmailProvider` abstraction, `ResendProvider`, `PreviewProvider` (writes `.emails/*.html` + console mode), `getEmailService()` lazy singleton, four inline HTML + plain-text templates (Verify Email, Password Reset, Invitation, Welcome), HTML escaping on every user-supplied value
+  - **Phase 2 — Email Verification** ✅ — `users.email_verified_at` column, `verification_tokens` table (SHA-256 hash, 24h TTL, single active token), `auth_audit_logs` table (auth events with `user_id` nullable), `rate_limit_events` table (atomic check-and-increment), `GET /api/v1/auth/verify-email` and `POST /api/v1/auth/resend-verification` (1/min + 5/hr windows, generic 200 to prevent enumeration), login blocks unverified users with 403 `EMAIL_NOT_VERIFIED`, refresh route revokes tokens for unverified users, web `/verify-email` and `/verify-email/result` pages with 60s client cooldown
+  - **Form Architecture — react-hook-form + zod** ✅ — shadcn-style `<Form>`, `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormDescription>`, `<FormMessage>` in `@fieldconnect/ui` (built on `react-hook-form` + `@hookform/resolvers/zod`), `mapApiErrorToFormError` central server-error parser, auth forms (`login`, `register`, `verify-email`) and `ProjectForm` migrated; `ScheduleForm`/`ClockInOut`/`JobDetailClient` deferred to TD-008 (Sprint 7)
+
 ## Sprint Queue
 
 ### Sprint 6 — Security & Account Hardening (🚧 In Progress)

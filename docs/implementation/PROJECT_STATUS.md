@@ -23,6 +23,38 @@ Sprint 6 — Security & Account Hardening 🚧
 - Production boot refuses `preview` mode; dev default is `preview` ✅
 - All `pnpm typecheck` and `pnpm build` pass (6/6 tasks) ✅
 
+### Sprint 6 / Phase 2 — Email Verification — Complete ✅
+- `users.email_verified_at` column (migration 025) ✅
+- `verification_tokens` table with SHA-256 hashing, 24h TTL, single-active rule (migration 026) ✅
+- `auth_audit_logs` table — auth events keyed by nullable user_id (migration 027) ✅
+- `rate_limit_events` table — atomic window-based rate limiting (migration 028) ✅
+- `GET /api/v1/auth/verify-email?token=...` — consume, mark verified, audit ✅
+- `POST /api/v1/auth/resend-verification` — two rate-limit windows (60s × 1, 3600s × 5) ✅
+- `email-verification` service façade — `sendVerificationEmail`, fire-and-forget, `buildVerifyUrl` ✅
+- `register.ts` dispatches verification email after user creation ✅
+- `login.ts` blocks unverified users with 403 `EMAIL_NOT_VERIFIED`, `canResend: true` ✅
+- `refresh.ts` revokes tokens for unverified users ✅
+- `middleware/auth.ts` skip-list includes the two new public endpoints ✅
+- Web `/verify-email` page with 60s client cooldown ✅
+- Web `/verify-email/result` page with four states (success / used / expired / invalid) ✅
+- Web `/register` routes to `/verify-email?email=…` after success ✅
+- Web `/login` surfaces the 403 banner with a resend link ✅
+- All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
+
+### Sprint 6 / Form Architecture — react-hook-form + zod — Complete ✅
+- shadcn-style Form primitives in `@fieldconnect/ui` (`Form`, `FormField`, `FormItem`, `FormLabel`, `FormControl`, `FormDescription`, `FormMessage`, `useFormField`) ✅
+- All Form primitives wired for accessibility (`htmlFor`/`id` linkage, `aria-invalid`, `aria-describedby`) ✅
+- `Form` is generic over field values, so `useForm<T>()` types flow through the provider ✅
+- `cn()` helper in `packages/ui/src/lib/cn.ts` ✅
+- `mapApiErrorToFormError` / `mapApiResponseToFormError` in `apps/web/src/lib/map-api-error.ts` ✅
+- Auth forms migrated to RHF: `/login`, `/register`, `/verify-email` (resend button) ✅
+- `ProjectForm` migrated — 7 useStates collapsed into one `useForm` with `zodResolver(createProjectSchema)` ✅
+- `PASSWORD_MIN = 8` constant; `registerSchema` enforces 8-char minimum; `loginSchema` accepts legacy lengths ✅
+- Phase 3 schemas added (no pages this turn): `forgotPasswordSchema`, `resetPasswordSchema`, `changePasswordSchema` ✅
+- `react-hook-form` and `@hookform/resolvers` added to `apps/web` deps + `packages/ui` peer deps ✅
+- All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
+- TD-008 logged for the three larger forms (`ScheduleForm`, `ClockInOut`, `JobDetailClient`) still pending migration in Sprint 7 ✅
+
 ### Revision-Based Rework — Complete ✅ (Sprint 6.1)
 - `rework_required` status added to the job state machine ✅
 - `rework_requests` table tracks each rework with reason, requester, and status ✅

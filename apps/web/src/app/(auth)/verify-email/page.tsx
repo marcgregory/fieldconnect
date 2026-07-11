@@ -3,13 +3,29 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Spinner } from '@fieldconnect/ui';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Button,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Input,
+  Spinner,
+} from '@fieldconnect/ui';
+import { resendVerificationSchema } from '@fieldconnect/shared';
 import { Logo } from '@/components/Logo';
+import type { z } from 'zod';
+
+type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const COOLDOWN_SECONDS = 60;
 
-type SendState = 'idle' | 'sending' | 'sent' | 'rate_limited' | 'error';
+type SendState = 'idle' | 'sent' | 'rate_limited' | 'error';
 
 function VerifyEmailInner() {
   const searchParams = useSearchParams();
@@ -18,6 +34,11 @@ function VerifyEmailInner() {
   const [sendState, setSendState] = useState<SendState>('idle');
   const [cooldown, setCooldown] = useState(0);
 
+  const form = useForm<ResendVerificationInput>({
+    resolver: zodResolver(resendVerificationSchema),
+    defaultValues: { email },
+  });
+
   // Tick down the client-side cooldown every second when active.
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -25,30 +46,33 @@ function VerifyEmailInner() {
     return () => clearTimeout(timer);
   }, [cooldown]);
 
-  async function handleResend() {
-    if (cooldown > 0 || !email) return;
-    setSendState('sending');
+  async function onSubmit(values: ResendVerificationInput) {
+    if (cooldown > 0) return;
+    setSendState('idle');
+
+    let res: Response;
     try {
-      const res = await fetch(`${API_URL}/api/v1/auth/resend-verification`, {
+      res = await fetch(`${API_URL}/api/v1/auth/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(values),
       });
-
-      if (res.status === 429) {
-        setSendState('rate_limited');
-        setCooldown(COOLDOWN_SECONDS);
-        return;
-      }
-      if (!res.ok) {
-        setSendState('error');
-        return;
-      }
-      setSendState('sent');
-      setCooldown(COOLDOWN_SECONDS);
     } catch {
       setSendState('error');
+      return;
     }
+
+    if (res.status === 429) {
+      setSendState('rate_limited');
+      setCooldown(COOLDOWN_SECONDS);
+      return;
+    }
+    if (!res.ok) {
+      setSendState('error');
+      return;
+    }
+    setSendState('sent');
+    setCooldown(COOLDOWN_SECONDS);
   }
 
   return (
@@ -75,35 +99,67 @@ function VerifyEmailInner() {
         </p>
 
         {sendState === 'sent' && (
-          <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
+          <p
+            role="status"
+            className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700"
+          >
             Sent — check your inbox (and spam folder).
           </p>
         )}
         {sendState === 'rate_limited' && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-700">
+          <p
+            role="status"
+            className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-700"
+          >
             Please wait a minute before requesting another verification email.
           </p>
         )}
         {sendState === 'error' && (
-          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+          <p
+            role="alert"
+            className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700"
+          >
             Couldn&apos;t send the email. Please try again in a moment.
           </p>
         )}
 
-        <div className="mt-6">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleResend}
-            disabled={cooldown > 0 || sendState === 'sending'}
-            loading={sendState === 'sending'}
-            className="w-full"
-          >
-            {cooldown > 0
-              ? `Resend available in ${cooldown}s`
-              : 'Resend verification email'}
-          </Button>
-        </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="mt-6 space-y-3" noValidate>
+            {/* The form has only an email field so the schema runs. We hide
+                the input visually if we already have the email from the URL
+                — but we keep it in the DOM so RHF still validates. */}
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem className={email ? 'sr-only' : ''}>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@company.com"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={cooldown > 0 || form.formState.isSubmitting}
+              loading={form.formState.isSubmitting}
+              className="w-full"
+            >
+              {cooldown > 0
+                ? `Resend available in ${cooldown}s`
+                : 'Resend verification email'}
+            </Button>
+          </form>
+        </Form>
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Already verified?{' '}

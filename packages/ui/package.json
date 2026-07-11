@@ -11,7 +11,9 @@
   },
   "peerDependencies": {
     "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react-dom": "^18.0.0",
+    "react-hook-form": "^7.51.0",
+    "@hookform/resolvers": "^3.9.0"
   },
   "devDependencies": {
     "react": "^18.3.0",

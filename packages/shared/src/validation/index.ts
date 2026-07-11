@@ -3,15 +3,19 @@ import { USER_ROLES, PROJECT_STATUSES, JOB_STATUSES, NOTE_TYPES, ATTACHMENT_TYPE
 
 // ─── Auth Validation ───────────────────────────────────────────────────────
 
+export const PASSWORD_MIN = 8;
+
 export const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 export const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z
+    .string()
+    .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`),
   role: z.enum(USER_ROLES as [string, ...string[]]),
 });
 
@@ -24,6 +28,32 @@ export const registerSchema = z.object({
 export const resendVerificationSchema = z.object({
   email: z.string().email('Invalid email address'),
 });
+
+// ─── Phase 3 — Password Reset / Change Password (schemas only this turn) ───
+// The pages and API endpoints land in a follow-up change. The schemas are
+// exported here so the API and the future pages share one source of truth.
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
+export const resetPasswordSchema = z.object({
+  password: z
+    .string()
+    .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`),
+});
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Current password is required'),
+    newPassword: z
+      .string()
+      .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`),
+  })
+  .refine((data) => data.currentPassword !== data.newPassword, {
+    message: 'New password must be different from the current password',
+    path: ['newPassword'],
+  });
 
 // ─── Project Validation ────────────────────────────────────────────────────
 
