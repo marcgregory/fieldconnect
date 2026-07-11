@@ -117,7 +117,18 @@ async function proxyRequest(
         });
 
         if (response.ok) {
-          return buildProxyResponse(response);
+          // Refresh succeeded and the retry returned a good response.
+          // Set a flag cookie so the client knows to refresh its NextAuth
+          // session token (which holds the updated refresh_token value).
+          const proxyResponse = await buildProxyResponse(response);
+          proxyResponse.cookies.set('refresh_token_rotated', '1', {
+            httpOnly: false,
+            secure: true,
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 60,
+          });
+          return proxyResponse;
         }
       }
     }
@@ -156,19 +167,6 @@ async function buildProxyResponse(response: Response): Promise<NextResponse> {
     if (cacheControl) {
       proxyResponse.headers.set('cache-control', cacheControl);
     }
-
-    // Set a flag cookie the client can read to update its session
-    // The actual NextAuth JWT refresh token is rotated server-side,
-    // but we need the client to trigger a session update to pick up
-    // the new refreshToken value stored in the JWT.
-    // For now, the old refresh token remains valid briefly during rotation.
-    proxyResponse.cookies.set('refresh_token_rotated', '1', {
-      httpOnly: false,
-      secure: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60,
-    });
 
     return proxyResponse;
   }
