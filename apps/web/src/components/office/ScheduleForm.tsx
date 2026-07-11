@@ -23,7 +23,7 @@ interface ScheduleFormProps {
 const AVAILABILITY_LABELS: Record<string, { label: string; class: string }> = {
   available: { label: 'Available', class: 'text-green-700 bg-green-50' },
   busy: { label: 'Busy', class: 'text-red-700 bg-red-50' },
-  buffer_conflict: { label: 'Buffer conflict', class: 'text-yellow-700 bg-yellow-50' },
+  buffer_conflict: { label: 'Buffer conflict', class: 'text-blue-700 bg-blue-50' },
 };
 
 export function ScheduleForm({
@@ -288,7 +288,7 @@ export function ScheduleForm({
           {!projectId ? (
             <p className="text-sm text-gray-400 italic">Select a project first...</p>
           ) : projectTeamIds.length === 0 ? (
-            <p className="text-xs text-amber-700 bg-amber-50 px-2 py-1 rounded">
+            <p className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded">
               No technicians assigned to this project team. Add team members first.
             </p>
           ) : (
@@ -456,7 +456,7 @@ export function ScheduleForm({
               <button
                 onClick={handleForceAssign}
                 disabled={saving}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {saving ? 'Saving...' : 'Force Assign'}
               </button>
@@ -467,3 +467,4 @@ export function ScheduleForm({
     </div>
   );
 }
+

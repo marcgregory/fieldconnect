@@ -80,8 +80,8 @@ function GeofenceBadge({ status }: { status: GeofenceStatus }) {
   }
   if (status === 'outside') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
         Outside Geofence
       </span>
     );
@@ -553,6 +553,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     </div>
   );
 }
+
 
 
 

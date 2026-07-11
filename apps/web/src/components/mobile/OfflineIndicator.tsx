@@ -16,9 +16,9 @@ export function OfflineIndicator() {
   let textColor: string;
 
   if (isSyncingState) {
-    dotColor = 'bg-yellow-400';
-    bgColor = 'bg-yellow-50';
-    textColor = 'text-yellow-700';
+    dotColor = 'bg-blue-400';
+    bgColor = 'bg-blue-50';
+    textColor = 'text-blue-700';
     label = `Syncing... (${pendingCount} pending)`;
   } else if (isOffline) {
     dotColor = 'bg-red-500';
@@ -46,3 +46,4 @@ export function OfflineIndicator() {
     </div>
   );
 }
+

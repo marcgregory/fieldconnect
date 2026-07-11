@@ -5,10 +5,10 @@ import { getDashboardSummary } from '@/lib/api';
 import { useSocket } from '@/hooks/useSocket';
 import type { DashboardSummary } from '@fieldconnect/shared';
 
-type CardTone = 'amber' | 'emerald' | 'teal' | 'slate' | 'red';
+type CardTone = 'blue' | 'emerald' | 'teal' | 'slate' | 'red';
 
 const toneStyles: Record<CardTone, string> = {
-  amber: 'from-brand-50 to-white text-brand-800 border-brand-200',
+  blue: 'from-brand-50 to-white text-brand-800 border-brand-200',
   emerald: 'from-emerald-50 to-white text-emerald-800 border-emerald-200',
   teal: 'from-teal-50 to-white text-teal-800 border-teal-200',
   slate: 'from-slate-100 to-white text-slate-700 border-slate-200',
@@ -75,7 +75,7 @@ export function DashboardSummaryCards() {
       label: 'Hours This Week',
       value: Number(summary.hours_this_week).toFixed(1),
       unit: 'hrs',
-      tone: 'amber' as CardTone,
+      tone: 'blue' as CardTone,
       detail: 'Logged labor',
       icon: (
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -150,3 +150,4 @@ export function DashboardSummaryCards() {
     </div>
   );
 }
+

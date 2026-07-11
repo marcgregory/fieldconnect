@@ -342,7 +342,7 @@ export function ReviewClient() {
       score === 100
         ? 'bg-green-500'
         : score >= 60
-          ? 'bg-yellow-500'
+          ? 'bg-blue-500'
           : 'bg-red-500';
 
     return (
@@ -356,7 +356,7 @@ export function ReviewClient() {
           ))}
         </div>
         <span className={`text-sm font-semibold tabular-nums ${
-          score === 100 ? 'text-green-700' : score >= 60 ? 'text-yellow-700' : 'text-red-700'
+          score === 100 ? 'text-green-700' : score >= 60 ? 'text-blue-700' : 'text-red-700'
         }`}>
           {score}%
         </span>
@@ -399,8 +399,8 @@ export function ReviewClient() {
           </span>
         )}
         {item.gpsStatus === 'outside' && item.present && (
-          <span className="text-xs font-medium ml-auto flex items-center gap-1 text-amber-600">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          <span className="text-xs font-medium ml-auto flex items-center gap-1 text-blue-600">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
             Outside Geofence
           </span>
         )}
@@ -472,7 +472,7 @@ export function ReviewClient() {
                       <div className="px-1.5 py-1">
                         <p className="text-[10px] text-gray-500 capitalize">{type}</p>
                         {att.inside_geofence != null && (
-                          <p className={`text-[10px] ${att.inside_geofence ? 'text-green-600' : 'text-amber-600'}`}>
+                          <p className={`text-[10px] ${att.inside_geofence ? 'text-green-600' : 'text-blue-600'}`}>
                             {att.inside_geofence ? '📍 Inside' : '⚠ Outside'}
                           </p>
                         )}
@@ -591,11 +591,11 @@ export function ReviewClient() {
                           </h3>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                             item.status === 'rework_required'
-                              ? 'bg-orange-100 text-orange-700'
+                              ? 'bg-red-100 text-red-700'
                               : 'bg-gray-100 text-gray-700'
                           }`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${
-                              item.status === 'rework_required' ? 'bg-orange-500' : 'bg-gray-400'
+                              item.status === 'rework_required' ? 'bg-red-500' : 'bg-gray-400'
                             }`} />
                             {item.status === 'rework_required' ? 'Rework Required' : 'Work Completed'}
                           </span>
@@ -639,14 +639,14 @@ export function ReviewClient() {
                                         ot.status === 'completed' ? 'bg-green-100 text-green-700' :
                                         ot.status === 'on_site' ? 'bg-blue-100 text-blue-700' :
                                         ot.status === 'traveling' ? 'bg-purple-100 text-purple-700' :
-                                        ot.status === 'rework_required' ? 'bg-orange-100 text-orange-700' :
+                                        ot.status === 'rework_required' ? 'bg-red-100 text-red-700' :
                                         'bg-gray-100 text-gray-600'
                                       }`}>
                                         <span className={`h-1.5 w-1.5 rounded-full ${
                                           ot.status === 'completed' ? 'bg-green-500' :
                                           ot.status === 'on_site' ? 'bg-blue-500' :
                                           ot.status === 'traveling' ? 'bg-purple-500' :
-                                          ot.status === 'rework_required' ? 'bg-orange-500' :
+                                          ot.status === 'rework_required' ? 'bg-red-500' :
                                           'bg-gray-400'
                                         }`} />
                                         {ot.status}
@@ -705,8 +705,8 @@ export function ReviewClient() {
                                                 Inside Geofence
                                               </span>
                                             ) : (
-                                              <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
-                                                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                              <span className="inline-flex items-center gap-1 text-blue-700 font-medium">
+                                                <span className="h-2 w-2 rounded-full bg-blue-500" />
                                                 Outside Geofence
                                               </span>
                                             )}
@@ -790,7 +790,7 @@ export function ReviewClient() {
                               {expandedData.notes.filter((n) => n.note_type === 'internal').length > 0 ? (
                                 <div className="space-y-2 mb-3">
                                   {expandedData.notes.filter((n) => n.note_type === 'internal').map((note) => (
-                                    <div key={note.id} className="bg-amber-50 rounded-lg px-3 py-2">
+                                    <div key={note.id} className="bg-blue-50 rounded-lg px-3 py-2">
                                       <p className="text-sm text-gray-700 whitespace-pre-wrap">{note.content}</p>
                                       <p className="text-xs text-gray-400 mt-1">{note.user_name} · {new Date(note.created_at).toLocaleString()}</p>
                                     </div>
@@ -809,7 +809,7 @@ export function ReviewClient() {
                                       setInternalNotes((prev) => ({ ...prev, [key]: e.target.value }))
                                     }
                                     placeholder="Add internal note..."
-                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                    className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
@@ -821,7 +821,7 @@ export function ReviewClient() {
                                   <button
                                     onClick={() => handleAddInternalNote(item)}
                                     disabled={!internalNotes[key]?.trim() || savingInternalNote[key]}
-                                    className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-amber-700 transition-colors"
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
                                   >
                                     {savingInternalNote[key] ? '...' : 'Add'}
                                   </button>
@@ -831,24 +831,24 @@ export function ReviewClient() {
 
                             {/* ── Rework History ────────────────────────── */}
                             {expandedData.reworkRequests.length > 0 && (
-                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 space-y-2">
-                                <h4 className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
+                              <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
+                                <h4 className="text-xs font-semibold text-red-700 uppercase tracking-wide">
                                   Rework History
                                 </h4>
                                 {expandedData.reworkRequests.map((rw) => (
-                                  <div key={rw.id} className="text-sm text-orange-800">
+                                  <div key={rw.id} className="text-sm text-red-800">
                                     <div className="flex items-center justify-between">
                                       <span className="font-medium">
                                         {rw.status === 'open' ? '⚠ Open Rework Request' : '✓ Completed Rework'}
                                       </span>
                                       <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                                        rw.status === 'open' ? 'bg-orange-200 text-orange-800' : 'bg-green-200 text-green-800'
+                                        rw.status === 'open' ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
                                       }`}>
                                         {rw.status}
                                       </span>
                                     </div>
-                                    <p className="mt-1 text-orange-700">Reason: {rw.reason}</p>
-                                    <p className="text-xs text-orange-600 mt-0.5">
+                                    <p className="mt-1 text-red-700">Reason: {rw.reason}</p>
+                                    <p className="text-xs text-red-600 mt-0.5">
                                       {rw.requested_by_name || 'Unknown'} · {new Date(rw.requested_at).toLocaleString()}
                                       {rw.resolved_at && ` → Resolved: ${new Date(rw.resolved_at).toLocaleString()}`}
                                     </p>
@@ -871,7 +871,7 @@ export function ReviewClient() {
                                 <button
                                   onClick={() => handleClose(item)}
                                   disabled={isActionLoading}
-                                  className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                                 >
                                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -956,7 +956,7 @@ export function ReviewClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4">
             <h2 className="text-lg font-semibold text-gray-900 mb-1">Force Close Job</h2>
-            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+            <p className="text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 mb-4">
               ⚠ This job is missing required documentation. Only admins can force close.
             </p>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -983,7 +983,7 @@ export function ReviewClient() {
               <button
                 onClick={confirmForceClose}
                 disabled={!forceCloseReason.trim() || actionLoading === expandedKey(forceCloseModal)}
-                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {actionLoading === expandedKey(forceCloseModal) ? 'Closing...' : 'Force Close'}
               </button>
@@ -994,3 +994,4 @@ export function ReviewClient() {
     </div>
   );
 }
+

@@ -50,10 +50,10 @@ const STATUS_CONFIG: Record<
   { bg: string; text: string; label: string; step: number }
 > = {
   scheduled: { bg: 'bg-brand-100', text: 'text-brand-800', label: 'Scheduled', step: 0 },
-  traveling: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Traveling', step: 1 },
+  traveling: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Traveling', step: 1 },
   on_site: { bg: 'bg-green-100', text: 'text-green-800', label: 'On Site', step: 2 },
   completed: { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Work Completed', step: 3 },
-  rework_required: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Rework Required', step: 3 },
+  rework_required: { bg: 'bg-red-100', text: 'text-red-800', label: 'Rework Required', step: 3 },
   closed: { bg: 'bg-gray-200', text: 'text-gray-600', label: 'Closed', step: 5 },
 };
 
@@ -77,7 +77,7 @@ const ATTACHMENT_LABELS: Record<string, string> = {
 
 const ATTACHMENT_COLORS: Record<string, string> = {
   before: 'bg-brand-100 text-brand-700',
-  during: 'bg-amber-100 text-amber-700',
+  during: 'bg-blue-100 text-blue-700',
   after: 'bg-green-100 text-green-700',
   document: 'bg-gray-100 text-gray-700',
 };
@@ -763,7 +763,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             </button>
             )}
             {att.id.startsWith('offline-') && (
-              <div className="absolute bottom-1 left-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded">
+              <div className="absolute bottom-1 left-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded">
                 Pending
               </div>
             )}
@@ -791,9 +791,9 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             {att.latitude && att.longitude ? (
               <div className="space-y-0.5">
                 <p className={`text-xs font-medium flex items-center gap-1 ${
-                  att.inside_geofence ? 'text-green-700' : 'text-amber-700'
+                  att.inside_geofence ? 'text-green-700' : 'text-blue-700'
                 }`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${att.inside_geofence ? 'bg-green-500' : 'bg-amber-500'}`} />
+                  <span className={`h-1.5 w-1.5 rounded-full ${att.inside_geofence ? 'bg-green-500' : 'bg-blue-500'}`} />
                   {att.inside_geofence ? 'Inside Geofence' : 'Outside Geofence'}
                 </p>
                 {att.distance_from_site != null && (
@@ -821,7 +821,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
             {ATTACHMENT_LABELS[att.attachment_type] || 'Document'}
           </span>
           {(att.rework_version ?? 0) > 0 && (
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-700">
               Rework {att.rework_version}
             </span>
           )}
@@ -908,15 +908,15 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
       {/* Rework Required Banner */}
       {isReworkRequired && openRework && (
         <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto">
-          <div className="bg-orange-50 border-2 border-orange-400 rounded-xl shadow-lg px-4 py-4">
+          <div className="bg-red-50 border-2 border-red-400 rounded-xl shadow-lg px-4 py-4">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-xl">⚠</span>
-              <h3 className="font-bold text-orange-800 text-base">Rework Requested</h3>
+              <h3 className="font-bold text-red-800 text-base">Rework Requested</h3>
             </div>
-            <p className="text-sm text-orange-700 mb-1">
+            <p className="text-sm text-red-700 mb-1">
               <span className="font-medium">Reason:</span> {openRework.reason}
             </p>
-            <p className="text-xs text-orange-600 mb-3">
+            <p className="text-xs text-red-600 mb-3">
               Requested by: {openRework.requested_by_name || 'Unknown'} ·{' '}
               {new Date(openRework.requested_at).toLocaleString()}
             </p>
@@ -946,7 +946,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                 }
               }}
               disabled={transitioning}
-              className="w-full bg-orange-600 text-white rounded-xl py-3 text-base font-semibold shadow-lg active:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-red-600 text-white rounded-xl py-3 text-base font-semibold shadow-lg active:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {transitioning ? 'Resuming...' : 'Resume Work'}
             </button>
@@ -979,7 +979,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
       {/* Pending Sync Badge */}
       {!isOnline && pendingCount > 0 && (
         <div className="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto mt-14">
-          <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2 rounded-xl shadow text-sm font-medium text-center">
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-xl shadow text-sm font-medium text-center">
             {pendingCount} action{pendingCount !== 1 ? 's' : ''} pending sync
           </div>
         </div>
@@ -1039,8 +1039,8 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
           {!activeTimeEntry && (myStatus === 'on_site') && (
             <div className="mt-3 pt-3 border-t border-slate-100">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Time Entry</p>
-              <p className="text-sm text-amber-700 font-medium flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-500 inline-block" />
+              <p className="text-sm text-blue-700 font-medium flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-blue-500 inline-block" />
                 Not clocked in — required to complete this job
               </p>
             </div>
@@ -1145,7 +1145,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 mb-3">
             Technician Notes
-            {isReworkActive && <span className="ml-2 text-orange-600 font-normal normal-case">(Rework)</span>}
+            {isReworkActive && <span className="ml-2 text-red-600 font-normal normal-case">(Rework)</span>}
           </h2>
 
           {/* Note Input — hidden for closed (read-only) jobs */}
@@ -1186,7 +1186,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                   <p className="text-xs text-gray-400 mt-1">
                     {note.user_name} • {formatDateTime(note.created_at)}
                     {note.id.startsWith('offline-') && (
-                      <span className="ml-2 text-amber-600 font-medium">(pending sync)</span>
+                      <span className="ml-2 text-blue-600 font-medium">(pending sync)</span>
                     )}
                   </p>
                 </div>
@@ -1352,13 +1352,13 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
                     <span className="text-xs text-gray-500 capitalize">
                       {sig.label}
                       {(sig.rework_version ?? 0) > 0 && (
-                        <span className="ml-1 text-orange-600 font-medium">(Rework {sig.rework_version})</span>
+                        <span className="ml-1 text-red-600 font-medium">(Rework {sig.rework_version})</span>
                       )}
                     </span>
                     <span className="text-xs text-gray-400">
                       {sig.user_name} • {formatDateTime(sig.created_at)}
                       {sig.id.startsWith('offline-') && (
-                        <span className="ml-2 text-amber-600 font-medium">(pending sync)</span>
+                        <span className="ml-2 text-blue-600 font-medium">(pending sync)</span>
                       )}
                     </span>
                   </div>
@@ -1603,9 +1603,9 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         )}
 
         {myStatus === 'rework_required' && (
-          <div className="w-full bg-orange-50 border border-orange-200 text-orange-700 rounded-xl py-4 text-base font-semibold text-center">
+          <div className="w-full bg-red-50 border border-red-200 text-red-700 rounded-xl py-4 text-base font-semibold text-center">
             ⚠ Rework Required
-            <span className="block text-sm font-normal text-orange-600 mt-0.5">
+            <span className="block text-sm font-normal text-red-600 mt-0.5">
               The office has requested changes. Resume work to proceed.
             </span>
           </div>
@@ -1638,6 +1638,7 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
     </div>
   );
 }
+
 
 
 

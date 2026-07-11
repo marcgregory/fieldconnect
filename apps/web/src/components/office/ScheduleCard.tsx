@@ -12,7 +12,7 @@ interface ScheduleCardProps {
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
   scheduled: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', dot: 'bg-blue-500' },
-  traveling: { bg: 'bg-yellow-50 border-yellow-200', text: 'text-yellow-700', dot: 'bg-yellow-500' },
+  traveling: { bg: 'bg-blue-50 border-blue-200', text: 'text-blue-700', dot: 'bg-blue-500' },
   on_site: { bg: 'bg-green-50 border-green-200', text: 'text-green-700', dot: 'bg-green-500' },
   completed: { bg: 'bg-gray-50 border-gray-200', text: 'text-gray-600', dot: 'bg-gray-400' },
   closed: { bg: 'bg-gray-100 border-gray-300', text: 'text-gray-500', dot: 'bg-gray-500' },
@@ -28,7 +28,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const CONFLICT_STYLES: Record<string, string> = {
   overlap: 'border-red-400 !border-2 !border-red-400',
-  buffer: 'border-yellow-400 !border-2 !border-yellow-400',
+  buffer: 'border-blue-400 !border-2 !border-blue-400',
 };
 
 export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, conflictType }: ScheduleCardProps) {
@@ -58,7 +58,7 @@ export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, 
       >
         <div className="flex items-center gap-1">
           {hasConflict && (
-            <span className={`text-[10px] ${conflictType === 'overlap' ? 'text-red-600' : 'text-yellow-600'}`}>
+            <span className={`text-[10px] ${conflictType === 'overlap' ? 'text-red-600' : 'text-blue-600'}`}>
               {conflictType === 'overlap' ? '⚠' : '⏳'}
             </span>
           )}
@@ -79,7 +79,7 @@ export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, 
         <div className="flex items-center gap-1 min-w-0">
           {hasConflict && (
             <span
-              className={`text-xs flex-shrink-0 ${conflictType === 'overlap' ? 'text-red-600' : 'text-yellow-600'}`}
+              className={`text-xs flex-shrink-0 ${conflictType === 'overlap' ? 'text-red-600' : 'text-blue-600'}`}
               title={conflictType === 'overlap' ? 'Overlaps with another job' : 'Within 30-minute buffer of another job'}
             >
               {conflictType === 'overlap' ? '⚠' : '⏳'}
@@ -110,3 +110,4 @@ export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, 
     </button>
   );
 }
+

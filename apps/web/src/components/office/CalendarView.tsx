@@ -146,8 +146,8 @@ function DayView({
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* No-time schedules banner */}
       {noTimeSchedules.length > 0 && (
-        <div className="px-4 py-3 bg-yellow-50 border-b border-yellow-100">
-          <p className="text-xs font-medium text-yellow-800 mb-2">
+        <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+          <p className="text-xs font-medium text-blue-800 mb-2">
             {noTimeSchedules.length} job{noTimeSchedules.length > 1 ? 's' : ''} without time slot
           </p>
           <div className="flex flex-wrap gap-2">
@@ -155,7 +155,7 @@ function DayView({
               <button
                 key={s.id}
                 onClick={() => onScheduleClick(s)}
-                className="text-xs bg-white border border-yellow-200 rounded-lg px-2 py-1 hover:bg-yellow-50"
+                className="text-xs bg-white border border-blue-200 rounded-lg px-2 py-1 hover:bg-blue-50"
               >
                 {s.project_name} — {s.technician_name}
               </button>
@@ -339,3 +339,4 @@ function WeekView({
     </div>
   );
 }
+

@@ -55,7 +55,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 const TYPE_STYLES: Record<string, { bg: string; icon: string; border: string }> = {
   info: { bg: 'bg-blue-600', icon: 'ℹ', border: 'border-blue-700' },
   success: { bg: 'bg-green-600', icon: '✓', border: 'border-green-700' },
-  warning: { bg: 'bg-amber-600', icon: '⚠', border: 'border-amber-700' },
+  warning: { bg: 'bg-blue-600', icon: '⚠', border: 'border-blue-700' },
   error: { bg: 'bg-red-600', icon: '✕', border: 'border-red-700' },
 };
 
@@ -102,3 +102,4 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
     </div>
   );
 }
+

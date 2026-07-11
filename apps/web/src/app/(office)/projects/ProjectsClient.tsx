@@ -22,7 +22,7 @@ import type {
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string; color: string }[] = [
   { value: 'active', label: 'Active', color: 'bg-green-100 text-green-800' },
-  { value: 'on_hold', label: 'On Hold', color: 'bg-yellow-100 text-yellow-800' },
+  { value: 'on_hold', label: 'On Hold', color: 'bg-blue-100 text-blue-800' },
   { value: 'completed', label: 'Completed', color: 'bg-blue-100 text-blue-800' },
   { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800' },
 ];
@@ -385,3 +385,4 @@ export function ProjectsClient() {
     </div>
   );
 }
+

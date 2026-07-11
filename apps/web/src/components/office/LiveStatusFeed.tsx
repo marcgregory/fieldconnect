@@ -36,7 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
   clock_out: 'text-gray-600 bg-gray-50 border-gray-200',
   status_change: 'text-blue-600 bg-blue-50 border-blue-200',
   assignment: 'text-purple-600 bg-purple-50 border-purple-200',
-  reassigned: 'text-amber-600 bg-amber-50 border-amber-200',
+  reassigned: 'text-blue-600 bg-blue-50 border-blue-200',
   note_added: 'text-teal-600 bg-teal-50 border-teal-200',
   attachment_uploaded: 'text-emerald-600 bg-emerald-50 border-emerald-200',
   attachment_deleted: 'text-gray-500 bg-gray-50 border-gray-200',
@@ -47,9 +47,9 @@ const STATUS_COLORS: Record<string, string> = {
   work_completed: 'text-emerald-600 bg-emerald-50 border-emerald-200',
   job_closed: 'text-gray-700 bg-gray-100 border-gray-300',
   schedule_created: 'text-purple-600 bg-purple-50 border-purple-200',
-  schedule_reassigned: 'text-amber-600 bg-amber-50 border-amber-200',
+  schedule_reassigned: 'text-blue-600 bg-blue-50 border-blue-200',
   rework_requested: 'text-red-600 bg-red-50 border-red-200',
-  rework_resumed: 'text-orange-600 bg-orange-50 border-orange-200',
+  rework_resumed: 'text-red-600 bg-red-50 border-red-200',
   rework_completed: 'text-green-600 bg-green-50 border-green-200',
   photo_uploaded: 'text-emerald-600 bg-emerald-50 border-emerald-200',
   photo_deleted: 'text-gray-500 bg-gray-50 border-gray-200',
@@ -444,7 +444,7 @@ export function LiveStatusFeed() {
       <div className="flex items-center gap-2 mb-4">
         <span
           className={`h-2 w-2 rounded-full ${
-            isConnected ? 'bg-green-500' : 'bg-yellow-500'
+            isConnected ? 'bg-green-500' : 'bg-blue-500'
           }`}
         />
         <span className="text-xs text-gray-500">
@@ -584,3 +584,4 @@ function getAttachmentLabel(type?: string): string {
     default:        return 'Photo';
   }
 }
+
