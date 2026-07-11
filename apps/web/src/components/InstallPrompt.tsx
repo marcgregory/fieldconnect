@@ -22,8 +22,10 @@ export function InstallPrompt() {
 
   useEffect(() => {
     // Suppress entirely if the app is already installed, the user has
-    // dismissed the prompt before, or we've already shown it once in this
-    // browser. State is persisted in localStorage (see pwa-install.ts).
+    // dismissed the prompt this session, or we've already shown it once
+    // this session. Seen/dismissed live in sessionStorage (see
+    // pwa-install.ts) so navigating between pages or refreshing does
+    // not re-fire the banner within the same session.
     if (
       isRunningInstalled() ||
       isInstallCompleted() ||
@@ -46,8 +48,9 @@ export function InstallPrompt() {
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstall(true);
       // Mark the banner as seen the first time the browser signals a
-      // pending install. Survives refreshes — we won't attach this
-      // listener again on subsequent visits.
+      // pending install this session. Stored in sessionStorage, so
+      // subsequent navigations and refreshes within the same session
+      // won't re-fire the banner.
       markInstallPromptSeen();
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -81,7 +84,8 @@ export function InstallPrompt() {
         setShowInstall(false);
       }
       // If the user dismissed the in-browser prompt without using our X,
-      // remember the dismissal so we don't pester them again.
+      // remember the dismissal for the rest of this session so we don't
+      // re-show on every page.
       if (result.outcome === 'dismissed') {
         markInstallDismissed();
         setShowInstall(false);
