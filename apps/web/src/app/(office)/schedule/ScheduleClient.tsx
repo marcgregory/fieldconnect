@@ -18,12 +18,19 @@ import type {
   CreateScheduleInput,
   UpdateScheduleInput,
 } from '@fieldconnect/shared';
+import { useHasMounted } from '@/hooks/useHasMounted';
 
 type ViewMode = 'day' | 'week';
 
 export function ScheduleClient() {
   const [viewMode, setViewMode] = useState<ViewMode>('day');
-  const [currentDate, setCurrentDate] = useState(() => new Date());
+  // Lazy initialize with null; set the real date after mount via useEffect
+  // to avoid hydration mismatch (server and client render different dates).
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+  const mounted = useHasMounted();
+  useEffect(() => {
+    if (!currentDate) setCurrentDate(new Date());
+  }, [currentDate]);
   const [schedules, setSchedules] = useState<ScheduleWithDetails[]>([]);
   const [unassigned, setUnassigned] = useState<ScheduleWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,14 +47,15 @@ export function ScheduleClient() {
       setLoading(true);
       setError('');
 
+      const d = currentDate || new Date();
       if (viewMode === 'day') {
-        const dateStr = currentDate.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+        const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
         const data = await getSchedules({ date: dateStr });
         setSchedules(data);
       } else {
         // Week view: get Monday to Sunday
-        const startOfWeek = new Date(currentDate);
-        startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+        const startOfWeek = new Date(d);
+        startOfWeek.setDate(d.getDate() - d.getDay());
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
 
@@ -85,7 +93,8 @@ export function ScheduleClient() {
   }, [onJobUpdate, fetchSchedules]);
 
   function navigate(direction: 'prev' | 'next') {
-    const newDate = new Date(currentDate);
+    const base = currentDate || new Date();
+    const newDate = new Date(base);
     if (viewMode === 'day') {
       newDate.setDate(newDate.getDate() + (direction === 'next' ? 1 : -1));
     } else {
@@ -174,16 +183,17 @@ export function ScheduleClient() {
   }
 
   function formatDateLabel(): string {
+    const d = currentDate || new Date();
     if (viewMode === 'day') {
-      return currentDate.toLocaleDateString('en-US', {
+      return d.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'long',
         day: 'numeric',
         year: 'numeric',
       });
     }
-    const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+    const startOfWeek = new Date(d);
+    startOfWeek.setDate(d.getDate() - d.getDay());
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 6);
     return `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — ${endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
@@ -281,14 +291,20 @@ export function ScheduleClient() {
           <div className="flex gap-6">
             {/* Calendar */}
             <div className="flex-1 min-w-0">
-              <CalendarView
-                viewMode={viewMode}
-                currentDate={currentDate}
-                schedules={schedules}
-                onSlotClick={handleSlotClick}
-                onScheduleClick={handleEdit}
-                onDrop={handleDrop}
-              />
+              {currentDate !== null ? (
+                <CalendarView
+                  viewMode={viewMode}
+                  currentDate={currentDate}
+                  schedules={schedules}
+                  onSlotClick={handleSlotClick}
+                  onScheduleClick={handleEdit}
+                  onDrop={handleDrop}
+                />
+              ) : (
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+                </div>
+              )}
             </div>
 
             {/* Unassigned Queue Sidebar */}

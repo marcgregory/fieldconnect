@@ -2,6 +2,7 @@
 
 import { ScheduleCard } from './ScheduleCard';
 import type { ScheduleWithDetails } from '@fieldconnect/shared';
+import { useHasMounted } from '@/hooks/useHasMounted';
 
 interface CalendarViewProps {
   viewMode: 'day' | 'week';
@@ -102,6 +103,7 @@ export function CalendarView({
   schedules,
   onSlotClick,
   onScheduleClick,
+  onDrop,
 }: CalendarViewProps) {
   if (viewMode === 'day') {
     return (
@@ -239,6 +241,7 @@ function WeekView({
   onSlotClick: (date: string, time?: string) => void;
   onScheduleClick: (schedule: ScheduleWithDetails) => void;
 }) {
+  const mounted = useHasMounted();
   // Calculate Monday to Sunday
   const startOfWeek = new Date(currentDate);
   startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
@@ -265,7 +268,7 @@ function WeekView({
             const dateStr = formatDate(day);
             const daySchedules = schedules.filter((s) => s.scheduled_date === dateStr);
             const isToday =
-              formatDate(new Date()) === dateStr;
+              mounted && formatDate(new Date()) === dateStr;
             return (
               <div
                 key={dateStr}

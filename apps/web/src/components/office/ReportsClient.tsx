@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getReportTimeEntries, getReportTechnicians, getReportProjects, getExcelExportUrl } from '@/lib/api';
 import type { TimeEntryReportRow, HoursSummaryRow, ProjectSummaryRow } from '@fieldconnect/shared';
+import { useHasMounted } from '@/hooks/useHasMounted';
 
 type Tab = 'entries' | 'technicians' | 'projects';
 
@@ -25,12 +26,19 @@ const PAGE_SIZE = 20;
 
 export function ReportsClient() {
   const [tab, setTab] = useState<Tab>('entries');
-  const [from, setFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
-  });
-  const [to, setTo] = useState(() => new Date().toISOString().split('T')[0]);
+  // Initialize with a stable default date to avoid hydration mismatch.
+  // The real default is set after mount via useEffect.
+  const [from, setFrom] = useState('1970-01-01');
+  const [to, setTo] = useState('1970-01-01');
+  const mounted = useHasMounted();
+  useEffect(() => {
+    if (mounted) {
+      const d = new Date();
+      setTo(d.toISOString().split('T')[0]);
+      d.setDate(d.getDate() - 7);
+      setFrom(d.toISOString().split('T')[0]);
+    }
+  }, [mounted]);
 
   // Time entries
   const [entries, setEntries] = useState<TimeEntryReportRow[]>([]);

@@ -35,6 +35,17 @@ const nextConfig = {
       },
     ];
   },
+  // Redirect /favicon.ico to the PNG favicon so browsers that request
+  // the legacy path don't get a 404.
+  async redirects() {
+    return [
+      {
+        source: '/favicon.ico',
+        destination: '/favicon-32.png',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;

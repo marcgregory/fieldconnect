@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useHasMounted } from '@/hooks/useHasMounted';
 
 interface Session {
   id: string;
@@ -79,8 +80,15 @@ export function SessionsClient() {
     }
   };
 
+  const mounted = useHasMounted();
+
   function formatDate(dateStr: string): string {
     const d = new Date(dateStr);
+    // Until the component mounts, render the absolute date so server and
+    // first client render are identical. After mount, show relative times.
+    if (!mounted) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -89,7 +97,7 @@ export function SessionsClient() {
     if (diffHours < 1) return 'Just now';
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return d.toLocaleDateString();
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   function formatUserAgent(ua: string | null): string {
@@ -175,7 +183,7 @@ export function SessionsClient() {
                     </p>
                     <p>
                       <span className="font-medium text-slate-600">Created:</span>{' '}
-                      {new Date(s.createdAt).toLocaleString()}
+                      {formatDate(s.createdAt)}
                     </p>
                   </div>
                 </div>

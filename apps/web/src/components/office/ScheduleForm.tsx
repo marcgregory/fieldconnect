@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getProjects, getAvailableTechnicians, getProjectAssignments } from '@/lib/api';
 import type {
   Project,
@@ -39,9 +39,18 @@ export function ScheduleForm({
   const [projectTeamIds, setProjectTeamIds] = useState<string[]>([]);
   const [projectId, setProjectId] = useState(schedule?.project_id || '');
   const [selectedTechIds, setSelectedTechIds] = useState<string[]>(schedule?.technician_ids || []);
+  // Avoid new Date() in initial state — use the provided date, defaultDate, or
+  // an empty string that gets updated after mount via useEffect.
   const [date, setDate] = useState(
-    schedule?.scheduled_date || defaultDate || new Date().toLocaleDateString('en-CA'),
+    schedule?.scheduled_date || defaultDate || '',
   );
+  const hasSetDefaultRef = useRef(false);
+  useEffect(() => {
+    if (!date && !hasSetDefaultRef.current) {
+      hasSetDefaultRef.current = true;
+      setDate(new Date().toLocaleDateString('en-CA'));
+    }
+  }, [date]);
   const [startTime, setStartTime] = useState(
     schedule?.start_time?.slice(0, 5) || defaultTime?.slice(0, 5) || '',
   );

@@ -8,6 +8,7 @@ import { getMyJobs } from '@/lib/api';
 import { JobCard } from './JobCard';
 import type { ScheduleWithDetails, JobStatus } from '@fieldconnect/shared';
 import { useSocket } from '@/hooks/useSocket';
+import { useClientDateString } from '@/hooks/useHasMounted';
 
 type JobTab = 'today' | 'upcoming' | 'completed';
 
@@ -65,10 +66,9 @@ export function JobQueueClient() {
     }));
   }, [jobs, userId]);
 
-  // Categorize jobs
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD
+  // Categorize jobs — use a stable date string on first render to avoid
+  // hydration mismatches between server and client timezone/locale.
+  const todayStr = useClientDateString();
 
   const activeStatuses = new Set(['scheduled', 'traveling', 'on_site', 'rework_required']);
   const completedStatuses = new Set(['completed', 'closed']);
