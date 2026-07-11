@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { signOut } from 'next-auth/react';
+import { handleSignOut } from '@/lib/logout';
 import { useRouter } from 'next/navigation';
 import { Card } from '@fieldconnect/ui';
 import { Logo } from '@/components/Logo';
@@ -37,7 +37,7 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
             <h1 className="text-lg font-bold tracking-tight">FieldConnect</h1>
           </div>
           <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
+            onClick={handleSignOut}
             className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 shadow-sm"
           >
             Sign Out

@@ -2,7 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useSession, signOut } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
+import { handleSignOut } from '@/lib/logout';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/Logo';
 
@@ -90,7 +91,7 @@ export function OfficeNav() {
               <p className="text-xs capitalize tracking-wide text-slate-500">{session.user.role.replace('_', ' ')}</p>
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
+              onClick={handleSignOut}
               className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-red-200 hover:text-red-600"
               title="Sign Out"
               aria-label="Sign Out"
