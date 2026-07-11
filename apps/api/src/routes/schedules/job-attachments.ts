@@ -17,6 +17,11 @@ import {
   uploadToCloudinary,
   deleteFromCloudinary,
 } from '../../lib/cloudinary-storage';
+import {
+  validateFileUpload,
+  checkUploadRateLimit,
+  validateImageDimensions,
+} from '../../lib/file-validation';
 
 const MAX_ATTACHMENTS = 20;
 
@@ -124,6 +129,26 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
       const mimeType = fileData.mimetype || 'application/octet-stream';
       const fileSize = buffer.length;
 
+      // ── Server-side file validation ──────────────────────────────────────────
+      const validationResult = validateFileUpload(buffer, mimeType, fileName);
+      if (!validationResult.valid) {
+        return reply.status(400).send({
+          success: false,
+          error: validationResult.error,
+        });
+      }
+      const safeFileName = validationResult.sanitizedFilename!;
+
+      // ── Upload rate limiting ─────────────────────────────────────────────────
+      const rateCheck = checkUploadRateLimit(request.user!.id);
+      if (!rateCheck.allowed) {
+        return reply.status(429).send({
+          success: false,
+          error: `Too many uploads. Try again in ${rateCheck.retryAfter} seconds.`,
+          retryAfter: rateCheck.retryAfter,
+        });
+      }
+
       // Upload to Cloudinary
       let cloudinaryResult: {
         public_id: string;
@@ -137,12 +162,28 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
       let relativePath = '';
 
       try {
-        cloudinaryResult = await uploadToCloudinary(id, buffer, fileName, mimeType);
+        cloudinaryResult = await uploadToCloudinary(id, buffer, safeFileName, mimeType);
         relativePath = `${id}/${cloudinaryResult.public_id}`; // logical path for records
+
+        // Validate image dimensions if Cloudinary returned them
+        if (mimeType.startsWith('image/')) {
+          const dimResult = validateImageDimensions(
+            cloudinaryResult.width,
+            cloudinaryResult.height,
+          );
+          if (!dimResult.valid) {
+            // Rollback the upload
+            await deleteFromCloudinary(cloudinaryResult.public_id).catch(() => {});
+            return reply.status(400).send({
+              success: false,
+              error: dimResult.error,
+            });
+          }
+        }
       } catch (cloudinaryErr) {
         // Fallback: save to local disk if Cloudinary fails
         console.warn('Cloudinary upload failed, falling back to local storage:', cloudinaryErr);
-        relativePath = await saveUpload(id, fileName, buffer);
+        relativePath = await saveUpload(id, safeFileName, buffer);
       }
 
       try {
@@ -159,7 +200,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           schedule_id: id,
           user_id: request.user!.id,
           technician_id: request.user!.id,
-          file_name: fileName,
+          file_name: safeFileName,
           file_path: relativePath,
           mime_type: mimeType,
           file_size: cloudinaryResult?.file_size || fileSize,
@@ -188,7 +229,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           project_name: schedule.project_name,
           user_name: request.user!.name,
           attachment_id: attachment.id,
-          file_name: fileName,
+          file_name: safeFileName,
           attachment_type: typeCheck.data.attachment_type,
           timestamp: new Date().toISOString(),
           technician_id: request.user!.id,

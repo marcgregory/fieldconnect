@@ -78,11 +78,16 @@ async function main() {
     },
   });
 
-  // Serve static uploads
+  // Serve static uploads with secure headers
   await app.register(fastifyStatic, {
     root: UPLOADS_DIR,
     prefix: '/uploads/',
     decorateReply: false,
+    // Force download rather than inline rendering (prevents XSS via SVG, etc.)
+    setHeaders(res) {
+      res.setHeader('Content-Disposition', 'attachment');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
   });
 
   // Health check routes
