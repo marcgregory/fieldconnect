@@ -4,6 +4,17 @@ const API_URL = process.env.API_URL || 'http://localhost:3001';
 const PROXY_SECRET = process.env.FIELDCONNECT_PROXY_SECRET || '';
 
 /**
+ * Build a JSON response that always carries Cache-Control: no-store.
+ * Authentication responses must never be cached by the browser or any
+ * intermediate proxy.
+ */
+function jsonResponse(body: unknown, init: ResponseInit = {}): NextResponse {
+  const headers = new Headers(init.headers);
+  headers.set('Cache-Control', 'no-store');
+  return NextResponse.json(body, { ...init, headers });
+}
+
+/**
  * Login proxy — forwards credentials to the Fastify API so the client never
  * talks to the API directly.
  *
@@ -43,10 +54,10 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
-    return NextResponse.json(data, { status: response.status });
+    return jsonResponse(data, { status: response.status });
   } catch (error) {
     console.error('Login proxy error:', error);
-    return NextResponse.json(
+    return jsonResponse(
       { success: false, error: 'Unable to connect to server. Is the API running?' },
       { status: 503 },
     );
