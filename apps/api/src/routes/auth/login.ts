@@ -1,10 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import net from 'net';
 import bcrypt from 'bcryptjs';
 import { loginSchema } from '@fieldconnect/shared';
 import { findByEmail } from '../../db/queries/users';
 import * as refreshTokenQueries from '../../db/queries/refresh-tokens';
 import * as loginAttempts from '../../db/queries/login-attempts';
 import * as authAuditLog from '../../db/queries/auth-audit-logs';
+import * as sessions from '../../db/queries/sessions';
 
 /**
  * A bcrypt hash of a high-entropy dummy string, pre-computed once at module
@@ -17,19 +19,51 @@ const DUMMY_HASH = bcrypt.hashSync('__dummy_no_match__' + Math.random(), 10);
 /**
  * Resolve the real client IP for rate-limiting purposes.
  *
+ * The Next.js BFF proxy (/api/auth/login) adds:
+ *   X-Real-IP: <client-ip>
+ *   X-FieldConnect-Proxy-Secret: <shared-secret>
+ *
+ * We trust X-Real-IP ONLY when the proxy secret matches. Otherwise we fall
+ * back to request.ip (which on Render comes from the Render proxy — safe,
+ * but the BFF path adds defense-in-depth against spoofing).
+ */
+const PROXY_SECRET = process.env.FIELDCONNECT_PROXY_SECRET || '';
+
+/**
+ * Validate the proxy secret from request headers.
+ * Returns the trusted client IP if the proxy secret is valid, null otherwise.
+ */
+function validateProxySecret(request: FastifyRequest): string | null {
+  const secret = request.headers['x-fieldconnect-proxy-secret'];
+  if (!PROXY_SECRET || typeof secret !== 'string') return null;
+  if (secret.length !== PROXY_SECRET.length) return null;
+
+  // Constant-time comparison to prevent timing attacks on the secret.
+  let match = 0;
+  for (let i = 0; i < secret.length; i++) {
+    match |= secret.charCodeAt(i) ^ PROXY_SECRET.charCodeAt(i);
+  }
+  if (match !== 0) return null;
+
+  // Only trust X-Real-IP if it's a valid IP address.
+  const ip = request.headers['x-real-ip'];
+  if (typeof ip !== 'string' || !ip) return null;
+  const isValid = net.isIP(ip);
+  if (isValid === 0) return null;
+
+  return ip;
+}
+
+/**
+ * Resolve the real client IP for rate-limiting purposes.
+ *
  * Priority:
- *   1. X-Real-IP header — set by the Next.js BFF proxy (/api/auth/login)
- *      which extracts the first IP from the Render-proxy-supplied
- *      X-Forwarded-For chain. This prevents spoofing because an attacker's
- *      forged X-Forwarded-For only reaches Next.js, not the API directly.
- *   2. request.ip — fallback when the request arrives directly (dev mode,
- *      health checks, etc.) or from another trusted path.
+ *   1. X-Real-IP validated via proxy secret
+ *   2. request.ip (Render proxy or direct connection)
  */
 function resolveClientIp(request: FastifyRequest): string {
-  const realIp = request.headers['x-real-ip'];
-  if (typeof realIp === 'string' && realIp.length > 0) {
-    return realIp;
-  }
+  const proxyIp = validateProxySecret(request);
+  if (proxyIp) return proxyIp;
   return request.ip;
 }
 
@@ -128,15 +162,22 @@ export async function loginRoutes(app: FastifyInstance) {
     }
 
     // ── 7. Success ───────────────────────────────────────────────────────
-    // Clear the lockout state (if any) and issue a refresh token.
+    // Clear the lockout state (if any), create a session, issue a refresh
+    // token bound to that session.
     await loginAttempts.recordSuccess(normalizedEmail);
-    await authAuditLog.log(user.id, 'login_success', undefined, ipAddress);
+
+    const userAgent = request.headers['user-agent']?.slice(0, 500);
+    const sessionId = await sessions.create(user.id, ipAddress, userAgent);
+    await authAuditLog.log(user.id, 'session_created', { session_id: sessionId }, ipAddress);
 
     const refreshToken = await refreshTokenQueries.create(
       user.id,
-      request.headers['user-agent']?.slice(0, 500),
+      sessionId,
+      userAgent,
       ipAddress,
     );
+
+    await authAuditLog.log(user.id, 'login_success', undefined, ipAddress);
 
     // Note: The IP rate-limit slot consumed in step 1 is not refunded on
     // success. This is intentional — the threshold (10/5min) is generous
@@ -146,6 +187,7 @@ export async function loginRoutes(app: FastifyInstance) {
     return {
       success: true,
       refresh_token: refreshToken,
+      session_id: sessionId,
       user: {
         id: user.id,
         email: user.email,

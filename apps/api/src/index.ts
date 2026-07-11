@@ -11,6 +11,7 @@ import { tokenRoutes } from './routes/auth/token';
 import { refreshRoutes } from './routes/auth/refresh';
 import { verificationRoutes } from './routes/auth/verification';
 import { passwordResetRoutes } from './routes/auth/password-reset';
+import { sessionRoutes } from './routes/auth/sessions';
 import { projectRoutes } from './routes/projects';
 import { timeEntryRoutes } from './routes/time-entries';
 import { technicianRoutes } from './routes/technicians';
@@ -94,6 +95,7 @@ async function main() {
   await app.register(refreshRoutes);
   await app.register(verificationRoutes);
   await app.register(passwordResetRoutes);
+  await app.register(sessionRoutes);
 
   // Project routes
   await app.register(projectRoutes);

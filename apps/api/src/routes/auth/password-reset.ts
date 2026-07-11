@@ -26,6 +26,7 @@ import { forgotPasswordSchema, resetPasswordSchema } from '@fieldconnect/shared'
 import * as passwordResetTokenQueries from '../../db/queries/password-reset-tokens';
 import * as users from '../../db/queries/users';
 import * as refreshTokenQueries from '../../db/queries/refresh-tokens';
+import * as sessions from '../../db/queries/sessions';
 import * as rateLimit from '../../db/queries/rate-limit';
 import * as authAuditLog from '../../db/queries/auth-audit-logs';
 import { pool } from '../../db';
@@ -174,7 +175,8 @@ export async function passwordResetRoutes(app: FastifyInstance) {
       }
 
       await passwordResetTokenQueries.markUsed(token);
-      await refreshTokenQueries.revokeAllForUser(lookup.userId);
+      await refreshTokenQueries.revokeAllFamiliesForUser(lookup.userId);
+      await sessions.revokeAllForUser(lookup.userId);
 
       await client.query('COMMIT');
     } catch (err) {
@@ -186,6 +188,12 @@ export async function passwordResetRoutes(app: FastifyInstance) {
 
     // 3. Audit success.
     await authAuditLog.log(lookup.userId, 'password_reset_completed', undefined, ipAddress);
+    await authAuditLog.log(
+      lookup.userId,
+      'all_sessions_revoked',
+      { reason: 'password_reset' },
+      ipAddress,
+    );
 
     // 4. Send a "your password was changed" confirmation email
     //    (fire-and-forget — the route response doesn't block on it).

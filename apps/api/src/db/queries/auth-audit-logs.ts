@@ -29,7 +29,15 @@ export type AuthAuditAction =
   | 'account_temporarily_locked'
   | 'login_blocked_locked'
   | 'login_success'
-  | 'lockout_cleared';
+  | 'lockout_cleared'
+  // Phase 5 — Session Security
+  | 'session_created'
+  | 'token_refreshed'
+  | 'refresh_token_reuse_detected'
+  | 'session_revoked'
+  | 'logout'
+  | 'logout_all'
+  | 'all_sessions_revoked';
 
 /**
  * Write an auth audit event. `userId` may be null for events tied to unknown

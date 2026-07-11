@@ -12,6 +12,9 @@ declare module 'fastify' {
   }
 }
 
+const JWT_ISSUER = 'fieldconnect-api';
+const JWT_AUDIENCE = 'fieldconnect-web';
+
 const getSecret = (): Uint8Array => {
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret) {
@@ -41,6 +44,12 @@ function extractPayload(payload: JWTPayload): AuthUser | null {
 /**
  * Attempts to verify JWT from the Authorization header.
  * Sets request.user on success. Does NOT block — routes use requireRole() to enforce.
+ *
+ * JWT validation:
+ *   - Only HS256 algorithm accepted
+ *   - Issuer must match fieldconnect-api
+ *   - Audience must match fieldconnect-web
+ *   - Expiration is enforced by jwtVerify
  */
 export async function authHook(request: FastifyRequest, _reply: FastifyReply) {
   const url = request.url;
@@ -67,6 +76,8 @@ export async function authHook(request: FastifyRequest, _reply: FastifyReply) {
   try {
     const { payload } = await jwtVerify(token, getSecret(), {
       algorithms: ['HS256'],
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
     });
     const user = extractPayload(payload);
     if (user) {

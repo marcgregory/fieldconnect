@@ -84,6 +84,27 @@ Sprint 6 — Security & Account Hardening 🚧
 - Stale lockout rows cleaned up inline on every check ✅
 - All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
 
+### Sprint 6 / Phase 5 — Session Security — Complete ✅
+- `031_create-sessions-and-token-family.sql` migration — `token_family_id` + `family_revoked_at` on `refresh_tokens`, `sessions` table ✅
+- `refresh-tokens.ts` rewritten with `rotate()`, `detectReuse()`, `revokeByFamily()`, `revokeAllFamiliesForUser()` ✅
+- `sessions.ts` query module — `create()`, `listActive()`, `findById()`, `revoke()`, `revokeAllForUser()`, `touch()`, `cleanExpired()` ✅
+- `GET /api/v1/auth/sessions` — list active sessions (authenticated) ✅
+- `DELETE /api/v1/auth/sessions/:id` — revoke single session (owner only) ✅
+- `POST /api/v1/auth/logout-all` — revoke all sessions ✅
+- Refresh token rotation — old token revoked atomically, new token in same family ✅
+- Reuse detection — replayed token revokes entire family + all sessions ✅
+- JWT hardening — issuer `fieldconnect-api`, audience `fieldconnect-web`, 15-min TTL, HS256 only ✅
+- Trusted proxy secret — `X-FieldConnect-Proxy-Secret` validated via constant-time comparison + `net.isIP()` on `X-Real-IP` ✅
+- Next.js BFF proxy (`/api/auth/login`) + all proxied routes send proxy secret + `X-Real-IP` ✅
+- Login routes through BFF proxy (no direct client→API calls for login) ✅
+- Login creates a `sessions` row + links refresh token to session ✅
+- Password reset revokes all sessions + token families ✅
+- Web `/sessions` page — view devices, revoke sessions, logout all devices ✅
+- 7 new audit events: `session_created`, `token_refreshed`, `refresh_token_reuse_detected`, `session_revoked`, `logout`, `logout_all`, `all_sessions_revoked` ✅
+- `ACCOUNT_LOCKED` code removed from error responses (returns `RATE_LIMITED` to prevent enumeration) ✅
+- Duplicate IP rate-limit increment bug fixed in `recordFailure()` ✅
+- All `pnpm typecheck`, `pnpm build` pass (6/6 tasks each) ✅
+
 ### Revision-Based Rework — Complete ✅ (Sprint 6.1)
 - `rework_required` status added to the job state machine ✅
 - `rework_requests` table tracks each rework with reason, requester, and status ✅

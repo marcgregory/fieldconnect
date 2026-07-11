@@ -1,7 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { SignJWT } from 'jose';
 import * as refreshTokenQueries from '../../db/queries/refresh-tokens';
+import * as sessions from '../../db/queries/sessions';
 import * as authAuditLog from '../../db/queries/auth-audit-logs';
+import { findById } from '../../db/queries/users';
 
 const getSecret = (): Uint8Array => {
   const secret = process.env.NEXTAUTH_SECRET;
@@ -13,7 +15,10 @@ export async function refreshRoutes(app: FastifyInstance) {
   /**
    * POST /api/v1/auth/refresh
    * Body: { refresh_token: string }
-   * Returns a new backend JWT (1h) and a new refresh token (rotation).
+   *
+   * Rotates the refresh token and returns a new access JWT (15 min).
+   * On reuse detection (an already-rotated token is presented), the entire
+   * token family is revoked and all sessions are invalidated.
    */
   app.post('/api/v1/auth/refresh', async (request, reply) => {
     const { refresh_token } = request.body as { refresh_token?: string };
@@ -24,91 +29,140 @@ export async function refreshRoutes(app: FastifyInstance) {
       });
     }
 
-    // Validate the refresh token
-    const userId = await refreshTokenQueries.validate(refresh_token);
-    if (!userId) {
-      return reply.status(401).send({
-        success: false,
-        error: 'Invalid or expired refresh token',
-      });
-    }
-
-    // Fetch user info BEFORE revoking — we need email_verified_at to decide
-    // whether to rotate or reject. (Old refresh tokens issued before this
-    // phase might still be valid even though the user hasn't verified.)
-    const { findById } = await import('../../db/queries/users');
-    const user = await findById(userId);
-    if (!user) {
-      return reply.status(401).send({
-        success: false,
-        error: 'User not found',
-      });
-    }
-
-    // If the user is unverified, refuse to rotate and revoke the token.
-    // Forces them back through the login flow which will surface the 403.
-    if (!user.email_verified_at) {
-      await refreshTokenQueries.revoke(refresh_token);
-      await authAuditLog.log(
-        user.id,
-        'login_blocked_unverified',
-        { via: 'refresh' },
-        request.ip,
-      );
-      return reply.status(403).send({
-        success: false,
-        code: 'EMAIL_NOT_VERIFIED',
-        error: 'Please verify your email before signing in.',
-        canResend: true,
-      });
-    }
-
-    // Revoke the old token (rotation)
-    await refreshTokenQueries.revoke(refresh_token);
-
-    // Issue new access JWT (1h)
-    const accessToken = await new SignJWT({
-      sub: user.id,
-      id: user.id,
-      role: user.role,
-      email: user.email,
-      name: user.name,
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('1h')
-      .sign(getSecret());
-
-    // Issue new refresh token (30 days)
-    const newRefreshToken = await refreshTokenQueries.create(
-      userId,
+    // ── 1. Attempt rotation ───────────────────────────────────────────────
+    const rotated = await refreshTokenQueries.rotate(
+      refresh_token,
       request.headers['user-agent']?.slice(0, 500),
       request.ip,
     );
 
-    return {
-      success: true,
-      access_token: accessToken,
-      refresh_token: newRefreshToken,
-      expires_in: 3600,
-      user: {
+    if (rotated) {
+      // Success — old token revoked, new token issued.
+      const user = await findById(rotated.userId);
+      if (!user) {
+        return reply.status(401).send({
+          success: false,
+          error: 'User not found',
+        });
+      }
+
+      // If unverified, reject rotation and revoke the new token too.
+      if (!user.email_verified_at) {
+        await refreshTokenQueries.revokeByFamily(rotated.familyId);
+        await authAuditLog.log(
+          user.id,
+          'login_blocked_unverified',
+          { via: 'refresh' },
+          request.ip,
+        );
+        return reply.status(403).send({
+          success: false,
+          code: 'EMAIL_NOT_VERIFIED',
+          error: 'Please verify your email before signing in.',
+          canResend: true,
+        });
+      }
+
+      // Touch the session
+      await sessions.touch(rotated.familyId);
+
+      // Issue new access JWT (15 min short-lived)
+      const accessToken = await new SignJWT({
+        sub: user.id,
         id: user.id,
+        role: user.role,
         email: user.email,
         name: user.name,
-        role: user.role,
-      },
-    };
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setIssuer('fieldconnect-api')
+        .setAudience('fieldconnect-web')
+        .setExpirationTime('15m')
+        .sign(getSecret());
+
+      await authAuditLog.log(
+        user.id,
+        'token_refreshed',
+        { session_id: rotated.familyId },
+        request.ip,
+      );
+
+      return {
+        success: true,
+        access_token: accessToken,
+        refresh_token: rotated.newToken,
+        expires_in: 900,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+        },
+      };
+    }
+
+    // ── 2. Rotation failed — check for reuse ──────────────────────────────
+    const userId = await refreshTokenQueries.detectReuse(refresh_token);
+    if (userId) {
+      await sessions.revokeAllForUser(userId);
+      await authAuditLog.log(
+        userId,
+        'refresh_token_reuse_detected',
+        { ip: request.ip },
+        request.ip,
+      );
+      await authAuditLog.log(
+        userId,
+        'all_sessions_revoked',
+        { reason: 'refresh_token_reuse' },
+        request.ip,
+      );
+    }
+
+    return reply.status(401).send({
+      success: false,
+      error: 'Invalid or expired refresh token',
+    });
   });
 
   /**
    * POST /api/v1/auth/logout
    * Body: { refresh_token: string }
-   * Revokes the refresh token.
+   * Revokes the refresh token and its session.
    */
   app.post('/api/v1/auth/logout', async (request, reply) => {
     const { refresh_token } = request.body as { refresh_token?: string };
     if (refresh_token) {
-      await refreshTokenQueries.revoke(refresh_token);
+      const validated = await refreshTokenQueries.validate(refresh_token);
+      if (validated) {
+        await refreshTokenQueries.revoke(refresh_token);
+        await sessions.revoke(validated.familyId);
+        await authAuditLog.log(
+          validated.userId,
+          'logout',
+          { session_id: validated.familyId },
+          request.ip,
+        );
+      }
+    }
+    return { success: true };
+  });
+
+  /**
+   * POST /api/v1/auth/logout-all
+   * Body: { refresh_token: string }
+   * Revokes ALL sessions and ALL refresh token families for the user.
+   */
+  app.post('/api/v1/auth/logout-all', async (request, reply) => {
+    const { refresh_token } = request.body as { refresh_token?: string };
+    if (refresh_token) {
+      const validated = await refreshTokenQueries.validate(refresh_token);
+      if (validated) {
+        await refreshTokenQueries.revokeAllFamiliesForUser(validated.userId);
+        await sessions.revokeAllForUser(validated.userId);
+        await authAuditLog.log(validated.userId, 'logout_all', undefined, request.ip);
+      }
     }
     return { success: true };
   });

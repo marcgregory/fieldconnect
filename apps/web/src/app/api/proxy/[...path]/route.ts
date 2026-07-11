@@ -3,6 +3,7 @@ import { getToken } from 'next-auth/jwt';
 import { SignJWT } from 'jose';
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';
+const PROXY_SECRET = process.env.FIELDCONNECT_PROXY_SECRET || '';
 const JWT_SECRET = new TextEncoder().encode(
   process.env.NEXTAUTH_SECRET || 'fallback-secret-do-not-use-in-production',
 );
@@ -19,7 +20,9 @@ async function signBackendJWT(payload: {
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('1h')
+    .setIssuer('fieldconnect-api')
+    .setAudience('fieldconnect-web')
+    .setExpirationTime('30m')
     .sign(JWT_SECRET);
 }
 
@@ -85,6 +88,15 @@ async function proxyRequest(
 
     // Build headers and body for the proxy request
     const { headers, body } = await buildRequest(request, backendToken);
+
+    // Propagate the real client IP and proxy secret for API-side validation.
+    const clientIp =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      request.ip ||
+      '';
+    if (clientIp) headers['X-Real-IP'] = clientIp;
+    if (PROXY_SECRET) headers['X-FieldConnect-Proxy-Secret'] = PROXY_SECRET;
 
     // Make the request
     let response = await fetch(targetUrl, {

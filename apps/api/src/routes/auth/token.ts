@@ -31,6 +31,8 @@ export async function tokenRoutes(app: FastifyInstance) {
       })
         .setProtectedHeader({ alg: 'HS256' })
         .setIssuedAt()
+        .setIssuer('fieldconnect-api')
+        .setAudience('fieldconnect-web')
         .setExpirationTime('5m') // short-lived, only for socket handshake
         .sign(getSecret());
 

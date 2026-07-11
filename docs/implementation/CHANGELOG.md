@@ -2,7 +2,7 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
-## v0.11.0 — 2026-07-11
+## v0.12.0 — 2026-07-11
 
 ### Added
 
@@ -29,6 +29,27 @@ All notable project changes should be documented here. Keep this file versioned 
 ### Migration
 
 - Apply `030_create-login-lockouts.sql` via `pnpm db:migrate`
+
+## v0.12.0 — 2026-07-11
+
+### Added
+
+- **Sprint 6 / Phase 5 — Session Security** ✅
+  - `031_create-sessions-and-token-family.sql` migration — `token_family_id` on `refresh_tokens`, `sessions` table
+  - Refresh token rotation — `rotate()` atomically revokes old token and issues new one in same family
+  - Reuse detection — presenting an already-rotated token revokes the entire token family + all sessions
+  - `sessions` query module — `create()`, `listActive()`, `findById()`, `revoke()`, `revokeAllForUser()`, `touch()`, `cleanExpired()`
+  - `GET /api/v1/auth/sessions` — list active sessions (requires auth)
+  - `DELETE /api/v1/auth/sessions/:id` — revoke a session (owner only)
+  - `POST /api/v1/auth/logout-all` — revoke all sessions via auth header
+  - JWT hardening — issuer (`fieldconnect-api`), audience (`fieldconnect-web`), 15-min TTL, algorithm restricted to HS256
+  - Trusted proxy secret — `X-FieldConnect-Proxy-Secret` validated with constant-time comparison + `net.isIP()` on `X-Real-IP`
+  - Next.js BFF proxy now sends proxy secret + X-Real-IP on all proxied requests
+  - BFF login proxy at `/api/auth/login` — client never calls Fastify directly for login
+  - Web `/sessions` page — view active devices, revoke sessions, logout all devices
+  - Password reset now revokes all sessions (not just refresh tokens)
+  - 7 new audit events: `session_created`, `token_refreshed`, `refresh_token_reuse_detected`, `session_revoked`, `logout`, `logout_all`, `all_sessions_revoked`
+  - All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (6/6 tasks each)
 
 ## v0.10.0 — 2026-07-11
 
