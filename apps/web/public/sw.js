@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fieldconnect-v2';
+const CACHE_NAME = 'fieldconnect-v3';
 const STATIC_ASSETS = ['/', '/manifest.json', '/favicon-32.png', '/favicon-16.png', '/apple-touch-icon.png'];
 
 // Paths that must NEVER be served from cache. Next.js content-hashes its
