@@ -20,7 +20,6 @@ export async function sessionRoutes(app: FastifyInstance) {
         success: true,
         sessions: activeSessions.map((s) => ({
           id: s.id,
-          label: s.label,
           ipAddress: s.ip_address,
           userAgent: s.user_agent,
           createdAt: s.created_at,

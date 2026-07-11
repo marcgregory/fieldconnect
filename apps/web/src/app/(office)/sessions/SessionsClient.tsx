@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 
 interface Session {
   id: string;
-  label: string | null;
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: string;

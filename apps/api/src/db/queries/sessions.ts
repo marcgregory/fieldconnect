@@ -3,7 +3,6 @@ import { query } from '../index';
 export interface SessionRow {
   id: string;
   user_id: string;
-  label: string | null;
   created_at: string;
   last_used_at: string;
   expires_at: string;
@@ -38,7 +37,7 @@ export async function create(
  */
 export async function listActive(userId: string): Promise<SessionRow[]> {
   const result = await query(
-    `SELECT id, user_id, label, created_at, last_used_at, expires_at,
+    `SELECT id, user_id, created_at, last_used_at, expires_at,
             revoked_at, ip_address, user_agent
        FROM sessions
       WHERE user_id = $1
@@ -55,7 +54,7 @@ export async function listActive(userId: string): Promise<SessionRow[]> {
  */
 export async function findById(sessionId: string): Promise<SessionRow | null> {
   const result = await query(
-    `SELECT id, user_id, label, created_at, last_used_at, expires_at,
+    `SELECT id, user_id, created_at, last_used_at, expires_at,
             revoked_at, ip_address, user_agent
        FROM sessions WHERE id = $1`,
     [sessionId],
