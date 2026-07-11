@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
+// Must be dynamic for CSP nonce injection via middleware
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Access Denied',
   robots: { index: false, follow: false },
