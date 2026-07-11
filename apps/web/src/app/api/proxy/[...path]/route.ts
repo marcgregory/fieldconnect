@@ -149,6 +149,14 @@ async function buildProxyResponse(response: Response): Promise<NextResponse> {
       proxyResponse.headers.set('set-cookie', setCookie);
     }
 
+    // Forward Cache-Control from the backend response. The Fastify API
+    // sets `Cache-Control: no-store` on all responses; the proxy must
+    // propagate this so intermediate caches don't serve stale auth data.
+    const cacheControl = response.headers.get('cache-control');
+    if (cacheControl) {
+      proxyResponse.headers.set('cache-control', cacheControl);
+    }
+
     // Set a flag cookie the client can read to update its session
     // The actual NextAuth JWT refresh token is rotated server-side,
     // but we need the client to trigger a session update to pick up
@@ -172,6 +180,7 @@ async function buildProxyResponse(response: Response): Promise<NextResponse> {
     headers: {
       'Content-Type': contentType,
       'Content-Disposition': response.headers.get('content-disposition') || '',
+      'Cache-Control': response.headers.get('cache-control') || '',
       'Content-Length': body.size.toString(),
     },
   });

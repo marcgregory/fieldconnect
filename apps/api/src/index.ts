@@ -86,6 +86,12 @@ async function main() {
     // X-Content-Type-Options: nosniff — prevent MIME-type sniffing
     reply.header('X-Content-Type-Options', 'nosniff');
 
+    // X-Frame-Options: DENY — prevent rendering in <frame>/<iframe>
+    // (defense against clickjacking). API responses are JSON, not HTML,
+    // but setting this consistently across all endpoints is harmless
+    // defense-in-depth.
+    reply.header('X-Frame-Options', 'DENY');
+
     // Referrer-Policy: strict-origin-when-cross-origin — send full URL
     // on same-origin, origin-only cross-origin, nothing when downgrading
     reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -113,6 +119,13 @@ async function main() {
     // X-DNS-Prefetch-Control: off — disable speculative DNS prefetching
     // by the browser (privacy)
     reply.header('X-DNS-Prefetch-Control', 'off');
+
+    // Cache-Control: no-store — prevent authenticated API responses from
+    // being cached by the browser or any intermediate proxies. Every API
+    // route requires authentication (except health checks), so caching
+    // user-specific data is a data-exposure risk. This also covers auth
+    // endpoints (login, refresh, token, logout) and CSV/XLS exports.
+    reply.header('Cache-Control', 'no-store');
 
     // HSTS — only in production. Tell browsers to always use HTTPS.
     if (process.env.NODE_ENV === 'production') {
