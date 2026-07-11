@@ -2,6 +2,43 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.8.0 — 2026-07-11
+
+### Added
+
+- **Sprint 6 / Phase 1 — Email Infrastructure** ✅
+  - `EmailProvider` abstraction in `apps/api/src/lib/email/provider.ts` with `EmailMessage`, `SendResult`, and a stable `EmailCategory` union (`verify-email` | `password-reset` | `invitation` | `welcome`)
+  - `ResendProvider` (`resend-provider.ts`) — uses the official `resend` SDK; reads `RESEND_API_KEY` / `EMAIL_FROM` / `APP_URL` lazily and yields a clear runtime error if any are missing at send time
+  - `PreviewProvider` (`preview-provider.ts`) — two modes: `preview` writes rendered HTML to `.emails/{timestamp}-{category}.html`; `console` logs only (useful for CI). Never throws on file-write failure.
+  - `getEmailService()` lazy singleton in `config.ts` — provider instance is created on first call and cached
+  - `assertEmailConfigValid()` — call once at boot to reject unknown `EMAIL_PROVIDER` values and to forbid `preview` mode in production
+  - `getEmailServiceStatus()` — internal helper exposing `{ provider, configured, previewMode }` without leaking secrets
+  - Four inline HTML + plain-text templates (`templates.ts`) with a shared `wrap()` layout and a single `renderTemplate(category, props)` entry point:
+    - **Verify Email** — `{ name, verifyUrl }`
+    - **Password Reset** — `{ name, resetUrl, expiresInMinutes }`
+    - **Invitation** — `{ name, invitedBy, acceptUrl, role }`
+    - **Welcome** — `{ name, loginUrl }`
+  - All template output is HTML-escaped at render time (no XSS via user-supplied names)
+  - Plain-text versions are stripped, human-readable renderings — no Markdown, no extra tooling
+  - `resend ^6.17.2` added to `apps/api/package.json`
+  - New env vars (placeholders in `.env` and `.env.example`): `EMAIL_PROVIDER`, `EMAIL_FROM`, `APP_URL`, `RESEND_API_KEY`
+  - `.emails/` added to `.gitignore`
+
+### Security
+
+- Dev preview files never include recipient address, token, or user data in filenames
+- HTML escaping applied to every user-supplied value in templates (name, invitedBy, role, URLs)
+- Plain-text body for password-reset explicitly tells users to ignore the email if they didn't request it
+- Production boot refuses to start in `preview` mode
+
+### Changed
+
+- Dev default for `EMAIL_PROVIDER` is `preview`; production must set it explicitly to `resend` or `console`
+
+### Migration
+
+None. No schema changes, no new endpoints, no frontend changes. This phase is the foundation for the rest of Sprint 6.
+
 ## v0.7.0 — 2026-07-07
 
 ### Added

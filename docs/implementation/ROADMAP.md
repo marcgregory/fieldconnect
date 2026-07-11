@@ -1,6 +1,6 @@
 # FieldConnect Roadmap
 
-Last updated: 2026-07-07
+Last updated: 2026-07-11
 
 ## Completed
 
@@ -90,13 +90,13 @@ Last updated: 2026-07-07
 
 **Goal:** Bring FieldConnect to production-grade account security.
 
-#### Phase 1 — Email Infrastructure (Foundation)
-- [ ] Email service abstraction
-- [ ] Resend integration
-- [ ] Email template system (Verify Email, Password Reset, Welcome, Login Alert)
-- [ ] Environment variables for email config
-- [ ] Queue-friendly email sender
-- [ ] Local preview mode for development
+#### Phase 1 — Email Infrastructure (Foundation) ✅
+- [x] Email service abstraction
+- [x] Resend integration
+- [x] Email template system (Verify Email, Password Reset, Invitation, Welcome)
+- [x] Environment variables for email config
+- [x] Queue-friendly email sender (lazy provider, no in-memory queue yet)
+- [x] Local preview mode for development (writes `.emails/*.html`)
 
 #### Phase 2 — Email Verification
 - [ ] `email_verified_at` column on users table

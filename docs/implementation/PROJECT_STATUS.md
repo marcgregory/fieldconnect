@@ -1,14 +1,27 @@
 # FieldConnect Project Status
 
-Last updated: 2026-07-07
+Last updated: 2026-07-11
 
 This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 6 — Customer Completion Report PDF 🚧
+Sprint 6 — Security & Account Hardening 🚧
 
 ## Current Progress
+
+### Sprint 6 / Phase 1 — Email Infrastructure — Complete ✅
+- `EmailProvider` abstraction with `EmailMessage`, `SendResult`, and `EmailCategory` ✅
+- `ResendProvider` using the official `resend` SDK with descriptive env-missing errors ✅
+- `PreviewProvider` (writes `.emails/*.html`) + `console` mode (logs only) ✅
+- `getEmailService()` lazy singleton + `assertEmailConfigValid()` boot guard ✅
+- `getEmailServiceStatus()` internal helper (provider / configured / previewMode) ✅
+- Four inline HTML + plain-text templates: Verify Email, Password Reset, Invitation, Welcome ✅
+- HTML escaping on every user-supplied value in templates ✅
+- `EMAIL_PROVIDER` / `EMAIL_FROM` / `APP_URL` / `RESEND_API_KEY` in `.env` and `.env.example` ✅
+- `.emails/` added to `.gitignore` ✅
+- Production boot refuses `preview` mode; dev default is `preview` ✅
+- All `pnpm typecheck` and `pnpm build` pass (6/6 tasks) ✅
 
 ### Revision-Based Rework — Complete ✅ (Sprint 6.1)
 - `rework_required` status added to the job state machine ✅
@@ -48,6 +61,7 @@ Sprint 6 — Customer Completion Report PDF 🚧
 | Signatures API | ✅ Complete (capture, serve, rework-versioned) |
 | Rework API | ✅ Complete (create, list, resume, complete) |
 | Audit logging | ✅ Complete (insert-only, status transitions, rework-specific actions) |
+| Email service | ✅ Complete (abstraction + Resend + preview/console; 4 inline templates) |
 | Offline queue | ✅ Complete (IndexedDB, auto-sync, retry with backoff) |
 | Office projects page | ✅ Complete (CRUD, assignments, status filter, live feed) |
 | Office schedule page | ✅ Complete (calendar, forms, unassigned queue, review panel) |
