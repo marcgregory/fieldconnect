@@ -114,12 +114,13 @@ export type RecordFailureResult =
 
 /**
  * Record a failed login attempt:
- *   1. UPSERT the login_lockouts row (increment failed_attempts; if >= 5, set
- *      locked_until = NOW() + 15 min).
- *   2. Increment the per-IP rate-limit counter.
+ *   UPSERT the login_lockouts row (increment failed_attempts; if >= 5, set
+ *   locked_until = NOW() + 15 min).
  *
- * Both are independent INSERT ... ON CONFLICT operations; no transaction
- * needed between them (they don't share rows).
+ * The per-IP rate-limit counter was already charged in the login handler
+ * (checkIpLimit at the top), so this function only updates the per-account
+ * lockout. The rate limit re-use of the existing scope key means the top-level
+ * check does double duty: reserving a slot AND detecting over-limit state.
  */
 export async function recordFailure(
   opts: RecordFailureOptions,
@@ -127,14 +128,11 @@ export async function recordFailure(
   const { email, ip } = opts;
   const normalizedEmail = email.toLowerCase();
 
-  // 1. Per-IP rate limit (increment after a failure)
-  await rateLimit.check({
-    scopeKey: `login-ip:${normalizeIp(ip)}`,
-    windowSeconds: IP_WINDOW_SECONDS,
-    max: IP_MAX_ATTEMPTS,
-  });
+  // NOTE: The per-IP rate-limit counter was already charged in the login
+  // handler (checkIpLimit at the top), so we do NOT increment it again here.
+  // Only the per-account lockout is updated.
 
-  // 2. UPSERT login_lockouts
+  // UPSERT login_lockouts
   const result = await query(
     `INSERT INTO login_lockouts (email, failed_attempts, locked_until)
      VALUES ($1, 1, NULL)

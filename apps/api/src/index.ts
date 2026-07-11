@@ -51,6 +51,12 @@ async function main() {
         options: { colorize: true },
       },
     },
+    // trustProxy: true — Fastify reads X-Forwarded-For from the Render proxy
+    // to resolve the real client IP. On Render the proxy is the only ingress
+    // and overwrites any client-supplied X-Forwarded-For, so spoofing is not
+    // possible. In local dev there is no proxy and request.ip returns ::1/127.0.0.1.
+    // The login endpoint additionally accepts X-Real-IP from the Next.js BFF
+    // proxy for defense-in-depth against spoofing.
     trustProxy: true,
   });
 

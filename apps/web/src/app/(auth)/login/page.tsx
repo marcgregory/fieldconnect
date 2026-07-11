@@ -20,7 +20,9 @@ import { Logo } from '@/components/Logo';
 import { loginSchema, type LoginInput } from '@fieldconnect/shared';
 import { mapApiResponseToFormError, type FormError } from '@/lib/map-api-error';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// Login now proxied through the Next.js BFF at /api/auth/login.
+// Direct calls to the API were removed in Sprint 6 hardening
+// to prevent X-Forwarded-For spoofing.
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,12 +45,11 @@ export default function LoginPage() {
     setServerError(null);
     setRetryAfter(0);
 
-    // Direct call to Fastify so we can surface the structured 403 from
-    // Phase 2 (email-not-verified) and the 429 from Phase 4 (lockout).
-    // Auth.js's `signIn` collapses every error into a generic string.
+    // Proxied through the Next.js BFF so the real client IP is forwarded
+    // as X-Real-IP and X-Forwarded-For spoofing by the client is prevented.
     let res: Response;
     try {
-      res = await fetch(`${API_URL}/api/v1/auth/login`, {
+      res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
@@ -91,7 +92,7 @@ export default function LoginPage() {
     router.refresh();
   }
 
-  const isRateLimited = serverError?.code === 'RATE_LIMITED' || serverError?.code === 'ACCOUNT_LOCKED';
+  const isRateLimited = serverError?.code === 'RATE_LIMITED';
 
   return (
     <div className="premium-panel overflow-hidden rounded-[1.75rem] p-0">

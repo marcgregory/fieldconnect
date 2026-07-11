@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { loginSchema } from '@fieldconnect/shared';
 import { findByEmail } from '../../db/queries/users';
@@ -14,9 +14,28 @@ import * as authAuditLog from '../../db/queries/auth-audit-logs';
  */
 const DUMMY_HASH = bcrypt.hashSync('__dummy_no_match__' + Math.random(), 10);
 
+/**
+ * Resolve the real client IP for rate-limiting purposes.
+ *
+ * Priority:
+ *   1. X-Real-IP header — set by the Next.js BFF proxy (/api/auth/login)
+ *      which extracts the first IP from the Render-proxy-supplied
+ *      X-Forwarded-For chain. This prevents spoofing because an attacker's
+ *      forged X-Forwarded-For only reaches Next.js, not the API directly.
+ *   2. request.ip — fallback when the request arrives directly (dev mode,
+ *      health checks, etc.) or from another trusted path.
+ */
+function resolveClientIp(request: FastifyRequest): string {
+  const realIp = request.headers['x-real-ip'];
+  if (typeof realIp === 'string' && realIp.length > 0) {
+    return realIp;
+  }
+  return request.ip;
+}
+
 export async function loginRoutes(app: FastifyInstance) {
   app.post('/api/v1/auth/login', async (request, reply) => {
-    const ipAddress = request.ip;
+    const ipAddress = resolveClientIp(request);
 
     // ── 1. Per-IP rate limit ─────────────────────────────────────────────
     // Check BEFORE parsing the body so we never waste cpu on body validation
@@ -57,10 +76,14 @@ export async function loginRoutes(app: FastifyInstance) {
     const lockout = await loginAttempts.checkLockout(normalizedEmail);
     if (lockout.locked) {
       await authAuditLog.log(null, 'login_blocked_locked', { email: normalizedEmail }, ipAddress);
+      // Return the generic RATE_LIMITED code so an attacker cannot distinguish a
+      // locked account from a non-existent email. The enforcement is different
+      // (15-min per-email timeout vs 5-min per-IP sliding window), but the
+      // public error is identical.
       return reply.status(429).send({
         success: false,
-        code: 'ACCOUNT_LOCKED',
-        error: 'Too many failed login attempts. Account is temporarily locked.',
+        code: 'RATE_LIMITED',
+        error: 'Too many login attempts. Please try again later.',
         retryAfter: lockout.remainingSeconds,
       });
     }
@@ -112,7 +135,7 @@ export async function loginRoutes(app: FastifyInstance) {
     const refreshToken = await refreshTokenQueries.create(
       user.id,
       request.headers['user-agent']?.slice(0, 500),
-      request.ip,
+      ipAddress,
     );
 
     // Note: The IP rate-limit slot consumed in step 1 is not refunded on

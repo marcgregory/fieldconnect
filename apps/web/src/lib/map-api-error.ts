@@ -17,7 +17,6 @@
 export type FormErrorCode =
   | 'EMAIL_NOT_VERIFIED'
   | 'RATE_LIMITED'
-  | 'ACCOUNT_LOCKED'
   | 'EMAIL_ALREADY_EXISTS'
   | 'INVALID_CREDENTIALS'
   | 'NETWORK'
@@ -94,26 +93,15 @@ function mapFromBody(body: ApiErrorBody, status?: number): FormError {
       };
     case 'RATE_LIMITED':
       return {
-        message: 'Too many attempts. Please try again later.',
+        message: body.error || 'Too many login attempts. Please try again later.',
         code: 'RATE_LIMITED',
+        meta: body.retryAfter ? { retryAfter: body.retryAfter } : undefined,
       };
     case 'EMAIL_ALREADY_EXISTS':
     case 'USER_EXISTS':
       return {
         message: 'An account with this email already exists.',
         code: 'EMAIL_ALREADY_EXISTS',
-      };
-    case 'RATE_LIMITED':
-      return {
-        message: body.error || 'Too many login attempts. Please try again later.',
-        code: 'RATE_LIMITED',
-        meta: body.retryAfter ? { retryAfter: body.retryAfter } : undefined,
-      };
-    case 'ACCOUNT_LOCKED':
-      return {
-        message: 'Too many failed login attempts. Account is temporarily locked.',
-        code: 'ACCOUNT_LOCKED',
-        meta: body.retryAfter ? { retryAfter: body.retryAfter } : undefined,
       };
     case 'INVALID_CREDENTIALS':
     case 'UNAUTHORIZED':
