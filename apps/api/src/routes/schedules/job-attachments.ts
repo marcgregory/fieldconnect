@@ -264,6 +264,9 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
           },
         });
 
+        // Authenticated POST responses must not be cached by intermediaries
+        // — the response contains user-specific attachment metadata.
+        reply.header('Cache-Control', 'no-store');
         return reply.status(201).send({ success: true, data: attachment });
       } catch (err) {
         // Rollback file if DB insert fails
