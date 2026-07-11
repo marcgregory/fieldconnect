@@ -51,7 +51,9 @@ export async function authHook(request: FastifyRequest, _reply: FastifyReply) {
     url === '/api/v1/auth/register' ||
     url === '/api/v1/auth/refresh' ||
     url.startsWith('/api/v1/auth/verify-email') ||
-    url === '/api/v1/auth/resend-verification'
+    url === '/api/v1/auth/resend-verification' ||
+    url === '/api/v1/auth/forgot-password' ||
+    url.startsWith('/api/v1/auth/reset-password')
   ) {
     return;
   }

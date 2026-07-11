@@ -37,11 +37,34 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
 });
 
+/**
+ * API-facing schema for the POST /api/v1/auth/reset-password endpoint.
+ * `token` comes from the URL; `password` is the new password chosen by the user.
+ */
 export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Reset token is required'),
   password: z
     .string()
     .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`),
 });
+
+/**
+ * Client-facing form schema. Extends the API schema with a confirm-password
+ * field so the form can validate that the two entries match before sending.
+ */
+export const resetPasswordFormSchema = z
+  .object({
+    password: z
+      .string()
+      .min(PASSWORD_MIN, `Password must be at least ${PASSWORD_MIN} characters`),
+    confirmPassword: z
+      .string()
+      .min(1, 'Please confirm your new password'),
+  })
+  .refine((d) => d.password === d.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 export const changePasswordSchema = z
   .object({

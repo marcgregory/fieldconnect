@@ -43,6 +43,24 @@ export async function createUser(data: {
  * Called inside the verification transaction so the user update and the
  * token-used update are atomic — see `routes/auth/verification.ts`.
  */
+/**
+ * Update a user's password hash. Sets `updated_at = NOW()`. Returns the
+ * updated row, or null if the user doesn't exist.
+ *
+ * Called during password reset (Phase 3) and future change-password flows.
+ */
+export async function setPasswordHash(id: string, hash: string): Promise<UserRow | null> {
+  const result = await query(
+    `UPDATE users
+       SET password_hash = $2,
+           updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id, hash],
+  );
+  return result.rows[0] || null;
+}
+
 export async function markEmailVerified(id: string): Promise<UserRow | null> {
   const result = await query(
     `UPDATE users

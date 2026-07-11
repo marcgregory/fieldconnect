@@ -147,6 +147,15 @@ export default function LoginPage() {
               )}
             />
 
+            <div className="-mt-2 text-right">
+              <Link
+                href={`/forgot-password?email=${encodeURIComponent(form.getValues('email'))}`}
+                className="text-xs font-semibold text-brand-700 hover:text-brand-800 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
             <Button
               type="submit"
               loading={form.formState.isSubmitting}

@@ -90,6 +90,7 @@ Last updated: 2026-07-11
   - **Phase 1 — Email Infrastructure** ✅ — `EmailProvider` abstraction, `ResendProvider`, `PreviewProvider` (writes `.emails/*.html` + console mode), `getEmailService()` lazy singleton, four inline HTML + plain-text templates (Verify Email, Password Reset, Invitation, Welcome), HTML escaping on every user-supplied value
   - **Phase 2 — Email Verification** ✅ — `users.email_verified_at` column, `verification_tokens` table (SHA-256 hash, 24h TTL, single active token), `auth_audit_logs` table (auth events with `user_id` nullable), `rate_limit_events` table (atomic check-and-increment), `GET /api/v1/auth/verify-email` and `POST /api/v1/auth/resend-verification` (1/min + 5/hr windows, generic 200 to prevent enumeration), login blocks unverified users with 403 `EMAIL_NOT_VERIFIED`, refresh route revokes tokens for unverified users, web `/verify-email` and `/verify-email/result` pages with 60s client cooldown
   - **Form Architecture — react-hook-form + zod** ✅ — shadcn-style `<Form>`, `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormDescription>`, `<FormMessage>` in `@fieldconnect/ui` (built on `react-hook-form` + `@hookform/resolvers/zod`), `mapApiErrorToFormError` central server-error parser, auth forms (`login`, `register`, `verify-email`) and `ProjectForm` migrated; `ScheduleForm`/`ClockInOut`/`JobDetailClient` deferred to TD-008 (Sprint 7)
+  - **Phase 3 — Forgot Password / Reset Password** ✅ — `password_reset_tokens` table (SHA-256 hash, 1h TTL, single active token, mirrors `verification_tokens`), `passwordResetRoutes` with `GET /:token` (read-only peek), `POST /forgot-password` (rate-limited 1/5min + 5/hr, generic 200), `POST /reset-password` (transactional: hash + update password, mark token used, revoke all refresh tokens, notification email), `password-changed` email template added, `AuthAuditAction` extended with `password_reset_requested` / `password_reset_completed` / `password_reset_failed`, web `/forgot-password` page (RHF, 60s cooldown, generic success banner, email pre-fill from query param), web `/reset-password/[token]` page (mount-time GET peek for form/expired/used/invalid states, RHF with password + confirm fields, success/error states), "Forgot password?" link on `/login`, all `pnpm typecheck` / `pnpm build` / `pnpm lint` pass
 
 ## Sprint Queue
 
@@ -105,24 +106,25 @@ Last updated: 2026-07-11
 - [x] Queue-friendly email sender (lazy provider, no in-memory queue yet)
 - [x] Local preview mode for development (writes `.emails/*.html`)
 
-#### Phase 2 — Email Verification
-- [ ] `email_verified_at` column on users table
-- [ ] `verification_tokens` table (hashed, expiring, single-use tokens)
-- [ ] Send verification email on registration
-- [ ] Verification link handler (verify token, set `email_verified_at`)
-- [ ] "Pending Verification" state — logged in but restricted to verify/resend/change email
-- [ ] Resend verification email (rate limited)
-- [ ] Change email address flow
-- [ ] Audit events for verification actions
+#### Phase 2 — Email Verification ✅
+- [x] `email_verified_at` column on users table
+- [x] `verification_tokens` table (hashed, expiring, single-use tokens)
+- [x] Send verification email on registration
+- [x] Verification link handler (verify token, set `email_verified_at`)
+- [x] "Pending Verification" state — block login with 403, resend allowed
+- [x] Resend verification email (rate limited)
+- [ ] Change email address flow (deferred to Phase 2.5 / Sprint 7)
+- [x] Audit events for verification actions
 
-#### Phase 3 — Forgot Password
-- [ ] `password_reset_tokens` table (hashed, expiring, single-use tokens, used_at)
-- [ ] Forgot password request → email with reset link
-- [ ] Reset password page with new password form
-- [ ] Password strength validation
-- [ ] Invalidate all refresh tokens on password change
-- [ ] Force re-login after reset
-- [ ] Audit events for password resets
+#### Phase 3 — Forgot Password ✅
+- [x] `password_reset_tokens` table (hashed, 1h TTL, single-use tokens, used_at, 3 indexes)
+- [x] Forgot password request → email with reset link (always 200, rate limited)
+- [x] Reset password page with new password form (RHF + Zod, confirm password)
+- [x] Password strength validation (min 8 chars, confirm match)
+- [x] Invalidate all refresh tokens on password change
+- [x] Force re-login after reset (all sessions revoked)
+- [x] Audit events for password resets (requested / completed / failed)
+- [x] Password-changed notification email
 
 #### Phase 4 — Login Protection
 - [ ] Rate limiting on: login, register, forgot password, reset password

@@ -17,7 +17,12 @@ export type AuthAuditAction =
   | 'verification_email_resent'
   | 'email_verified'
   | 'verification_failed'
-  | 'login_blocked_unverified';
+  | 'login_blocked_unverified'
+  // Phase 3 — Password Reset
+  | 'password_reset_requested'
+  | 'password_reset_completed'
+  | 'password_reset_failed'
+  | 'password_changed_notification_sent';
 
 /**
  * Write an auth audit event. `userId` may be null for events tied to unknown

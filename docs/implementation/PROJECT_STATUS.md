@@ -55,6 +55,21 @@ Sprint 6 — Security & Account Hardening 🚧
 - All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
 - TD-008 logged for the three larger forms (`ScheduleForm`, `ClockInOut`, `JobDetailClient`) still pending migration in Sprint 7 ✅
 
+### Sprint 6 / Phase 3 — Forgot Password / Reset Password — Complete ✅
+- `password_reset_tokens` table (migration 029), `db/queries/password-reset-tokens.ts` with `peek()` / `consume()` / `markUsed()` / `invalidateAllForUser()` ✅
+- `GET /api/v1/auth/reset-password/:token` — read-only peek endpoint ✅
+- `POST /api/v1/auth/forgot-password` — rate-limited (5 min + 1 hour windows), always 200, fire-and-forget email ✅
+- `POST /api/v1/auth/reset-password` — transactional bcrypt-hash + update password + mark token used + revoke all refresh tokens ✅
+- `services/password-reset.ts` — `sendPasswordResetEmail`, fire-and-forget variants, `buildResetUrl` ✅
+- `'password-changed'` category + `renderPasswordChanged` template (notification after reset) ✅
+- `resetPasswordSchema` updated to include `token`; `resetPasswordFormSchema` added with confirm-password refine ✅
+- Auth middleware skip-list extended; `passwordResetRoutes` registered in `index.ts` ✅
+- Auth audit union extended: `password_reset_requested`, `password_reset_completed`, `password_reset_failed`, `password_changed_notification_sent` ✅
+- Web `/forgot-password` page — RHF + Zod, 60s cooldown, generic success banner, email pre-fill ✅
+- Web `/reset-password/[token]` page — GET peek on mount, RHF form with password + confirm, three state screens (form / expired / invalid / used) ✅
+- `/login` page now shows "Forgot password?" link with email pre-fill ✅
+- All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
+
 ### Revision-Based Rework — Complete ✅ (Sprint 6.1)
 - `rework_required` status added to the job state machine ✅
 - `rework_requests` table tracks each rework with reason, requester, and status ✅

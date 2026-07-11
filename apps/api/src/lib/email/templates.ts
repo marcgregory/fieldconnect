@@ -43,6 +43,11 @@ export interface WelcomeProps {
   loginUrl: string;
 }
 
+export interface PasswordChangedProps {
+  name: string;
+  loginUrl: string;
+}
+
 // ─── Shared layout ────────────────────────────────────────────────────────
 
 const BRAND = 'FieldConnect';
@@ -197,6 +202,25 @@ export function renderWelcome(props: WelcomeProps): RenderedEmail {
   };
 }
 
+export function renderPasswordChanged(props: PasswordChangedProps): RenderedEmail {
+  const greeting = props.name ? `Hi ${props.name},` : 'Hi,';
+  const body = [
+    para(`${greeting} the password for your ${BRAND} account was successfully changed.`),
+    para("If this wasn't you, please contact your project manager immediately — someone else may have accessed your account."),
+    ctaButton(props.loginUrl, 'Go to FieldConnect'),
+  ].join('\n');
+
+  return {
+    subject: 'Your FieldConnect password was changed',
+    html: wrap(body, 'Your FieldConnect password was changed.'),
+    text:
+      `${greeting}\n\n` +
+      `The password for your ${BRAND} account was successfully changed.\n\n` +
+      `If this wasn't you, please contact your project manager immediately — someone else may have accessed your account.\n\n` +
+      `Open FieldConnect: ${props.loginUrl}`,
+  };
+}
+
 // ─── Render → EmailMessage helper ─────────────────────────────────────────
 
 /**
@@ -205,7 +229,7 @@ export function renderWelcome(props: WelcomeProps): RenderedEmail {
  */
 export function renderTemplate(
   category: EmailCategory,
-  props: VerifyEmailProps | PasswordResetProps | InvitationProps | WelcomeProps,
+  props: VerifyEmailProps | PasswordResetProps | PasswordChangedProps | InvitationProps | WelcomeProps,
 ): EmailMessage {
   let rendered: RenderedEmail;
   switch (category) {
@@ -220,6 +244,9 @@ export function renderTemplate(
       break;
     case 'welcome':
       rendered = renderWelcome(props as WelcomeProps);
+      break;
+    case 'password-changed':
+      rendered = renderPasswordChanged(props as PasswordChangedProps);
       break;
   }
 

@@ -2,6 +2,41 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.10.0 — 2026-07-11
+
+### Added
+
+- **Sprint 6 / Phase 3 — Forgot Password / Reset Password** ✅
+  - `password_reset_tokens` table (migration `029_create-password-reset-tokens.sql`) — SHA-256 hashed tokens, 1h TTL, single-active per user, mirrors `verification_tokens` structurally
+  - `GET /api/v1/auth/reset-password/:token` — read-only token peek (validates without consuming), returns `{ valid: true }` or `{ valid: false, reason: 'expired' | 'used' | 'invalid' }`
+  - `POST /api/v1/auth/forgot-password` — two rate-limit windows (300s × 1, 3600s × 5, per-email), generic 200 to prevent email enumeration, fire-and-forget email dispatch
+  - `POST /api/v1/auth/reset-password` — atomic transaction: bcrypt-hash new password, `UPDATE users.password_hash`, `markUsed()`, `revokeAllForUser()` (all refresh tokens revoked, user must re-login everywhere)
+  - `db/queries/password-reset-tokens.ts` — `create()`, `invalidateAllForUser()`, `peek()`, `consume()`, `markUsed()`
+  - `db/queries/users.ts` — new `setPasswordHash(id, hash)` function
+  - `services/password-reset.ts` — `sendPasswordResetEmail`, `sendPasswordResetEmailFireAndForget`, `sendPasswordChangedEmailFireAndForget`, `buildResetUrl`
+  - `'password-changed'` email category added to `EmailCategory` union
+  - `renderPasswordChanged()` template — notifies user after a successful reset ("If this wasn't you, contact your PM immediately")
+  - `resetPasswordSchema` extended to include `token` field; `resetPasswordFormSchema` added for client-side confirm-password validation
+  - Auth middleware skip-list extended with `/api/v1/auth/forgot-password` and `/api/v1/auth/reset-password`
+  - Auth audit action union extended: `password_reset_requested`, `password_reset_completed`, `password_reset_failed`, `password_changed_notification_sent`
+  - Web `/forgot-password` page — RHF + zod, single email field, 60s client cooldown, generic success banner, email pre-fill from `?email=` query param
+  - Web `/reset-password/[token]` page — mount-time GET peek for form/expired/used/invalid states, RHF with password + confirm-password fields
+  - Web `/login` — "Forgot password?" link routes to `/forgot-password?email=<current input>`
+  - All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each)
+
+### Security
+
+- Password reset tokens never stored in plaintext (SHA-256 hash on insert)
+- `forgot-password` always returns 200 to prevent email enumeration
+- Two independent rate-limit windows on forgot-password (5 min × 1, 1 hour × 5) — stricter than resend-verification because password reset is more sensitive
+- Single-active token enforcement — issuing a new token invalidates all prior active ones
+- On successful reset, all refresh tokens across all devices are revoked immediately
+- Password-changed email sent to the user so they know if it wasn't them who initiated the reset
+
+### Migration
+
+- Apply `029_create-password-reset-tokens.sql` via `pnpm db:migrate` (no data migration — new table only)
+
 ## v0.9.0 — 2026-07-11
 
 ### Added

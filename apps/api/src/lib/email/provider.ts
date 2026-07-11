@@ -20,6 +20,7 @@ export type EmailProviderName = 'resend' | 'preview' | 'console';
 export type EmailCategory =
   | 'verify-email'
   | 'password-reset'
+  | 'password-changed'
   | 'invitation'
   | 'welcome';
 
