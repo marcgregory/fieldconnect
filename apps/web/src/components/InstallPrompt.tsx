@@ -2,13 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import {
-  hasSeenInstallPrompt,
   isInstallCompleted,
   isInstallDismissed,
   isRunningInstalled,
   markInstallCompleted,
   markInstallDismissed,
-  markInstallPromptSeen,
 } from '@/lib/pwa-install';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -21,17 +19,8 @@ export function InstallPrompt() {
   const [showInstall, setShowInstall] = useState(false);
 
   useEffect(() => {
-    // Suppress entirely if the app is already installed, the user has
-    // dismissed the prompt this session, or we've already shown it once
-    // this session. Seen/dismissed live in sessionStorage (see
-    // pwa-install.ts) so navigating between pages or refreshing does
-    // not re-fire the banner within the same session.
-    if (
-      isRunningInstalled() ||
-      isInstallCompleted() ||
-      isInstallDismissed() ||
-      hasSeenInstallPrompt()
-    ) {
+    // Never show if already installed or user dismissed this session.
+    if (isRunningInstalled() || isInstallCompleted() || isInstallDismissed()) {
       return;
     }
 
@@ -47,11 +36,6 @@ export function InstallPrompt() {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstall(true);
-      // Mark the banner as seen the first time the browser signals a
-      // pending install this session. Stored in sessionStorage, so
-      // subsequent navigations and refreshes within the same session
-      // won't re-fire the banner.
-      markInstallPromptSeen();
     };
     window.addEventListener('beforeinstallprompt', handler);
 

@@ -153,6 +153,17 @@ When adding new fields to WebSocket event types (`NoteEvent`, `AttachmentEvent`,
 
 The `NoteEvent` type must include `technician_name` for the frontend to distinguish "Technician: {name}" from "For: {name}" in internal vs technician notes.
 
+### PWA Install Prompt Rules
+
+**Behavior:**
+- Show at most once per browser session.
+- When dismissed (click X), do not show again during that session.
+- Refresh/navigation must not bring it back.
+- A new browser session (tab closed, browser restarted) may show it again.
+- If already installed (standalone mode), never show it.
+
+**Implementation:** The dismiss flag lives in `sessionStorage` (survives refresh, cleared on tab close). The install-completed flag lives in `localStorage` (permanent). Both flags are checked before attaching the `beforeinstallprompt` listener. See `apps/web/src/lib/pwa-install.ts` and `apps/web/src/components/InstallPrompt.tsx`.
+
 ### Mobile First
 
 Field technician interfaces designed for iPhone first, tested at 390px. Office dashboard desktop-first but usable at tablet widths.
@@ -164,11 +175,6 @@ Match depth to complexity. Every sprint must include the smallest test set that 
 ## Known Gaps
 
 - No CI/CD pipeline on Render (manual deploy)
-- No email infrastructure (planned for Sprint 6)
-- No password reset flow
-- No rate limiting on auth endpoints
-- No file upload security validation
-- No security headers (Helmet)
 
 ## Technical Debt
 

@@ -1,32 +1,28 @@
 /**
  * PWA install prompt persistence.
  *
- * The browser's `beforeinstallprompt` event can fire on every page load —
- * the prompt can re-appear after every navigation/refresh unless we
- * remember the user's decision. We persist three orthogonal signals,
- * scoped to match their lifetimes:
+ * The browser's `beforeinstallprompt` event can fire on every page load.
+ * We persist two orthogonal signals, scoped to the correct lifetime:
  *
  *   - `fieldconnect_installed`     — set on `appinstalled`. Stored in
  *                                    localStorage. Stays forever — once
  *                                    installed, never prompt again.
  *   - `fieldconnect_install_dismissed` — set when the user clicks X.
- *                                    Stored in localStorage. Persists
- *                                    permanently — once dismissed, the
- *                                    popup never shows again.
- *   - `fieldconnect_install_seen`  — set the first time the banner is
- *                                    shown in a session. Stored in
- *                                    sessionStorage so subsequent page
- *                                    navigations/refreshes within the
- *                                    same session don't re-fire the
- *                                    banner.
+ *                                    Stored in sessionStorage. Cleared
+ *                                    when the tab/browser closes so the
+ *                                    prompt can re-appear in a future
+ *                                    session.
  *
- * All keys are namespaced with `fieldconnect_` to avoid colliding with
- * anything else stored in the browser.
+ * Rules:
+ *   - Show at most once per browser session.
+ *   - When dismissed, do not show again during that session.
+ *   - Refresh/navigation must not bring it back.
+ *   - A new browser session may show it again.
+ *   - If already installed (standalone mode), never show it.
  */
 
 const KEY_INSTALLED = 'fieldconnect_installed';
 const KEY_DISMISSED = 'fieldconnect_install_dismissed';
-const KEY_SEEN = 'fieldconnect_install_seen';
 
 /** sessionStorage-backed flag — clears when the tab/window closes. */
 function safeSessionGet(key: string): string | null {
@@ -54,84 +50,60 @@ function safeSessionRemove(key: string): void {
 }
 
 /** localStorage-backed flag — survives across sessions. */
-function safeGet(key: string): string | null {
+function safeLocalGet(key: string): string | null {
   try {
     return window.localStorage.getItem(key);
   } catch {
-    // localStorage can throw in private mode or when storage is disabled.
     return null;
   }
 }
 
-function safeSet(key: string, value: string): void {
+function safeLocalSet(key: string, value: string): void {
   try {
     window.localStorage.setItem(key, value);
   } catch {
-    // Ignore — persistence is best-effort.
+    // Ignore.
   }
 }
 
 /**
- * Returns true if the app is currently running as an installed PWA.
- * Covers Android/desktop Chrome (`display-mode: standalone`) and
- * iOS Safari (`navigator.standalone`).
+ * Returns true if the app is currently running as an installed PWA
+ * (standalone display mode). Covers Chrome, Android, and iOS Safari.
  */
 export function isRunningInstalled(): boolean {
   if (typeof window === 'undefined') return false;
   const standaloneDisplay = window.matchMedia?.('(display-mode: standalone)').matches;
   const iosStandalone =
-    // iOS Safari exposes this only on the navigator object of an installed app.
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
   return Boolean(standaloneDisplay || iosStandalone);
 }
 
-/** Has the user dismissed the prompt? Persists across sessions (localStorage). */
+/** Has the user dismissed the prompt in this browser session? */
 export function isInstallDismissed(): boolean {
-  return safeGet(KEY_DISMISSED) === 'true';
+  return safeSessionGet(KEY_DISMISSED) === 'true';
 }
 
 /** Has the app been installed (recorded by us, not the OS)? */
 export function isInstallCompleted(): boolean {
-  return safeGet(KEY_INSTALLED) === 'true';
-}
-
-/** Have we already shown the banner once in this session? */
-export function hasSeenInstallPrompt(): boolean {
-  return safeSessionGet(KEY_SEEN) === 'true';
+  return safeLocalGet(KEY_INSTALLED) === 'true';
 }
 
 /**
- * Should the banner be shown at all? Combines all the suppression signals.
- * Use this once on mount to decide whether to attach the prompt listener.
- */
-export function shouldShowInstallBanner(): boolean {
-  if (isRunningInstalled()) return false;
-  if (isInstallCompleted()) return false;
-  if (isInstallDismissed()) return false;
-  if (hasSeenInstallPrompt()) return false;
-  return true;
-}
-
-/** Mark the banner as having been shown in this session. */
-export function markInstallPromptSeen(): void {
-  safeSessionSet(KEY_SEEN, 'true');
-}
-
-/**
- * Mark the banner as dismissed by the user. Persists across sessions
- * (localStorage) so the popup never comes back.
+ * Mark the banner as dismissed for the rest of this browser session.
+ * Stored in sessionStorage so it survives refresh/navigation but is
+ * cleared when the tab or browser closes.
  */
 export function markInstallDismissed(): void {
-  safeSet(KEY_DISMISSED, 'true');
+  safeSessionSet(KEY_DISMISSED, 'true');
 }
 
 /** Mark the app as installed (call on `appinstalled` event). */
 export function markInstallCompleted(): void {
-  safeSet(KEY_INSTALLED, 'true');
+  safeLocalSet(KEY_INSTALLED, 'true');
 }
 
-/** Clear the session-scoped suppression flags. Exposed for tests/debugging. */
-export function _resetSessionInstallState(): void {
-  safeSessionRemove(KEY_SEEN);
+/** Clear all suppress flags. Exposed for testing / debugging. */
+export function _resetInstallState(): void {
   safeSessionRemove(KEY_DISMISSED);
+  safeLocalSet(KEY_INSTALLED, '');
 }
