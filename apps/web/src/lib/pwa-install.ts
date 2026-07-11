@@ -10,10 +10,9 @@
  *                                    localStorage. Stays forever — once
  *                                    installed, never prompt again.
  *   - `fieldconnect_install_dismissed` — set when the user clicks X.
- *                                    Stored in sessionStorage. Cleared
- *                                    when the tab/window closes so the
- *                                    prompt can re-appear in future
- *                                    sessions if the app isn't installed.
+ *                                    Stored in localStorage. Persists
+ *                                    permanently — once dismissed, the
+ *                                    popup never shows again.
  *   - `fieldconnect_install_seen`  — set the first time the banner is
  *                                    shown in a session. Stored in
  *                                    sessionStorage so subsequent page
@@ -86,9 +85,9 @@ export function isRunningInstalled(): boolean {
   return Boolean(standaloneDisplay || iosStandalone);
 }
 
-/** Has the user dismissed the prompt in this session? */
+/** Has the user dismissed the prompt? Persists across sessions (localStorage). */
 export function isInstallDismissed(): boolean {
-  return safeSessionGet(KEY_DISMISSED) === 'true';
+  return safeGet(KEY_DISMISSED) === 'true';
 }
 
 /** Has the app been installed (recorded by us, not the OS)? */
@@ -119,12 +118,11 @@ export function markInstallPromptSeen(): void {
 }
 
 /**
- * Mark the banner as dismissed by the user for the rest of this session.
- * Stored in sessionStorage so the prompt can re-appear in a future session
- * if the app isn't installed.
+ * Mark the banner as dismissed by the user. Persists across sessions
+ * (localStorage) so the popup never comes back.
  */
 export function markInstallDismissed(): void {
-  safeSessionSet(KEY_DISMISSED, 'true');
+  safeSet(KEY_DISMISSED, 'true');
 }
 
 /** Mark the app as installed (call on `appinstalled` event). */
