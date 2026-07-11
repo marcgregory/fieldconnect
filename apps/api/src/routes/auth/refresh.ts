@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { SignJWT } from 'jose';
 import * as refreshTokenQueries from '../../db/queries/refresh-tokens';
+import * as authAuditLog from '../../db/queries/auth-audit-logs';
 
 const getSecret = (): Uint8Array => {
   const secret = process.env.NEXTAUTH_SECRET;
@@ -32,10 +33,9 @@ export async function refreshRoutes(app: FastifyInstance) {
       });
     }
 
-    // Revoke the old token (rotation)
-    await refreshTokenQueries.revoke(refresh_token);
-
-    // Fetch user info
+    // Fetch user info BEFORE revoking — we need email_verified_at to decide
+    // whether to rotate or reject. (Old refresh tokens issued before this
+    // phase might still be valid even though the user hasn't verified.)
     const { findById } = await import('../../db/queries/users');
     const user = await findById(userId);
     if (!user) {
@@ -44,6 +44,27 @@ export async function refreshRoutes(app: FastifyInstance) {
         error: 'User not found',
       });
     }
+
+    // If the user is unverified, refuse to rotate and revoke the token.
+    // Forces them back through the login flow which will surface the 403.
+    if (!user.email_verified_at) {
+      await refreshTokenQueries.revoke(refresh_token);
+      await authAuditLog.log(
+        user.id,
+        'login_blocked_unverified',
+        { via: 'refresh' },
+        request.ip,
+      );
+      return reply.status(403).send({
+        success: false,
+        code: 'EMAIL_NOT_VERIFIED',
+        error: 'Please verify your email before signing in.',
+        canResend: true,
+      });
+    }
+
+    // Revoke the old token (rotation)
+    await refreshTokenQueries.revoke(refresh_token);
 
     // Issue new access JWT (1h)
     const accessToken = await new SignJWT({

@@ -45,7 +45,14 @@ function extractPayload(payload: JWTPayload): AuthUser | null {
 export async function authHook(request: FastifyRequest, _reply: FastifyReply) {
   const url = request.url;
   // Skip auth only for public endpoints
-  if (url.startsWith('/api/v1/health') || url === '/api/v1/auth/login' || url === '/api/v1/auth/register' || url === '/api/v1/auth/refresh') {
+  if (
+    url.startsWith('/api/v1/health') ||
+    url === '/api/v1/auth/login' ||
+    url === '/api/v1/auth/register' ||
+    url === '/api/v1/auth/refresh' ||
+    url.startsWith('/api/v1/auth/verify-email') ||
+    url === '/api/v1/auth/resend-verification'
+  ) {
     return;
   }
 

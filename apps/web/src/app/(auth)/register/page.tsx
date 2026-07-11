@@ -56,7 +56,10 @@ export default function RegisterPage() {
         return;
       }
 
-      router.push('/login');
+      // Send the new user to the "check your email" page where they can
+      // resend if the message is delayed. Login is blocked until the email
+      // is verified (Sprint 6, Phase 2).
+      router.push('/verify-email?email=' + encodeURIComponent(data.email));
     } catch {
       setError('Unable to connect to server. Is the API running?');
       setLoading(false);

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { loginSchema } from '@fieldconnect/shared';
 import { findByEmail } from '../../db/queries/users';
 import * as refreshTokenQueries from '../../db/queries/refresh-tokens';
+import * as authAuditLog from '../../db/queries/auth-audit-logs';
 
 export async function loginRoutes(app: FastifyInstance) {
   app.post('/api/v1/auth/login', async (request, reply) => {
@@ -29,6 +30,18 @@ export async function loginRoutes(app: FastifyInstance) {
       return reply.status(401).send({
         success: false,
         error: 'Invalid email or password',
+      });
+    }
+
+    // Block login until the user has verified their email (Sprint 6, Phase 2).
+    // We never issue a session or refresh token for an unverified account.
+    if (!user.email_verified_at) {
+      await authAuditLog.log(user.id, 'login_blocked_unverified', undefined, request.ip);
+      return reply.status(403).send({
+        success: false,
+        code: 'EMAIL_NOT_VERIFIED',
+        error: 'Please verify your email before signing in.',
+        canResend: true,
       });
     }
 

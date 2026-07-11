@@ -16,6 +16,12 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  /**
+   * ISO timestamp when the user verified their email. Null until the user
+   * completes the email verification flow (Sprint 6, Phase 2). Set to null
+   * again on email change (future phase).
+   */
+  email_verified_at: string | null;
   created_at: string;
   updated_at: string;
 }

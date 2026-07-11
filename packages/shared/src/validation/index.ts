@@ -15,6 +15,16 @@ export const registerSchema = z.object({
   role: z.enum(USER_ROLES as [string, ...string[]]),
 });
 
+/**
+ * Resend verification email. Only the email is needed — the server looks up
+ * the user. The endpoint always returns 200 to prevent email-enumeration; if
+ * the user is missing or already verified, no email is sent and no audit row
+ * is written.
+ */
+export const resendVerificationSchema = z.object({
+  email: z.string().email('Invalid email address'),
+});
+
 // ─── Project Validation ────────────────────────────────────────────────────
 
 export const createProjectSchema = z.object({

@@ -6,6 +6,7 @@ export interface UserRow {
   name: string;
   role: string;
   password_hash: string;
+  email_verified_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -33,4 +34,23 @@ export async function createUser(data: {
     [data.email, data.name, data.passwordHash, data.role],
   );
   return result.rows[0];
+}
+
+/**
+ * Mark a user's email as verified. Sets `email_verified_at = NOW()` and bumps
+ * `updated_at`. Returns the updated row, or null if the user doesn't exist.
+ *
+ * Called inside the verification transaction so the user update and the
+ * token-used update are atomic — see `routes/auth/verification.ts`.
+ */
+export async function markEmailVerified(id: string): Promise<UserRow | null> {
+  const result = await query(
+    `UPDATE users
+       SET email_verified_at = NOW(),
+           updated_at = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [id],
+  );
+  return result.rows[0] || null;
 }

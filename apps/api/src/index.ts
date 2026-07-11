@@ -9,6 +9,7 @@ import { loginRoutes } from './routes/auth/login';
 import { registerRoutes } from './routes/auth/register';
 import { tokenRoutes } from './routes/auth/token';
 import { refreshRoutes } from './routes/auth/refresh';
+import { verificationRoutes } from './routes/auth/verification';
 import { projectRoutes } from './routes/projects';
 import { timeEntryRoutes } from './routes/time-entries';
 import { technicianRoutes } from './routes/technicians';
@@ -20,6 +21,7 @@ import { dashboardRoutes } from './routes/dashboard';
 import { activityRoutes } from './routes/activity';
 import { registerAuth } from './middleware/auth';
 import { initWebSocket } from './websocket';
+import { assertEmailConfigValid } from './lib/email';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -31,6 +33,16 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 
 async function main() {
+  // Validate email config at boot. A typo in EMAIL_PROVIDER (e.g. "resent")
+  // would otherwise surface only on the first email send, deep inside a
+  // request handler. Fail fast instead.
+  try {
+    assertEmailConfigValid();
+  } catch (err) {
+    console.error('Email configuration is invalid:', (err as Error).message);
+    process.exit(1);
+  }
+
   const app = Fastify({
     logger: {
       transport: {
@@ -72,6 +84,7 @@ async function main() {
   await app.register(registerRoutes);
   await app.register(tokenRoutes);
   await app.register(refreshRoutes);
+  await app.register(verificationRoutes);
 
   // Project routes
   await app.register(projectRoutes);
