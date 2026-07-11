@@ -16,14 +16,14 @@ All notable project changes should be documented here. Keep this file versioned 
     - `Origin-Agent-Cluster: ?1` — separate memory/process space from other same-origin pages
     - `X-DNS-Prefetch-Control: off` — disables speculative DNS (privacy)
     - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` — production only
-  - Next.js `next.config.js` `async headers()` sets full Content Security Policy + same security headers on all frontend HTML pages:
+  - Next.js middleware (`apps/web/src/middleware.ts`) sets per-request CSP with nonce-based `script-src`:
     - `default-src 'self'`
-    - `script-src 'self'` — no `'unsafe-inline'` or `'unsafe-eval'`
-    - `style-src 'self' 'unsafe-inline'` — required by Next.js 14 App Router for critical CSS (tracked as TD-009)
+    - `script-src 'self' 'nonce-<per-request>'` — no `'unsafe-inline'` or `'unsafe-eval'`
+    - `style-src 'self' 'unsafe-inline'` — required by Next.js 14 App Router for critical CSS (tracked as TD-010)
     - `img-src 'self' data: blob: https://res.cloudinary.com` — Cloudinary, canvas signatures, photo previews
     - `connect-src 'self' wss://<api-host>` — Socket.IO WebSocket to API server
     - `font-src 'self'`, `form-action 'self'`, `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, `upgrade-insecure-requests`
-  - `X-Frame-Options: DENY` on frontend pages (redundant with CSP `frame-ancestors`, defense-in-depth)
+  - `next.config.js` retains defense-in-depth security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, X-DNS-Prefetch-Control)
   - `X-Powered-By` header removed (Fastify no longer leaks framework name/version)
 
 ### Security
