@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
+  poweredByHeader: false,
   // Allow up to 12MB for API proxy file uploads
   experimental: {
     serverActions: {

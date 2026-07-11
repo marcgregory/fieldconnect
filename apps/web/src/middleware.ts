@@ -3,14 +3,16 @@ import { NextRequest, NextResponse } from 'next/server';
 // Note: middleware runs on the Edge Runtime where Node.js 'crypto' is not
 // available. Use the Web Crypto API (crypto.getRandomValues) instead.
 
-// Derive the WebSocket host for CSP connect-src at build time. On Render the
-// API is a separate service, so the ws:// URL must be explicit.
-let WS_CONNECT_HOST = "'self'";
+// Derive the API host for CSP connect-src. Some pages (auth forms, image URLs)
+// call the Fastify API directly rather than through the BFF proxy, so both
+// the HTTPS endpoint and the WebSocket endpoint must be allowed.
+let API_CONNECT_HOST = "'self'";
 try {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
   const parsed = new URL(apiUrl);
+  // Allow HTTPS for direct API calls and WS/WSS for Socket.IO
   const wsProto = parsed.protocol === 'https:' ? 'wss' : 'ws';
-  WS_CONNECT_HOST = `'self' ${wsProto}://${parsed.host}`;
+  API_CONNECT_HOST = `'self' ${wsProto}://${parsed.host} ${apiUrl}`;
 } catch {
   // fallback: self-only
 }
@@ -50,7 +52,7 @@ export function middleware(request: NextRequest) {
       `script-src 'self' ${nonceCsp}`,
       `style-src 'self' 'unsafe-inline'`,
       `img-src 'self' data: blob: https://res.cloudinary.com`,
-      `connect-src ${WS_CONNECT_HOST}`,
+      `connect-src ${API_CONNECT_HOST}`,
       `font-src 'self'`,
       `form-action 'self'`,
       `frame-ancestors 'none'`,
