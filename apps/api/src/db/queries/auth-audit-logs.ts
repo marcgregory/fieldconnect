@@ -22,7 +22,14 @@ export type AuthAuditAction =
   | 'password_reset_requested'
   | 'password_reset_completed'
   | 'password_reset_failed'
-  | 'password_changed_notification_sent';
+  | 'password_changed_notification_sent'
+  // Phase 4 — Login Protection
+  | 'login_failed'
+  | 'login_rate_limited'
+  | 'account_temporarily_locked'
+  | 'login_blocked_locked'
+  | 'login_success'
+  | 'lockout_cleared';
 
 /**
  * Write an auth audit event. `userId` may be null for events tied to unknown

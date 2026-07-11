@@ -51,6 +51,7 @@ async function main() {
         options: { colorize: true },
       },
     },
+    trustProxy: true,
   });
 
   // CORS — allow the Next.js frontend

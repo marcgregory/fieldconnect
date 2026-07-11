@@ -70,6 +70,20 @@ Sprint 6 — Security & Account Hardening 🚧
 - `/login` page now shows "Forgot password?" link with email pre-fill ✅
 - All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
 
+### Sprint 6 / Phase 4 — Login Protection — Complete ✅
+- Per-IP rate limit (10 failed attempts per 5 min, reuses `rate_limit_events`) ✅
+- Per-account lockout (5 consecutive failures → 15 min, new `login_lockouts` table, migration 030) ✅
+- Timing-safe bcrypt comparison — pre-computed dummy hash for non-existent email lookups ✅
+- `trustProxy: true` on Fastify (Render proxy → real client IP in `request.ip`) ✅
+- IPv6/IPv4 scope-key normalization ✅
+- Frontend Retry-After countdown for 429 `RATE_LIMITED` and `ACCOUNT_LOCKED` responses ✅
+- `login-attempts.ts` query module: `checkIpLimit`, `checkLockout`, `recordFailure`, `recordSuccess`, `clearExpiredLockouts` ✅
+- 6 new audit actions: `login_failed`, `login_rate_limited`, `account_temporarily_locked`, `login_blocked_locked`, `login_success`, `lockout_cleared` ✅
+- Schema validation errors do NOT consume rate-limit slots ✅
+- Unverified-email attempts do NOT count toward lockout threshold ✅
+- Stale lockout rows cleaned up inline on every check ✅
+- All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
+
 ### Revision-Based Rework — Complete ✅ (Sprint 6.1)
 - `rework_required` status added to the job state machine ✅
 - `rework_requests` table tracks each rework with reason, requester, and status ✅

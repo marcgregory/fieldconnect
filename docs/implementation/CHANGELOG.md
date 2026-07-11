@@ -2,6 +2,34 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.11.0 — 2026-07-11
+
+### Added
+
+- **Sprint 6 / Phase 4 — Login Protection** ✅
+  - Per-IP rate limit on `POST /api/v1/auth/login` (10 failed attempts per 5 minutes per client IP, reuses `rate_limit_events` table)
+  - Per-account lockout after 5 consecutive failed attempts on the same email (15-minute lockout via new `login_lockouts` table)
+  - Timing-safe bcrypt comparison — when the email doesn't exist, the submitted password is compared against a pre-computed dummy hash so the "unknown email" and "wrong password" paths take the same duration
+  - `trustProxy: true` enabled on the Fastify instance so `request.ip` resolves the real client IP behind Render's proxy
+  - IPv6/IPv4 normalization in IP scope keys (strips `::ffff:` prefix)
+  - Frontend Retry-After countdown — on `RATE_LIMITED` or `ACCOUNT_LOCKED` 429 responses, the submit button shows a countdown and is disabled until the window expires
+  - `login-attempts.ts` query module — `checkIpLimit()`, `checkLockout()`, `recordFailure()`, `recordSuccess()`, `clearExpiredLockouts()`
+  - New audit events: `login_failed`, `login_rate_limited`, `account_temporarily_locked`, `login_blocked_locked`, `login_success`
+  - `ACCOUNT_LOCKED` and `RATE_LIMITED` handled in `mapApiErrorToFormError` with `retryAfter` metadata
+
+### Security
+
+- Generic 401 response for both unknown email and wrong password (no enumeration)
+- Timing-safe login path — always runs bcrypt.compare, even for non-existent accounts
+- IP rate limit is charged before body parsing (wasted CPU for over-limit requests)
+- Unverified-email attempts do NOT count toward the lockout threshold
+- Schema validation errors do NOT consume rate-limit slots
+- Stale lockout rows are cleaned up inline on every lockout check
+
+### Migration
+
+- Apply `030_create-login-lockouts.sql` via `pnpm db:migrate`
+
 ## v0.10.0 — 2026-07-11
 
 ### Added

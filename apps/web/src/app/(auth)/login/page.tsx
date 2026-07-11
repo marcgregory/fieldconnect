@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -25,19 +25,27 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 export default function LoginPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState<FormError | null>(null);
+  const [retryAfter, setRetryAfter] = useState(0);
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
 
+  // Tick down the Retry-After countdown every second when active.
+  useEffect(() => {
+    if (retryAfter <= 0) return;
+    const timer = setTimeout(() => setRetryAfter((r) => r - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [retryAfter]);
+
   async function onSubmit(values: LoginInput) {
     setServerError(null);
+    setRetryAfter(0);
 
     // Direct call to Fastify so we can surface the structured 403 from
-    // Phase 2 (email-not-verified). Auth.js's `signIn` collapses every
-    // error into a generic string, which is great for bad credentials but
-    // would hide the "please verify" flow we want to show.
+    // Phase 2 (email-not-verified) and the 429 from Phase 4 (lockout).
+    // Auth.js's `signIn` collapses every error into a generic string.
     let res: Response;
     try {
       res = await fetch(`${API_URL}/api/v1/auth/login`, {
@@ -54,7 +62,13 @@ export default function LoginPage() {
     }
 
     if (!res.ok) {
-      setServerError(await mapApiResponseToFormError(res));
+      const error = await mapApiResponseToFormError(res);
+      setServerError(error);
+
+      // Start the Retry-After countdown for rate-limit / lockout responses.
+      if (error.meta?.retryAfter && typeof error.meta.retryAfter === 'number') {
+        setRetryAfter(error.meta.retryAfter);
+      }
       return;
     }
 
@@ -77,6 +91,8 @@ export default function LoginPage() {
     router.refresh();
   }
 
+  const isRateLimited = serverError?.code === 'RATE_LIMITED' || serverError?.code === 'ACCOUNT_LOCKED';
+
   return (
     <div className="premium-panel overflow-hidden rounded-[1.75rem] p-0">
       <div className="border-b border-slate-200 bg-white px-8 py-7 text-center text-slate-950">
@@ -92,7 +108,13 @@ export default function LoginPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
             {serverError && (
               <div
-                className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800"
+                className={`rounded-xl border p-3 text-sm font-medium ${
+                  serverError.code === 'EMAIL_NOT_VERIFIED'
+                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                    : serverError.code === 'NETWORK'
+                      ? 'border-red-200 bg-red-50 text-red-700'
+                      : 'border-amber-200 bg-amber-50 text-amber-800'
+                }`}
                 role="alert"
               >
                 {serverError.message}
@@ -107,6 +129,12 @@ export default function LoginPage() {
                   </div>
                 )}
               </div>
+            )}
+
+            {isRateLimited && retryAfter > 0 && (
+              <p className="text-center text-xs text-slate-500">
+                Try again in {retryAfter}s
+              </p>
             )}
 
             <FormField
@@ -159,9 +187,10 @@ export default function LoginPage() {
             <Button
               type="submit"
               loading={form.formState.isSubmitting}
+              disabled={retryAfter > 0 || form.formState.isSubmitting}
               className="w-full"
             >
-              Sign In
+              {retryAfter > 0 ? `Wait ${retryAfter}s` : 'Sign In'}
             </Button>
           </form>
         </Form>

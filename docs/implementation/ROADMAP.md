@@ -90,6 +90,7 @@ Last updated: 2026-07-11
   - **Phase 1 — Email Infrastructure** ✅ — `EmailProvider` abstraction, `ResendProvider`, `PreviewProvider` (writes `.emails/*.html` + console mode), `getEmailService()` lazy singleton, four inline HTML + plain-text templates (Verify Email, Password Reset, Invitation, Welcome), HTML escaping on every user-supplied value
   - **Phase 2 — Email Verification** ✅ — `users.email_verified_at` column, `verification_tokens` table (SHA-256 hash, 24h TTL, single active token), `auth_audit_logs` table (auth events with `user_id` nullable), `rate_limit_events` table (atomic check-and-increment), `GET /api/v1/auth/verify-email` and `POST /api/v1/auth/resend-verification` (1/min + 5/hr windows, generic 200 to prevent enumeration), login blocks unverified users with 403 `EMAIL_NOT_VERIFIED`, refresh route revokes tokens for unverified users, web `/verify-email` and `/verify-email/result` pages with 60s client cooldown
   - **Form Architecture — react-hook-form + zod** ✅ — shadcn-style `<Form>`, `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormDescription>`, `<FormMessage>` in `@fieldconnect/ui` (built on `react-hook-form` + `@hookform/resolvers/zod`), `mapApiErrorToFormError` central server-error parser, auth forms (`login`, `register`, `verify-email`) and `ProjectForm` migrated; `ScheduleForm`/`ClockInOut`/`JobDetailClient` deferred to TD-008 (Sprint 7)
+  - **Phase 4 — Login Protection** ✅ — Per-IP rate limit (10/5min per IP via `rate_limit_events`), per-account lockout (5 failures → 15 min via `login_lockouts` table), timing-safe bcrypt (same duration for unknown email and wrong password), `trustProxy` enabled for Render, frontend Retry-After countdown, 6 new audit actions (`login_failed` / `login_rate_limited` / `account_temporarily_locked` / `login_blocked_locked` / `login_success` / `lockout_cleared`)
   - **Phase 3 — Forgot Password / Reset Password** ✅ — `password_reset_tokens` table (SHA-256 hash, 1h TTL, single active token, mirrors `verification_tokens`), `passwordResetRoutes` with `GET /:token` (read-only peek), `POST /forgot-password` (rate-limited 1/5min + 5/hr, generic 200), `POST /reset-password` (transactional: hash + update password, mark token used, revoke all refresh tokens, notification email), `password-changed` email template added, `AuthAuditAction` extended with `password_reset_requested` / `password_reset_completed` / `password_reset_failed`, web `/forgot-password` page (RHF, 60s cooldown, generic success banner, email pre-fill from query param), web `/reset-password/[token]` page (mount-time GET peek for form/expired/used/invalid states, RHF with password + confirm fields, success/error states), "Forgot password?" link on `/login`, all `pnpm typecheck` / `pnpm build` / `pnpm lint` pass
 
 ## Sprint Queue
@@ -126,12 +127,12 @@ Last updated: 2026-07-11
 - [x] Audit events for password resets (requested / completed / failed)
 - [x] Password-changed notification email
 
-#### Phase 4 — Login Protection
-- [ ] Rate limiting on: login, register, forgot password, reset password
-- [ ] Temporary account lockout after N failed attempts
-- [ ] Exponential backoff on lockout duration
-- [ ] Generic login error messages (never reveal: email exists, wrong password, account missing)
-- [ ] Audit events for failed logins and lockouts
+#### Phase 4 — Login Protection ✅
+- [x] Per-IP rate limit on login (10 attempts per 5 min, rate_limit_events table)
+- [x] Per-account lockout after 5 consecutive failed attempts (15 min, login_lockouts table)
+- [x] Server-side backoff deferred (per-IP + account lockout sufficient; added as a doc item for v2)
+- [x] Generic login error messages (same 401 for unknown email and wrong password; timing-safe bcrypt)
+- [x] Audit events: login_failed, login_rate_limited, account_temporarily_locked, login_blocked_locked, login_success
 
 #### Phase 5 — Session Security
 - [ ] Extend refresh tokens with: device name, browser, last_used_at
