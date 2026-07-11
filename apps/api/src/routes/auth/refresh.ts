@@ -149,21 +149,4 @@ export async function refreshRoutes(app: FastifyInstance) {
     return { success: true };
   });
 
-  /**
-   * POST /api/v1/auth/logout-all
-   * Body: { refresh_token: string }
-   * Revokes ALL sessions and ALL refresh token families for the user.
-   */
-  app.post('/api/v1/auth/logout-all', async (request, reply) => {
-    const { refresh_token } = request.body as { refresh_token?: string };
-    if (refresh_token) {
-      const validated = await refreshTokenQueries.validate(refresh_token);
-      if (validated) {
-        await refreshTokenQueries.revokeAllFamiliesForUser(validated.userId);
-        await sessions.revokeAllForUser(validated.userId);
-        await authAuditLog.log(validated.userId, 'logout_all', undefined, request.ip);
-      }
-    }
-    return { success: true };
-  });
 }
