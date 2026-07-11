@@ -95,7 +95,7 @@ async function main() {
     // clock-in). Fullscreen and wake-lock are PWA features.
     reply.header(
       'Permissions-Policy',
-      'camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self), notifications=(self)',
+      'camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self)',
     );
 
     // Cross-Origin-Resource-Policy: same-origin — prevent other origins

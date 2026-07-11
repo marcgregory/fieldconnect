@@ -27,7 +27,7 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value:
-              'camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self), notifications=(self)',
+              'camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self)',
           },
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
         ],
