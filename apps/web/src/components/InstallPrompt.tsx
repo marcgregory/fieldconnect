@@ -1,12 +1,38 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import {
+  hasSeenInstallPrompt,
+  isInstallCompleted,
+  isInstallDismissed,
+  isRunningInstalled,
+  markInstallCompleted,
+  markInstallDismissed,
+  markInstallPromptSeen,
+} from '@/lib/pwa-install';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
 
 export function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(false);
 
   useEffect(() => {
+    // Suppress entirely if the app is already installed, the user has
+    // dismissed the prompt before, or we've already shown it once in this
+    // browser. State is persisted in localStorage (see pwa-install.ts).
+    if (
+      isRunningInstalled() ||
+      isInstallCompleted() ||
+      isInstallDismissed() ||
+      hasSeenInstallPrompt()
+    ) {
+      return;
+    }
+
     // Register service worker
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -14,20 +40,32 @@ export function InstallPrompt() {
       });
     }
 
-    // Listen for install prompt
+    // Listen for the browser's install prompt
     const handler = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowInstall(true);
+      // Mark the banner as seen the first time the browser signals a
+      // pending install. Survives refreshes — we won't attach this
+      // listener again on subsequent visits.
+      markInstallPromptSeen();
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
+    // If the user installs via the browser's own UI (some browsers can
+    // install without firing beforeinstallprompt), the `appinstalled`
+    // event still fires. Treat it as a permanent dismissal.
+    const installedHandler = () => {
+      markInstallCompleted();
       setShowInstall(false);
-    }
+      setDeferredPrompt(null);
+    };
+    window.addEventListener('appinstalled', installedHandler);
 
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener('appinstalled', installedHandler);
+    };
   }, []);
 
   async function handleInstall() {
@@ -36,12 +74,27 @@ export function InstallPrompt() {
       deferredPrompt.prompt();
       const result = await deferredPrompt.userChoice;
       if (result.outcome === 'accepted') {
+        // Browser will fire `appinstalled`; markInstallCompleted() is
+        // called there as a backup so the banner stays hidden even if
+        // the event is missed.
+        markInstallCompleted();
+        setShowInstall(false);
+      }
+      // If the user dismissed the in-browser prompt without using our X,
+      // remember the dismissal so we don't pester them again.
+      if (result.outcome === 'dismissed') {
+        markInstallDismissed();
         setShowInstall(false);
       }
     } catch {
       // Prompt failed — user action may not be recent enough
     }
     setDeferredPrompt(null);
+  }
+
+  function handleDismiss() {
+    markInstallDismissed();
+    setShowInstall(false);
   }
 
   if (!showInstall) return null;
@@ -63,7 +116,8 @@ export function InstallPrompt() {
           Install
         </button>
         <button
-          onClick={() => setShowInstall(false)}
+          onClick={handleDismiss}
+          aria-label="Dismiss install prompt"
           className="text-gray-400 hover:text-gray-600 shrink-0"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
