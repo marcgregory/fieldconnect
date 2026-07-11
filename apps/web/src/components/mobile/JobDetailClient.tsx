@@ -695,7 +695,10 @@ export function JobDetailClient({ scheduleId }: JobDetailClientProps) {
         canvas.toBlob(
           (blob) => {
             if (blob) {
-              resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+              // Replace the original extension with .jpg since canvas
+              // re-encodes to JPEG regardless of the original format.
+              const jpgName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+              resolve(new File([blob], jpgName, { type: 'image/jpeg' }));
             } else {
               reject(new Error('Compression failed'));
             }
