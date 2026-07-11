@@ -2,11 +2,48 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.13.0 — 2026-07-11
+
+### Added
+
+- **Sprint 6 / Phase 7 — Security Headers** ✅
+  - Fastify global `onSend` hook sets 8 security headers on every API response:
+    - `X-Content-Type-Options: nosniff` — prevents MIME-type sniffing
+    - `Referrer-Policy: strict-origin-when-cross-origin` — privacy-preserving referrer
+    - `Permissions-Policy` — locks camera, geolocation, fullscreen, wake-lock, notifications to `self`; all other features disabled
+    - `Cross-Origin-Resource-Policy: same-origin` — prevents cross-origin resource embedding
+    - `Cross-Origin-Opener-Policy: same-origin` — Spectre mitigation (browsing context isolation)
+    - `Origin-Agent-Cluster: ?1` — separate memory/process space from other same-origin pages
+    - `X-DNS-Prefetch-Control: off` — disables speculative DNS (privacy)
+    - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` — production only
+  - Next.js `next.config.js` `async headers()` sets full Content Security Policy + same security headers on all frontend HTML pages:
+    - `default-src 'self'`
+    - `script-src 'self'` — no `'unsafe-inline'` or `'unsafe-eval'`
+    - `style-src 'self' 'unsafe-inline'` — required by Next.js 14 App Router for critical CSS (tracked as TD-009)
+    - `img-src 'self' data: blob: https://res.cloudinary.com` — Cloudinary, canvas signatures, photo previews
+    - `connect-src 'self' wss://<api-host>` — Socket.IO WebSocket to API server
+    - `font-src 'self'`, `form-action 'self'`, `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, `upgrade-insecure-requests`
+  - `X-Frame-Options: DENY` on frontend pages (redundant with CSP `frame-ancestors`, defense-in-depth)
+  - `X-Powered-By` header removed (Fastify no longer leaks framework name/version)
+
+### Security
+
+- CSP disables `'unsafe-eval'` and wildcard (`*`) — no exceptions
+- Cross-origin protections: `Cross-Origin-Resource-Policy`, `Cross-Origin-Opener-Policy`, `Origin-Agent-Cluster`
+- HSTS in production with `includeSubDomains` and `preload` readiness
+- Clickjacking protection via `frame-ancestors 'none'` (CSP) + `X-Frame-Options: DENY` (fallback)
+- Permissions-Policy strictly scopes camera, geolocation, and PWA features to self
+
+### Technical Debt
+
+- **TD-009** — Next.js 14 App Router emits inline `<style>` tags for critical CSS, requiring `style-src 'unsafe-inline'` in the CSP. A future upgrade to a Next.js version that uses only content-hashed style loading could remove this exception.
+
 ## v0.12.0 — 2026-07-11
 
 ### Added
 
 - **Sprint 6 / Phase 4 — Login Protection** ✅
+  - Per-IP rate limit on `POST /api/v1/auth/login` (10 failed attempts per 5 minutes per client IP, reuses `rate_limit_events` table)
   - Per-IP rate limit on `POST /api/v1/auth/login` (10 failed attempts per 5 minutes per client IP, reuses `rate_limit_events` table)
   - Per-account lockout after 5 consecutive failed attempts on the same email (15-minute lockout via new `login_lockouts` table)
   - Timing-safe bcrypt comparison — when the email doesn't exist, the submitted password is compared against a pre-computed dummy hash so the "unknown email" and "wrong password" paths take the same duration

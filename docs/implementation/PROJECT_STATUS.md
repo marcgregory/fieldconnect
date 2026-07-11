@@ -105,6 +105,32 @@ Sprint 6 — Security & Account Hardening 🚧
 - Duplicate IP rate-limit increment bug fixed in `recordFailure()` ✅
 - All `pnpm typecheck`, `pnpm build` pass (6/6 tasks each) ✅
 
+### Sprint 6 / Phase 7 — Security Headers — Complete ✅
+- Fastify `onSend` hook sets 8 security headers on every API response ✅
+  - `X-Content-Type-Options: nosniff` ✅
+  - `Referrer-Policy: strict-origin-when-cross-origin` ✅
+  - `Permissions-Policy` — camera, geolocation, fullscreen, wake-lock, notifications (only `'self'`) ✅
+  - `Cross-Origin-Resource-Policy: same-origin` ✅
+  - `Cross-Origin-Opener-Policy: same-origin` ✅
+  - `Origin-Agent-Cluster: ?1` ✅
+  - `X-DNS-Prefetch-Control: off` ✅
+  - `Strict-Transport-Security` — `max-age=31536000; includeSubDomains; preload` (production only) ✅
+- Next.js `next.config.js` `async headers()` sets full CSP + same security headers on frontend HTML pages ✅
+- CSP directives cover FieldConnect's actual needs ✅
+  - `script-src 'self'` — no `'unsafe-inline'` or `'unsafe-eval'` ✅
+  - `style-src 'self' 'unsafe-inline'` — required by Next.js 14 inline critical CSS (tracked TD-009) ✅
+  - `img-src 'self' data: blob: https://res.cloudinary.com` — Cloudinary, canvas signatures, photo previews ✅
+  - `connect-src 'self' wss://<api-host>` — Socket.IO WebSocket ✅
+  - `frame-ancestors 'none'` — clickjacking protection ✅
+  - `base-uri 'self'`, `object-src 'none'`, `form-action 'self'` ✅
+  - `upgrade-insecure-requests` ✅
+- `X-Powered-By` header removed (Fastify no longer leaks framework info) ✅
+- CORS reviewed — single explicit origin, credentials enabled, no wildcard ✅
+- PWA compatibility verified — manifest, service worker, install prompt unaffected ✅
+- Socket.IO compatibility verified — CSP connect-src covers WebSocket to API origin ✅
+- No CSP exceptions for `'unsafe-eval'` or wildcard (`*`) ✅
+- All `pnpm typecheck`, `pnpm build` pass (4/4 tasks each) ✅
+
 ### Revision-Based Rework — Complete ✅ (Sprint 6.1)
 - `rework_required` status added to the job state machine ✅
 - `rework_requests` table tracks each rework with reason, requester, and status ✅

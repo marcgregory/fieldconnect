@@ -61,10 +61,68 @@ async function main() {
     trustProxy: true,
   });
 
+  // NOTE: Helmet is NOT registered here. The API serves JSON, not HTML, so
+  // Content-Security-Policy (an HTML-level defense against XSS) does not apply
+  // to API responses. We apply CSP to the Next.js frontend instead (see the
+  // next.config.js async headers).
+  //
+  // The remaining security headers (HSTS, noSniff, referrerPolicy, etc.) are
+  // set at the Fastify level below, after route registration, using a global
+  // onSend hook. This ensures every API response carries them regardless of
+  // content type.
+  //
+  // See: https://fastify.dev/docs/latest/Reference/Hooks/#onsend
+
   // CORS — allow the Next.js frontend
   await app.register(cors, {
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,
+  });
+
+  // ── Security Headers ───────────────────────────────────────────────
+  // Apply standard security headers to every API response.
+  // CSP is intentionally omitted here — see the comment above the CORS block.
+  app.addHook('onSend', async (_request, reply, payload) => {
+    // X-Content-Type-Options: nosniff — prevent MIME-type sniffing
+    reply.header('X-Content-Type-Options', 'nosniff');
+
+    // Referrer-Policy: strict-origin-when-cross-origin — send full URL
+    // on same-origin, origin-only cross-origin, nothing when downgrading
+    reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+    // Permissions-Policy — disable unused browser features. Camera and
+    // geolocation are needed for field technicians (photo uploads, GPS
+    // clock-in). Fullscreen and wake-lock are PWA features.
+    reply.header(
+      'Permissions-Policy',
+      'camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self), notifications=(self)',
+    );
+
+    // Cross-Origin-Resource-Policy: same-origin — prevent other origins
+    // from embedding our resources (defense against cross-origin leaks)
+    reply.header('Cross-Origin-Resource-Policy', 'same-origin');
+
+    // Cross-Origin-Opener-Policy: same-origin — isolate the browsing
+    // context from cross-origin popups (Spectre mitigation)
+    reply.header('Cross-Origin-Opener-Policy', 'same-origin');
+
+    // Origin-Agent-Cluster: ?1 — request a separate memory/process
+    // space from other same-origin pages (performance + security)
+    reply.header('Origin-Agent-Cluster', '?1');
+
+    // X-DNS-Prefetch-Control: off — disable speculative DNS prefetching
+    // by the browser (privacy)
+    reply.header('X-DNS-Prefetch-Control', 'off');
+
+    // HSTS — only in production. Tell browsers to always use HTTPS.
+    if (process.env.NODE_ENV === 'production') {
+      reply.header(
+        'Strict-Transport-Security',
+        'max-age=31536000; includeSubDomains; preload',
+      );
+    }
+
+    return payload;
   });
 
   // Auth middleware (parses JWT, populates request.user)
