@@ -39,17 +39,26 @@ function expandedKey(item: ReviewItem): string {
 
 // ─── Status helpers ────────────────────────────────────────────────────────
 
+const STATUS_BADGES: Record<JobStatus, { label: string; color: string; dot: string }> = {
+  scheduled: { label: 'Scheduled', color: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+  traveling: { label: 'Traveling', color: 'bg-indigo-50 text-indigo-700', dot: 'bg-indigo-500' },
+  on_site: { label: 'On Site', color: 'bg-cyan-50 text-cyan-700', dot: 'bg-cyan-500' },
+  rework_required: { label: 'Rework Required', color: 'bg-red-100 text-red-700', dot: 'bg-red-500' },
+  completed: { label: 'Completed', color: 'bg-green-100 text-green-700', dot: 'bg-green-500' },
+  closed: { label: 'Closed', color: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' },
+};
+
 function statusBadge(item: ReviewItem): { label: string; color: string; dot: string } {
-  if (item.status === 'closed') {
-    return { label: 'Closed', color: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' };
+  return STATUS_BADGES[item.status];
+}
+
+function reworkCycleLabel(item: ReviewItem): string | null {
+  if (item.status !== 'completed' || item.current_rework_version <= 0) {
+    return null;
   }
-  if (item.status === 'rework_required') {
-    return { label: 'Rework Required', color: 'bg-red-100 text-red-700', dot: 'bg-red-500' };
-  }
-  if (item.current_rework_version > 0) {
-    return { label: 'Rework Completed', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' };
-  }
-  return { label: 'Work Completed', color: 'bg-green-100 text-green-700', dot: 'bg-green-500' };
+
+  const cycleText = item.current_rework_version === 1 ? '1 rework cycle' : `${item.current_rework_version} rework cycles`;
+  return `${cycleText} completed`;
 }
 
 // ─── Score bar (compact for pill list) ─────────────────────────────────────
@@ -387,6 +396,7 @@ export function ReviewClient() {
                     const key = expandedKey(item);
                     const isSelected = !!expanded[key];
                     const badge = statusBadge(item);
+                    const secondaryLabel = reworkCycleLabel(item);
 
                     // Compute collapsed score from item-level counts
                     const requiredPresent =
@@ -407,9 +417,16 @@ export function ReviewClient() {
                         }`}
                       >
                         <span className="truncate max-w-[120px]">🔧 {item.technician_name}</span>
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.color}`}>
-                          <span className={`h-1 w-1 rounded-full ${badge.dot}`} />
-                          {badge.label === 'Work Completed' ? 'Done' : badge.label === 'Rework Completed' ? 'Reworked' : badge.label}
+                        <span className="flex flex-col items-start gap-0.5">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.color}`}>
+                            <span className={`h-1 w-1 rounded-full ${badge.dot}`} />
+                            {badge.label}
+                          </span>
+                          {secondaryLabel && (
+                            <span className="text-[10px] leading-none text-amber-700">
+                              {secondaryLabel}
+                            </span>
+                          )}
                         </span>
                         <CompactScore score={score} />
                       </button>
