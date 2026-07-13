@@ -19,10 +19,16 @@ export async function completionReportRoutes(app: FastifyInstance) {
         const data = await getCompletionReport(scheduleId);
         const pdfBuffer = generateCompletionReportPdf(data);
 
+        const safeName = data.project.name
+          .replace(/[^a-zA-Z0-9\s\-_\.]/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
+          .slice(0, 40) || 'report';
+
         reply.header('Content-Type', 'application/pdf');
         reply.header(
           'Content-Disposition',
-          `attachment; filename="completion-report-${data.project.name.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 40)}.pdf"`,
+          `attachment; filename="completion-report-${safeName}.pdf"`,
         );
         reply.header('Content-Length', String(pdfBuffer.length));
         reply.header('Cache-Control', 'no-store');
@@ -30,11 +36,19 @@ export async function completionReportRoutes(app: FastifyInstance) {
         return reply.send(pdfBuffer);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to generate report';
+
         if (message === 'Schedule not found') {
           return reply.status(404).send({ success: false, error: message });
         }
-        request.log.error(err, 'Completion report generation failed');
-        return reply.status(500).send({ success: false, error: 'Failed to generate completion report' });
+
+        // Log the full error with schedule context for debugging
+        request.log.error({ err, scheduleId }, 'Completion PDF generation failed');
+
+        return reply.status(500).send({
+          success: false,
+          error: 'Failed to generate completion report',
+          requestId: request.id,
+        });
       }
     },
   );

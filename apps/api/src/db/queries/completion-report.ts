@@ -51,6 +51,8 @@ export interface CompletionReportData {
     attachment_type: string;
     created_at: string;
     uploaded_by: string;
+    /** MIME type hint for image embedding decisions */
+    mime_type?: string | null;
   }[];
   signatures: {
     id: string;
@@ -59,6 +61,17 @@ export interface CompletionReportData {
     technician_name: string;
     created_at: string;
   }[];
+}
+
+/**
+ * Parse a numeric value returned by pg (which may be a string for NUMERIC columns)
+ * into a JavaScript number, defaulting to 0 if null/undefined/invalid.
+ */
+function parseNumeric(val: unknown): number {
+  if (val == null) return 0;
+  if (typeof val === 'number') return val;
+  const n = parseFloat(String(val));
+  return isNaN(n) ? 0 : n;
 }
 
 /**
@@ -133,7 +146,8 @@ export async function getCompletionReport(
     }),
   );
 
-  // Time entries for the project on the scheduled date
+  // Time entries for this schedule — bound to both the schedule's technicians
+  // and the scheduled date to avoid pulling entries from other dates/projects
   const teResult = await query(
     `SELECT
        te.id,
@@ -148,13 +162,32 @@ export async function getCompletionReport(
        ) AS duration_hours,
        te.notes
      FROM time_entries te
+     JOIN schedule_technicians st ON st.schedule_id = $1 AND st.technician_id = te.user_id
      JOIN users u ON u.id = te.user_id
-     WHERE te.project_id = $1
-       AND te.clock_in::date = $2::date
+     WHERE te.project_id = $2
+       AND te.clock_in::date = $3::date
      ORDER BY te.clock_in`,
-    [project.id, schedule.scheduled_date],
+    [scheduleId, project.id, schedule.scheduled_date],
   );
-  const timeEntries = teResult.rows as CompletionReportData['timeEntries'];
+  const timeEntries = teResult.rows.map(
+    (r: {
+      id: string;
+      technician_name: string;
+      clock_in: string;
+      clock_out: string | null;
+      break_minutes: unknown;
+      duration_hours: unknown;
+      notes: string | null;
+    }) => ({
+      id: r.id,
+      technician_name: r.technician_name,
+      clock_in: r.clock_in,
+      clock_out: r.clock_out,
+      break_minutes: parseNumeric(r.break_minutes),
+      duration_hours: parseNumeric(r.duration_hours),
+      notes: r.notes,
+    }),
+  );
 
   // Job notes
   const noteResult = await query(
@@ -173,7 +206,7 @@ export async function getCompletionReport(
   // Attachments (photos)
   const attResult = await query(
     `SELECT
-       ja.id, ja.file_name, ja.attachment_type,
+       ja.id, ja.file_name, ja.attachment_type, ja.mime_type,
        ja.created_at,
        u.name AS uploaded_by
      FROM job_attachments ja

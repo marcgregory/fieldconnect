@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import type {
   ReviewItem,
   JobNote,
@@ -432,6 +432,8 @@ export function TechnicianReviewPanel({
 }: TechnicianReviewPanelProps) {
   const [internalNote, setInternalNote] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const { required, optional, allRequired, score } = buildChecklist(item, expandedData);
 
@@ -443,6 +445,36 @@ export function TechnicianReviewPanel({
   // Filter reworks to this technician only
   const techReworks = expandedData.reworkRequests
     .filter((rw) => rw.technician_id === item.technician_id);
+
+  const handleDownloadPdf = useCallback(async () => {
+    setPdfLoading(true);
+    setPdfError(null);
+    try {
+      const response = await fetch(`/api/proxy/api/v1/reports/completion/${item.schedule_id}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.error || `Server returned ${response.status}`);
+      }
+      const blob = await response.blob();
+      if (!blob.type.startsWith('application/pdf')) {
+        throw new Error('Response was not a valid PDF');
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `completion-report-${item.technician_name.replace(/[^a-zA-Z0-9]/g, '-').slice(0, 20)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to generate PDF';
+      setPdfError(msg);
+      setTimeout(() => setPdfError(null), 5000);
+    } finally {
+      setPdfLoading(false);
+    }
+  }, [item.schedule_id, item.technician_name]);
 
   async function handleSubmitInternalNote() {
     const content = internalNote.trim();
@@ -651,6 +683,16 @@ export function TechnicianReviewPanel({
           )}
         </section>
 
+        {/* ── PDF Error Toast ──────────────────────────────────────────── */}
+        {pdfError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2 flex items-center gap-2">
+            <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>PDF generation failed: {pdfError}</span>
+          </div>
+        )}
+
         {/* ── Actions ─────────────────────────────────────────────────── */}
         <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
           {(() => {
@@ -665,17 +707,20 @@ export function TechnicianReviewPanel({
                       Assignment Closed
                     </span>
                   </div>
-                  <a
-                    href={`/api/proxy/api/v1/reports/completion/${item.schedule_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={pdfLoading}
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    View PDF
-                  </a>
+                    {pdfLoading ? (
+                      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    )}
+                    {pdfLoading ? 'Generating...' : 'View PDF'}
+                  </button>
                 </>
               );
             }
@@ -751,17 +796,20 @@ export function TechnicianReviewPanel({
                         ? 'Request Another Rework'
                         : 'Request Rework'}
                   </button>
-                  <a
-                    href={`/api/proxy/api/v1/reports/completion/${item.schedule_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  <button
+                    onClick={handleDownloadPdf}
+                    disabled={pdfLoading}
+                    className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    PDF
-                  </a>
+                    {pdfLoading ? (
+                      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    )}
+                    {pdfLoading ? 'Generating...' : 'PDF'}
+                  </button>
                 </>
               );
             }
