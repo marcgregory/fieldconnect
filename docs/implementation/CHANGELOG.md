@@ -2,6 +2,19 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.14.1 — 2026-07-13
+
+### Changed
+
+- **Review page redesign — project-first layout** ✅
+  - `TechnicianReviewPanel.tsx` — new extracted component with cycle-grouped rework history, color-coded timeline, separated original submission, and internal notes at the bottom
+  - `ReviewClient.tsx` — rewritten to project-first layout: one project card per schedule with a technician pill list at the top; clicking a technican loads their detail panel below
+  - Rework history is now grouped into distinct "Rework Cycles" with individual cards (🟠 requested, 🔵 resumed, 🟢 completed, ⚫ closed)
+  - Smarter button rules — "Request Rework" only when in completed state, actions always at the bottom
+  - Duplicate project info removed — project name/date/address shown once per schedule
+  - Summary chips per schedule (N completed, M closed, K rework)
+  - All `pnpm typecheck` and `pnpm build` pass
+
 ## v0.14.0 — 2026-07-13
 
 ### Added
