@@ -28,7 +28,6 @@ const COLORS = {
 };
 
 const PAGE_BREAK_THRESHOLD = 720;
-const NEW_SECTION_THRESHOLD = 650;
 const PAGE_WIDTH = 510; // A4 at 50 margins = 595-85
 const SIGNATURE_MAX_DIMENSIONS = { width: 200, height: 60 };
 const CONTENT_RECT = { x: 50, width: 510 };
@@ -64,10 +63,44 @@ function drawSeparator(doc: typeof PDFDocument.prototype, y: number) {
     .stroke();
 }
 
-function ensureSpace(doc: typeof PDFDocument.prototype, y: number, needed: number): number {
-  if (y + needed > PAGE_BREAK_THRESHOLD) {
+function drawPageNumber(doc: typeof PDFDocument.prototype, pageNumber: number) {
+  doc.fontSize(7).font('Helvetica').fillColor(COLORS.muted)
+    .text(
+      `FieldConnect — Generated ${new Date().toLocaleDateString()} — Page ${pageNumber}`,
+      50,
+      770,
+      { width: PAGE_WIDTH, align: 'center' },
+    );
+}
+
+/**
+ * Track pages so the footer can draw "Page N" on every page without
+ * needing bufferPages: true (which defers page flushing and corrupts
+ * synchronous buffer collection).
+ */
+class PageTracker {
+  private count = 1;
+
+  constructor(doc: typeof PDFDocument.prototype) {
+    this.count = 1;
+    drawPageNumber(doc, 1);
+  }
+
+  addPage(doc: typeof PDFDocument.prototype): number {
     doc.addPage();
+    this.count++;
+    drawPageNumber(doc, this.count);
     return 50;
+  }
+
+  total(): number {
+    return this.count;
+  }
+}
+
+function ensureSpace(doc: typeof PDFDocument.prototype, tracker: PageTracker, y: number, needed: number): number {
+  if (y + needed > PAGE_BREAK_THRESHOLD) {
+    return tracker.addPage(doc);
   }
   return y;
 }
@@ -154,7 +187,7 @@ function drawProjectInfo(doc: typeof PDFDocument.prototype, data: CompletionRepo
   drawSeparator(doc, y);
 }
 
-function drawTimeSummary(doc: typeof PDFDocument.prototype, data: CompletionReportData, startY: number): number {
+function drawTimeSummary(doc: typeof PDFDocument.prototype, tracker: PageTracker, data: CompletionReportData, startY: number): number {
   doc.fillColor(COLORS.text)
     .fontSize(13)
     .font('Helvetica-Bold')
@@ -197,8 +230,7 @@ function drawTimeSummary(doc: typeof PDFDocument.prototype, data: CompletionRepo
     y += 18;
 
     for (const entry of entries) {
-      y = ensureSpace(doc, y, 18);
-      if (y < 60) continue; // just added a page
+      y = ensureSpace(doc, tracker, y, 18);
 
       const cin = entry.clock_in
         ? new Date(entry.clock_in).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
@@ -224,11 +256,11 @@ function drawTimeSummary(doc: typeof PDFDocument.prototype, data: CompletionRepo
   return y + 20;
 }
 
-function drawNotes(doc: typeof PDFDocument.prototype, data: CompletionReportData, startY: number): number {
+function drawNotes(doc: typeof PDFDocument.prototype, tracker: PageTracker, data: CompletionReportData, startY: number): number {
   const notes = Array.isArray(data.notes) ? data.notes : [];
   if (notes.length === 0) return startY;
 
-  startY = ensureSpace(doc, startY, 40);
+  startY = ensureSpace(doc, tracker, startY, 40);
 
   doc.fillColor(COLORS.text)
     .fontSize(13)
@@ -237,7 +269,7 @@ function drawNotes(doc: typeof PDFDocument.prototype, data: CompletionReportData
 
   let y = startY + 22;
   for (const note of notes) {
-    y = ensureSpace(doc, y, 30);
+    y = ensureSpace(doc, tracker, y, 30);
 
     const date = formatDate(note.created_at, {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -265,11 +297,11 @@ function drawNotes(doc: typeof PDFDocument.prototype, data: CompletionReportData
   return y + 20;
 }
 
-function drawAttachments(doc: typeof PDFDocument.prototype, data: CompletionReportData, startY: number): number {
+function drawAttachments(doc: typeof PDFDocument.prototype, tracker: PageTracker, data: CompletionReportData, startY: number): number {
   const attachments = Array.isArray(data.attachments) ? data.attachments : [];
   if (attachments.length === 0) return startY;
 
-  startY = ensureSpace(doc, startY, 40);
+  startY = ensureSpace(doc, tracker, startY, 40);
 
   doc.fillColor(COLORS.text)
     .fontSize(13)
@@ -278,7 +310,7 @@ function drawAttachments(doc: typeof PDFDocument.prototype, data: CompletionRepo
 
   let y = startY + 22;
   for (const att of attachments) {
-    y = ensureSpace(doc, y, 36);
+    y = ensureSpace(doc, tracker, y, 36);
 
     const date = formatDate(att.created_at);
     const fileName = toSafeString(att.file_name);
@@ -297,17 +329,6 @@ function drawAttachments(doc: typeof PDFDocument.prototype, data: CompletionRepo
 }
 
 /**
- * Determine whether a MIME type is safe to embed directly in a PDF.
- * Only JPEG and PNG are embedded; everything else (HEIC, WebP, SVG, etc.)
- * is listed as text only.
- */
-function isEmbeddableImage(mimeType: string | null | undefined): boolean {
-  if (!mimeType) return false;
-  const mt = mimeType.toLowerCase().trim();
-  return mt === 'image/jpeg' || mt === 'image/png';
-}
-
-/**
  * Validate that a string is plausible base64-encoded data.
  * Returns false for empty, too-short, or strings with non-base64 characters.
  */
@@ -316,12 +337,12 @@ function isValidBase64(str: string): boolean {
   return /^[A-Za-z0-9+/]*={0,2}$/.test(str);
 }
 
-function drawSignatures(doc: typeof PDFDocument.prototype, data: CompletionReportData, startY: number): number {
+function drawSignatures(doc: typeof PDFDocument.prototype, tracker: PageTracker, data: CompletionReportData, startY: number): number {
   const signatures = Array.isArray(data.signatures) ? data.signatures : [];
   if (signatures.length === 0) return startY;
 
   // Always start signatures on a fresh page for a clean presentation
-  doc.addPage();
+  tracker.addPage(doc);
   let y = 50;
 
   doc.fillColor(COLORS.text)
@@ -331,7 +352,7 @@ function drawSignatures(doc: typeof PDFDocument.prototype, data: CompletionRepor
   y += 30;
 
   for (const sig of signatures) {
-    y = ensureSpace(doc, y, 110);
+    y = ensureSpace(doc, tracker, y, 110);
 
     const date = formatDate(sig.created_at, {
       month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -370,19 +391,6 @@ function drawSignatures(doc: typeof PDFDocument.prototype, data: CompletionRepor
   return y;
 }
 
-function drawFooter(doc: typeof PDFDocument.prototype) {
-  for (let i = 1; i <= doc.bufferedPageRange().count; i++) {
-    doc.switchToPage(i - 1);
-    doc.fontSize(7).font('Helvetica').fillColor(COLORS.muted)
-      .text(
-        `FieldConnect — Generated ${new Date().toLocaleDateString()} — Page ${i}`,
-        50,
-        770,
-        { width: 510, align: 'center' },
-      );
-  }
-}
-
 /**
  * Validate that the CompletionReportData has the minimum required fields.
  * Returns an array of missing field descriptions.
@@ -401,6 +409,11 @@ function validateReportData(data: CompletionReportData): string[] {
 /**
  * Generate a completion report PDF for a given schedule/project.
  * Returns a Buffer of the PDF document.
+ *
+ * Uses a PageTracker to number pages on-the-fly so bufferPages:true
+ * is NOT needed — PDFKit defaults to bufferPages:false, which flushes
+ * every page synchronously onto the stream as it's created, ensuring
+ * Buffer.concat after doc.end() always has the complete PDF.
  */
 export function generateCompletionReportPdf(data: CompletionReportData): Buffer {
   const validation = validateReportData(data);
@@ -411,7 +424,6 @@ export function generateCompletionReportPdf(data: CompletionReportData): Buffer 
   const doc = new PDFDocument({
     size: 'A4',
     margins: { top: 40, bottom: 40, left: 50, right: 50 },
-    bufferPages: true,
     info: {
       Title: `Completion Report - ${data.project.name}`,
       Author: 'FieldConnect',
@@ -421,23 +433,21 @@ export function generateCompletionReportPdf(data: CompletionReportData): Buffer 
 
   const chunks: Buffer[] = [];
   const stream = doc as unknown as Readable;
-  stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-
   let streamError: Error | null = null;
-  stream.on('error', (err: Error) => {
-    streamError = err;
-  });
+
+  stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+  stream.on('error', (err: Error) => { streamError = err; });
+
+  const pages = new PageTracker(doc);
 
   drawHeader(doc, data);
   drawProjectInfo(doc, data);
 
   let y = 380;
-  y = drawTimeSummary(doc, data, y);
-  y = drawNotes(doc, data, y);
-  y = drawAttachments(doc, data, y);
-  drawSignatures(doc, data, y);
-
-  drawFooter(doc);
+  y = drawTimeSummary(doc, pages, data, y);
+  y = drawNotes(doc, pages, data, y);
+  y = drawAttachments(doc, pages, data, y);
+  drawSignatures(doc, pages, data, y);
 
   doc.end();
 
@@ -447,4 +457,3 @@ export function generateCompletionReportPdf(data: CompletionReportData): Buffer 
 
   return Buffer.concat(chunks);
 }
-
