@@ -69,6 +69,7 @@ export async function reworkRoutes(app: FastifyInstance) {
           id,
           parsed.data.reason,
           request.user!.id,
+          technician_id as string,
         );
 
         // Transition only the specific technician to rework_required
@@ -174,6 +175,9 @@ export async function reworkRoutes(app: FastifyInstance) {
       }
 
       try {
+        // Mark rework as resumed
+        await reworkQueries.setReworkResumedAt(rid);
+
         const result = await scheduleQueries.updateStatus({
           id,
           status: 'on_site',

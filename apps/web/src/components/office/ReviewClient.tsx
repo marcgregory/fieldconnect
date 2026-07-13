@@ -129,7 +129,11 @@ export function ReviewClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expanded, setExpanded] = useState<Record<string, ExpandedData>>({});
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Scoped pending action — only the matching technician+action button shows loading
+  const [pendingAction, setPendingAction] = useState<{
+    technicianId: string | null;
+    action: 'close' | 'request_rework' | null;
+  }>({ technicianId: null, action: null });
 
   // ─── Image URL helper ──────────────────────────────────────────────────
   function getUploadUrl(filePath: string): string {
@@ -239,8 +243,8 @@ export function ReviewClient() {
       }
     }
 
-    // Normal close — target this specific technician
-    setActionLoading(key);
+    // Normal close — target this specific technician with scoped loading
+    setPendingAction({ technicianId: item.technician_id, action: 'close' });
     setError('');
     try {
       await updateScheduleStatus(item.schedule_id, 'closed', undefined, item.technician_id);
@@ -248,7 +252,7 @@ export function ReviewClient() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update status');
     } finally {
-      setActionLoading(null);
+      setPendingAction({ technicianId: null, action: null });
     }
   }
 
@@ -259,7 +263,7 @@ export function ReviewClient() {
       return;
     }
     const key = expandedKey(forceCloseModal);
-    setActionLoading(key);
+    setPendingAction({ technicianId: forceCloseModal.technician_id, action: 'close' });
     setError('');
     try {
       await updateScheduleStatus(
@@ -274,7 +278,7 @@ export function ReviewClient() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to close job');
     } finally {
-      setActionLoading(null);
+      setPendingAction({ technicianId: null, action: null });
     }
   }
 
@@ -311,18 +315,18 @@ export function ReviewClient() {
       setError('Please provide a reason for rework');
       return;
     }
-    const key = expandedKey(reworkModal.item);
-    setActionLoading(key);
+    const techId = reworkModal.item.technician_id;
+    setPendingAction({ technicianId: techId, action: 'request_rework' });
     setError('');
     try {
-      await requestRework(reworkModal.item.schedule_id, reworkReason.trim(), reworkModal.item.technician_id);
+      await requestRework(reworkModal.item.schedule_id, reworkReason.trim(), techId);
       setReworkModal(null);
       setReworkReason('');
       fetchSchedules();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to request rework');
     } finally {
-      setActionLoading(null);
+      setPendingAction({ technicianId: null, action: null });
     }
   }
 
@@ -571,11 +575,17 @@ export function ReviewClient() {
               {scheduleItems.map((item) => {
                 const key = expandedKey(item);
                 const expandedData = expanded[key];
-                const isActionLoading = actionLoading === key;
-                const { required, optional, allRequired, score, presentCount, totalCount } =
+                const { required, optional, allRequired, score } =
                   getChecklistData(item, expandedData);
 
-                const canClose = expandedData && !expandedData.loading ? allRequired : false;
+                // Scoped loading checks — each action is independent per technician
+                const isCloseLoading = pendingAction.technicianId === item.technician_id && pendingAction.action === 'close';
+                const isReworkLoading = pendingAction.technicianId === item.technician_id && pendingAction.action === 'request_rework';
+
+                // Per-technician button rules
+                const isFirstCompletion = item.status === 'completed' && !item.has_open_rework && item.current_rework_version === 0;
+                const isPostReworkCompletion = item.status === 'completed' && !item.has_open_rework && item.current_rework_version > 0;
+                const isReworkPending = item.status === 'rework_required';
 
                 return (
                   <div key={key} className="bg-white rounded-xl border border-gray-200 mb-3 overflow-hidden">
@@ -592,12 +602,18 @@ export function ReviewClient() {
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                             item.status === 'rework_required'
                               ? 'bg-red-100 text-red-700'
-                              : 'bg-gray-100 text-gray-700'
+                              : item.current_rework_version > 0
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-gray-100 text-gray-700'
                           }`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${
-                              item.status === 'rework_required' ? 'bg-red-500' : 'bg-gray-400'
+                              item.status === 'rework_required' ? 'bg-red-500' :
+                              item.current_rework_version > 0 ? 'bg-amber-500' :
+                              'bg-gray-400'
                             }`} />
-                            {item.status === 'rework_required' ? 'Rework Required' : 'Work Completed'}
+                            {isReworkPending ? 'Rework Required' :
+                             isPostReworkCompletion ? 'Rework Completed' :
+                             'Work Completed'}
                           </span>
                           {/* Other techs context */}
                           {item.other_technicians.length > 0 && (
@@ -829,80 +845,173 @@ export function ReviewClient() {
                               )}
                             </div>
 
-                            {/* ── Rework History ────────────────────────── */}
-                            {expandedData.reworkRequests.length > 0 && (
-                              <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2">
-                                <h4 className="text-xs font-semibold text-red-700 uppercase tracking-wide">
-                                  Rework History
-                                </h4>
-                                {expandedData.reworkRequests.map((rw) => (
-                                  <div key={rw.id} className="text-sm text-red-800">
-                                    <div className="flex items-center justify-between">
-                                      <span className="font-medium">
-                                        {rw.status === 'open' ? '⚠ Open Rework Request' : '✓ Completed Rework'}
-                                      </span>
-                                      <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                                        rw.status === 'open' ? 'bg-red-200 text-red-800' : 'bg-green-200 text-green-800'
-                                      }`}>
-                                        {rw.status}
-                                      </span>
-                                    </div>
-                                    <p className="mt-1 text-red-700">Reason: {rw.reason}</p>
-                                    <p className="text-xs text-red-600 mt-0.5">
-                                      {rw.requested_by_name || 'Unknown'} · {new Date(rw.requested_at).toLocaleString()}
-                                      {rw.resolved_at && ` → Resolved: ${new Date(rw.resolved_at).toLocaleString()}`}
-                                    </p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            {/* ── Rework History (per-technician) ─────────── */}
+                            {(() => {
+                              // Filter rework requests to this technician only
+                              const techReworks = expandedData.reworkRequests
+                                .filter((rw) => rw.technician_id === item.technician_id);
+                              if (techReworks.length === 0) return null;
+
+                              return (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-3">
+                                  <h4 className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+                                    Rework History — {item.technician_name}
+                                  </h4>
+                                  {techReworks.map((rw, idx) => {
+                                    const cycleNumber = idx + 1;
+                                    const isOpen = rw.status === 'open';
+                                    const isInProgress = rw.status === 'open' && rw.resumed_at != null;
+                                    const isCompleted = rw.status === 'completed';
+                                    const statusLabel = isOpen && !rw.resumed_at ? 'Open' :
+                                      isOpen && rw.resumed_at ? 'In Progress' :
+                                      'Completed';
+
+                                    return (
+                                      <div key={rw.id} className="bg-white rounded-lg border border-red-100 p-3 space-y-2">
+                                        {/* Header — cycle + status badge */}
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-sm font-semibold text-gray-900">
+                                            Rework {cycleNumber}
+                                          </span>
+                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                            isOpen && !rw.resumed_at ? 'bg-red-100 text-red-700' :
+                                            isInProgress ? 'bg-amber-100 text-amber-700' :
+                                            'bg-green-100 text-green-700'
+                                          }`}>
+                                            <span className={`h-1.5 w-1.5 rounded-full ${
+                                              isOpen && !rw.resumed_at ? 'bg-red-500' :
+                                              isInProgress ? 'bg-amber-500' :
+                                              'bg-green-500'
+                                            }`} />
+                                            {statusLabel}
+                                          </span>
+                                        </div>
+
+                                        {/* Details grid */}
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
+                                          <span>Technician: <span className="font-medium text-gray-900">{item.technician_name}</span></span>
+                                          <span>Status: <span className="font-medium">{statusLabel}</span></span>
+                                          {rw.reason && (
+                                            <span className="col-span-2">Reason: <span className="font-medium text-gray-900">{rw.reason}</span></span>
+                                          )}
+                                          <span>Requested by: <span className="font-medium text-gray-900">{rw.requested_by_name || 'Unknown'}</span></span>
+                                          <span className="text-gray-500">Requested at: {new Date(rw.requested_at).toLocaleString()}</span>
+                                          {rw.resumed_at && (
+                                            <span className="text-gray-500">Resumed at: {new Date(rw.resumed_at).toLocaleString()}</span>
+                                          )}
+                                          {rw.resolved_at && (
+                                            <span className="text-gray-500">Completed at: {new Date(rw.resolved_at).toLocaleString()}</span>
+                                          )}
+                                        </div>
+
+                                        {/* Timeline */}
+                                        <div className="mt-1 pt-2 border-t border-gray-100">
+                                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                                            <span className="flex items-center gap-1">
+                                              <span className="h-2 w-2 rounded-full bg-red-500" />
+                                              Requested
+                                            </span>
+                                            <span className="text-gray-300">→</span>
+                                            <span className={`flex items-center gap-1 ${rw.resumed_at ? 'text-gray-700' : 'text-gray-400'}`}>
+                                              <span className={`h-2 w-2 rounded-full ${rw.resumed_at ? 'bg-amber-500' : 'bg-gray-300'}`} />
+                                              Technician resumed
+                                            </span>
+                                            <span className="text-gray-300">→</span>
+                                            <span className={`flex items-center gap-1 ${rw.resolved_at ? 'text-gray-700' : 'text-gray-400'}`}>
+                                              <span className={`h-2 w-2 rounded-full ${rw.resolved_at ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                              Completed
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
 
                             {/* ── Actions ───────────────────────────────── */}
                             <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
-                              {allRequired ? (
+                              {/* Close Assignment — show for completed (all cases) and rework_pending */}
+                              {(isFirstCompletion || isPostReworkCompletion) && (
+                                <>
+                                  {allRequired ? (
+                                    <button
+                                      onClick={() => handleClose(item)}
+                                      disabled={isCloseLoading}
+                                      className="px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      {isCloseLoading ? 'Processing...' : 'Close Assignment'}
+                                    </button>
+                                  ) : isAdmin ? (
+                                    <button
+                                      onClick={() => handleClose(item)}
+                                      disabled={isCloseLoading}
+                                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      {isCloseLoading ? 'Processing...' : 'Force Close'}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      disabled
+                                      className="px-5 py-2.5 bg-gray-300 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-1.5"
+                                      title="Complete all required documentation first"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v2m0-2h2m-2 0H10m9.364-7.364A9 9 0 1112 3a9 9 0 017.364 4.636z" />
+                                      </svg>
+                                      Close Assignment
+                                    </button>
+                                  )}
+                                </>
+                              )}
+
+                              {/* Rework pending state — show Close Assignment for admin override */}
+                              {isReworkPending && isAdmin && (
                                 <button
                                   onClick={() => handleClose(item)}
-                                  disabled={isActionLoading}
-                                  className="px-5 py-2.5 bg-gray-700 hover:bg-gray-800 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  disabled={isCloseLoading}
+                                  className="px-5 py-2.5 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  {isActionLoading ? 'Processing...' : 'Close Job'}
-                                </button>
-                              ) : isAdmin ? (
-                                <button
-                                  onClick={() => handleClose(item)}
-                                  disabled={isActionLoading}
-                                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                                >
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  {isActionLoading ? 'Processing...' : 'Force Close'}
-                                </button>
-                              ) : (
-                                <button
-                                  disabled
-                                  className="px-5 py-2.5 bg-gray-300 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed flex items-center gap-1.5"
-                                  title="Complete all required documentation first"
-                                >
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v2m0-2h2m-2 0H10m9.364-7.364A9 9 0 1112 3a9 9 0 017.364 4.636z" />
-                                  </svg>
-                                  Close Job
+                                  {isCloseLoading ? 'Processing...' : 'Close Assignment'}
                                 </button>
                               )}
 
-                              {item.status === 'completed' && (
+                              {/* Rework Pending badge — shown when rework is open */}
+                              {isReworkPending && (
+                                <span className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
+                                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                                  Rework Pending
+                                </span>
+                              )}
+
+                              {/* Request Rework — only for completed without open rework */}
+                              {isFirstCompletion && (
                                 <button
                                   onClick={() => handleRework(item)}
-                                  disabled={isActionLoading}
+                                  disabled={isReworkLoading}
                                   className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  {isActionLoading ? 'Processing...' : 'Request Rework'}
+                                  {isReworkLoading ? 'Processing...' : 'Request Rework'}
+                                </button>
+                              )}
+
+                              {/* Request Another Rework — post-rework completion */}
+                              {isPostReworkCompletion && (
+                                <button
+                                  onClick={() => handleRework(item)}
+                                  disabled={isReworkLoading}
+                                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {isReworkLoading ? 'Processing...' : 'Request Another Rework'}
                                 </button>
                               )}
 
                               {/* Download PDF completion report */}
-                              {['completed', 'closed', 'office_review'].includes(item.status) && (
+                              {(isFirstCompletion || isPostReworkCompletion) && (
                                 <a
                                   href={`/api/proxy/api/v1/reports/completion/${item.schedule_id}`}
                                   target="_blank"
@@ -956,10 +1065,10 @@ export function ReviewClient() {
               </button>
               <button
                 onClick={confirmRework}
-                disabled={!reworkReason.trim() || actionLoading === expandedKey(reworkModal.item)}
+                disabled={!reworkReason.trim() || (pendingAction.technicianId === reworkModal.item.technician_id && pendingAction.action === 'request_rework')}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {actionLoading === expandedKey(reworkModal.item) ? 'Requesting...' : 'Request Rework'}
+                {(pendingAction.technicianId === reworkModal.item.technician_id && pendingAction.action === 'request_rework') ? 'Requesting...' : 'Request Rework'}
               </button>
             </div>
           </div>
@@ -997,10 +1106,10 @@ export function ReviewClient() {
               </button>
               <button
                 onClick={confirmForceClose}
-                disabled={!forceCloseReason.trim() || actionLoading === expandedKey(forceCloseModal)}
+                disabled={!forceCloseReason.trim() || (pendingAction.technicianId === forceCloseModal.technician_id && pendingAction.action === 'close')}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {actionLoading === expandedKey(forceCloseModal) ? 'Closing...' : 'Force Close'}
+                {(pendingAction.technicianId === forceCloseModal.technician_id && pendingAction.action === 'close') ? 'Closing...' : 'Force Close'}
               </button>
             </div>
           </div>

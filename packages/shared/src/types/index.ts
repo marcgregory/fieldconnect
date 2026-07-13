@@ -313,10 +313,13 @@ export type ReworkStatus = 'open' | 'completed';
 export interface ReworkRequest {
   id: string;
   schedule_id: string;
+  technician_id: string;
+  technician_name?: string;
   reason: string;
   requested_by: string;
   requested_by_name?: string;
   requested_at: string;
+  resumed_at: string | null;
   resolved_at: string | null;
   status: ReworkStatus;
   created_at: string;

@@ -16,10 +16,13 @@ function mapReworkRow(row: any): ReworkRequest {
   return {
     id: row.id,
     schedule_id: row.schedule_id,
+    technician_id: row.technician_id,
+    technician_name: row.technician_name || undefined,
     reason: row.reason,
     requested_by: row.requested_by,
     requested_by_name: row.requested_by_name,
     requested_at: row.requested_at,
+    resumed_at: row.resumed_at,
     resolved_at: row.resolved_at,
     status: row.status,
     created_at: row.created_at,
@@ -32,12 +35,13 @@ export async function createReworkRequest(
   scheduleId: string,
   reason: string,
   userId: string,
+  technicianId: string,
 ): Promise<ReworkRequest> {
   const result = await query(
-    `INSERT INTO rework_requests (schedule_id, reason, requested_by)
-     VALUES ($1, $2, $3)
+    `INSERT INTO rework_requests (schedule_id, reason, requested_by, technician_id)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [scheduleId, reason, userId],
+    [scheduleId, reason, userId, technicianId],
   );
   return mapReworkRow(result.rows[0]);
 }
@@ -48,11 +52,14 @@ export async function findReworkRequestsBySchedule(
   scheduleId: string,
 ): Promise<ReworkRequest[]> {
   const result = await query(
-    `SELECT rr.*, u.name AS requested_by_name
+    `SELECT rr.*,
+            u.name AS requested_by_name,
+            tech.name AS technician_name
      FROM rework_requests rr
      JOIN users u ON u.id = rr.requested_by
+     LEFT JOIN users tech ON tech.id = rr.technician_id
      WHERE rr.schedule_id = $1
-     ORDER BY rr.requested_at DESC`,
+     ORDER BY rr.requested_at ASC`,
     [scheduleId],
   );
   return result.rows.map(mapReworkRow);
@@ -62,15 +69,46 @@ export async function findReworkRequestsBySchedule(
 
 export async function getLatestOpenRework(
   scheduleId: string,
+  technicianId?: string,
+): Promise<ReworkRequest | null> {
+  const result = technicianId
+    ? await query(
+        `SELECT rr.*,
+                u.name AS requested_by_name,
+                tech.name AS technician_name
+         FROM rework_requests rr
+         JOIN users u ON u.id = rr.requested_by
+         LEFT JOIN users tech ON tech.id = rr.technician_id
+         WHERE rr.schedule_id = $1 AND rr.status = 'open' AND rr.technician_id = $2
+         ORDER BY rr.requested_at DESC
+         LIMIT 1`,
+        [scheduleId, technicianId],
+      )
+    : await query(
+        `SELECT rr.*,
+                u.name AS requested_by_name,
+                tech.name AS technician_name
+         FROM rework_requests rr
+         JOIN users u ON u.id = rr.requested_by
+         LEFT JOIN users tech ON tech.id = rr.technician_id
+         WHERE rr.schedule_id = $1 AND rr.status = 'open'
+         ORDER BY rr.requested_at DESC
+         LIMIT 1`,
+        [scheduleId],
+      );
+  return result.rows[0] ? mapReworkRow(result.rows[0]) : null;
+}
+
+// ─── Set Rework Resumed At ──────────────────────────────────────────────────
+
+export async function setReworkResumedAt(
+  id: string,
 ): Promise<ReworkRequest | null> {
   const result = await query(
-    `SELECT rr.*, u.name AS requested_by_name
-     FROM rework_requests rr
-     JOIN users u ON u.id = rr.requested_by
-     WHERE rr.schedule_id = $1 AND rr.status = 'open'
-     ORDER BY rr.requested_at DESC
-     LIMIT 1`,
-    [scheduleId],
+    `UPDATE rework_requests SET resumed_at = NOW()
+     WHERE id = $1 AND status = 'open'
+     RETURNING *`,
+    [id],
   );
   return result.rows[0] ? mapReworkRow(result.rows[0]) : null;
 }
