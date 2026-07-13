@@ -496,53 +496,45 @@ export function ReviewClient() {
       return <p className="text-xs text-gray-400 italic">No evidence submitted</p>;
     }
     return sortedV.map((version) => (
-      <div key={version} className="border-t border-gray-100 pt-2 mt-2 first:border-0 first:pt-0 first:mt-0">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5">
-          {version === 0 ? 'Original' : `Rework ${version}`}
-        </p>
-        {/* Photos */}
+      <div key={version} className="border-t border-gray-100 pt-3 mt-3 first:border-0 first:pt-0 first:mt-0">
+        {sortedV.length > 1 && (
+          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">
+            {version === 0 ? 'Original Submission' : `Rework Cycle ${version}`}
+          </p>
+        )}
+        {/* Photos — grouped by type visually but no redundant section headers */}
         {attVersions[version]?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-1.5">
-            {(() => {
-              const byType: Record<string, JobAttachment[]> = {};
-              attVersions[version].forEach((att) => {
-                if (!byType[att.attachment_type]) byType[att.attachment_type] = [];
-                byType[att.attachment_type].push(att);
-              });
-              return Object.entries(byType).flatMap(([type, items]) =>
-                items.map((att) =>
-                  att.mime_type?.startsWith('image/') ? (
-                    <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden w-28">
-                      <div className="w-full h-20 relative">
-                        <img
-                          src={getAttachmentUrl(att)}
-                          alt={att.file_name}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      </div>
-                      <div className="px-1.5 py-1">
-                        <p className="text-[10px] text-gray-500 capitalize">{type}</p>
-                        {att.inside_geofence != null && (
-                          <p className={`text-[10px] ${att.inside_geofence ? 'text-green-600' : 'text-blue-600'}`}>
-                            {att.inside_geofence ? '📍 Inside' : '⚠ Outside'}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div key={att.id} className="bg-gray-50 rounded px-2 py-1 text-xs text-gray-600">
-                      📎 {att.file_name}
-                    </div>
-                  )
-                )
-              );
-            })()}
+          <div className="flex flex-wrap gap-1.5">
+            {attVersions[version].map((att) =>
+              att.mime_type?.startsWith('image/') ? (
+                <div key={att.id} className="bg-gray-50 rounded-lg overflow-hidden w-28">
+                  <div className="w-full h-20 relative">
+                    <img
+                      src={getAttachmentUrl(att)}
+                      alt={att.file_name}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="px-1.5 py-1">
+                    {att.inside_geofence != null && (
+                      <p className={`text-[10px] ${att.inside_geofence ? 'text-green-600' : 'text-blue-600'}`}>
+                        {att.inside_geofence ? '📍 Inside' : '⚠ Outside'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div key={att.id} className="bg-gray-50 rounded px-2 py-1 text-xs text-gray-600">
+                  📎 {att.file_name}
+                </div>
+              )
+            )}
           </div>
         )}
         {/* Signatures */}
         {sigVersions[version]?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-1.5">
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
             {sigVersions[version].map((sig) => (
               <div key={sig.id} className="bg-gray-50 rounded px-2 py-1 text-xs text-gray-600">
                 ✍️ {sig.label} — {sig.user_name}
@@ -552,7 +544,7 @@ export function ReviewClient() {
         )}
         {/* Notes */}
         {noteVersions[version]?.length > 0 && (
-          <div className="space-y-1">
+          <div className="space-y-1 mt-1.5">
             {noteVersions[version].map((note) => (
               <p key={note.id} className="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1">
                 {note.content}
@@ -562,6 +554,162 @@ export function ReviewClient() {
         )}
       </div>
     ));
+  }
+
+  /**
+   * Render a rework timeline from rework request data and evidence.
+   * Timeline events are derived from:
+   *   - requested_at  → "Office requested rework"
+   *   - resumed_at    → "Technician resumed work"
+   *   - rework_version matches → "N additional photos uploaded"
+   *   - resolved_at   → "Technician completed rework"
+   *   - closed_at     → "Assignment closed"
+   */
+  function renderReworkTimeline(
+    reworks: ReworkRequest[],
+    attachments: JobAttachment[],
+    signatures: Signature[],
+    notes: JobNote[],
+    closedAt: string | null,
+    technicianName: string,
+  ) {
+    interface TimelineEvent {
+      ts: string;
+      icon: 'requested' | 'resumed' | 'evidence' | 'completed' | 'closed';
+      label: string;
+      detail?: string;
+    }
+
+    const events: TimelineEvent[] = [];
+
+    reworks.forEach((rw) => {
+      const v = reworks.indexOf(rw) + 1;
+
+      // 1. Requested
+      events.push({
+        ts: rw.requested_at,
+        icon: 'requested',
+        label: 'Office requested rework',
+        detail: rw.reason
+          ? `Reason: ${rw.reason}${rw.requested_by_name ? ` — by ${rw.requested_by_name}` : ''}`
+          : rw.requested_by_name ? `By ${rw.requested_by_name}` : undefined,
+      });
+
+      // 2. Resumed
+      if (rw.resumed_at) {
+        events.push({
+          ts: rw.resumed_at,
+          icon: 'resumed',
+          label: `${technicianName} resumed work`,
+        });
+      }
+
+      // 3. Evidence uploaded during this rework cycle
+      const cycleAtts = attachments.filter((a) => (a.rework_version ?? 0) === v);
+      const cycleSigs = signatures.filter((s) => (s.rework_version ?? 0) === v);
+      const cycleNotes = notes.filter((n) => (n.rework_version ?? 0) === v && n.note_type === 'technician');
+
+      if (cycleAtts.length > 0) {
+        // Get the earliest attachment timestamp
+        const earliestAtt = cycleAtts.reduce((earliest, att) =>
+          !earliest || (att.created_at && att.created_at < earliest.created_at) ? att : earliest,
+        );
+        const imgCount = cycleAtts.filter((a) => a.mime_type?.startsWith('image/')).length;
+        const docCount = cycleAtts.length - imgCount;
+        const parts: string[] = [];
+        if (imgCount > 0) parts.push(`${imgCount} photo${imgCount !== 1 ? 's' : ''}`);
+        if (docCount > 0) parts.push(`${docCount} document${docCount !== 1 ? 's' : ''}`);
+        events.push({
+          ts: earliestAtt.created_at,
+          icon: 'evidence',
+          label: `${parts.join(' and ')} uploaded`,
+        });
+      }
+
+      if (cycleSigs.length > 0) {
+        const earliestSig = cycleSigs.reduce((earliest, s) =>
+          !earliest || (s.created_at && s.created_at < earliest.created_at) ? s : earliest,
+        );
+        events.push({
+          ts: earliestSig.created_at,
+          icon: 'evidence',
+          label: 'Customer signature captured',
+        });
+      }
+
+      if (cycleNotes.length > 0) {
+        const earliestNote = cycleNotes.reduce((earliest, n) =>
+          !earliest || (n.created_at && n.created_at < earliest.created_at) ? n : earliest,
+        );
+        events.push({
+          ts: earliestNote.created_at,
+          icon: 'evidence',
+          label: 'Technician note added',
+        });
+      }
+
+      // 4. Resolved (technician completed rework)
+      if (rw.resolved_at) {
+        events.push({
+          ts: rw.resolved_at,
+          icon: 'completed',
+          label: 'Technician completed rework',
+        });
+      }
+    });
+
+    // 5. Closed (if closed)
+    if (closedAt) {
+      events.push({
+        ts: closedAt,
+        icon: 'closed',
+        label: 'Assignment closed',
+      });
+    }
+
+    // Sort chronologically
+    events.sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+
+    if (events.length === 0) return null;
+
+    const iconMap = {
+      requested: { bg: 'bg-red-500', ring: 'ring-red-200' },
+      resumed: { bg: 'bg-amber-500', ring: 'ring-amber-200' },
+      evidence: { bg: 'bg-blue-500', ring: 'ring-blue-200' },
+      completed: { bg: 'bg-green-500', ring: 'ring-green-200' },
+      closed: { bg: 'bg-gray-500', ring: 'ring-gray-200' },
+    };
+
+    return (
+      <div className="relative pl-8 space-y-0">
+        {events.map((evt, idx) => {
+          const { bg, ring } = iconMap[evt.icon];
+          const isLast = idx === events.length - 1;
+          return (
+            <div key={`${evt.ts}-${idx}`} className="relative pb-4 last:pb-0">
+              {/* Vertical connector line */}
+              {!isLast && (
+                <div className="absolute left-[11px] top-4 bottom-0 w-0.5 bg-gray-200" />
+              )}
+              {/* Dot */}
+              <div className={`absolute left-0 top-0.5 h-5 w-5 rounded-full ${bg} ring-2 ${ring} flex items-center justify-center`}>
+                <div className="h-1.5 w-1.5 rounded-full bg-white" />
+              </div>
+              {/* Content */}
+              <div className="pt-0">
+                <p className="text-sm font-medium text-gray-900">{evt.label}</p>
+                {evt.detail && (
+                  <p className="text-xs text-gray-500 mt-0.5">{evt.detail}</p>
+                )}
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {new Date(evt.ts).toLocaleString()}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
@@ -630,10 +778,7 @@ export function ReviewClient() {
                 const isCloseLoading = pendingAction.technicianId === item.technician_id && pendingAction.action === 'close';
                 const isReworkLoading = pendingAction.technicianId === item.technician_id && pendingAction.action === 'request_rework';
 
-                // Per-technician button rules
-                const isFirstCompletion = item.status === 'completed' && !item.has_open_rework && item.current_rework_version === 0;
-                const isPostReworkCompletion = item.status === 'completed' && !item.has_open_rework && item.current_rework_version > 0;
-                const isReworkPending = item.status === 'rework_required';
+                // Per-technician button rules — now handled inline in the actions section
 
                 return (
                   <div key={key} className="bg-white rounded-xl border border-gray-200 mb-3 overflow-hidden">
@@ -648,22 +793,26 @@ export function ReviewClient() {
                             🔧 {item.technician_name}
                           </h3>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                            item.status === 'rework_required'
-                              ? 'bg-red-100 text-red-700'
+                            item.status === 'closed'
+                              ? 'bg-gray-100 text-gray-600'
+                              : item.status === 'rework_required'
+                                ? 'bg-red-100 text-red-700'
                               : item.current_rework_version > 0
                                 ? 'bg-amber-100 text-amber-700'
                                 : 'bg-gray-100 text-gray-700'
                           }`}>
                             <span className={`h-1.5 w-1.5 rounded-full ${
+                              item.status === 'closed' ? 'bg-gray-400' :
                               item.status === 'rework_required' ? 'bg-red-500' :
                               item.current_rework_version > 0 ? 'bg-amber-500' :
                               'bg-gray-400'
                             }`} />
-                            {isReworkPending ? 'Rework Required' :
-                             isPostReworkCompletion ? 'Rework Completed' :
+                            {item.status === 'closed' ? 'Closed' :
+                             item.status === 'rework_required' ? 'Rework Required' :
+                             item.current_rework_version > 0 ? 'Rework Completed' :
                              'Work Completed'}
                           </span>
-                          {/* Other techs context */}
+                          {/* Other techs context — summary count */}
                           {item.other_technicians.length > 0 && (
                             <span className="text-xs text-gray-400 ml-auto">
                               +{item.other_technicians.length} other{item.other_technicians.length !== 1 ? 's' : ''}
@@ -689,34 +838,46 @@ export function ReviewClient() {
                           </div>
                         ) : (
                           <div className="p-4 space-y-5">
-                            {/* ── Other Technicians on Schedule ─────────────── */}
+                            {/* ── Other Assignments on This Schedule ─────────── */}
                             {item.other_technicians.length > 0 && (
                               <div>
                                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                                  Other Technicians on Schedule
+                                  Other Assignments
                                 </h4>
                                 <div className="bg-gray-50 rounded-lg px-3 py-2 space-y-1">
-                                  {item.other_technicians.map((ot) => (
-                                    <div key={ot.technician_id} className="flex items-center justify-between text-sm">
-                                      <span className="text-gray-700">{ot.technician_name}</span>
-                                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                        ot.status === 'completed' ? 'bg-green-100 text-green-700' :
-                                        ot.status === 'on_site' ? 'bg-blue-100 text-blue-700' :
-                                        ot.status === 'traveling' ? 'bg-purple-100 text-purple-700' :
-                                        ot.status === 'rework_required' ? 'bg-red-100 text-red-700' :
-                                        'bg-gray-100 text-gray-600'
-                                      }`}>
-                                        <span className={`h-1.5 w-1.5 rounded-full ${
-                                          ot.status === 'completed' ? 'bg-green-500' :
-                                          ot.status === 'on_site' ? 'bg-blue-500' :
-                                          ot.status === 'traveling' ? 'bg-purple-500' :
-                                          ot.status === 'rework_required' ? 'bg-red-500' :
-                                          'bg-gray-400'
-                                        }`} />
-                                        {ot.status}
-                                      </span>
-                                    </div>
-                                  ))}
+                                  {item.other_technicians.map((ot) => {
+                                    const statusIcon = {
+                                      completed: '✓',
+                                      closed: '✓',
+                                      rework_required: '⟳',
+                                      on_site: '⟳',
+                                      traveling: '→',
+                                      scheduled: '○',
+                                    }[ot.status] || '○';
+                                    return (
+                                      <div key={ot.technician_id} className="flex items-center justify-between text-sm">
+                                        <span className="text-gray-700">{statusIcon} {ot.technician_name}</span>
+                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                          ot.status === 'closed' ? 'bg-gray-100 text-gray-600' :
+                                          ot.status === 'completed' ? 'bg-green-100 text-green-700' :
+                                          ot.status === 'on_site' ? 'bg-blue-100 text-blue-700' :
+                                          ot.status === 'traveling' ? 'bg-purple-100 text-purple-700' :
+                                          ot.status === 'rework_required' ? 'bg-red-100 text-red-700' :
+                                          'bg-gray-100 text-gray-600'
+                                        }`}>
+                                          <span className={`h-1.5 w-1.5 rounded-full ${
+                                            ot.status === 'closed' ? 'bg-gray-400' :
+                                            ot.status === 'completed' ? 'bg-green-500' :
+                                            ot.status === 'on_site' ? 'bg-blue-500' :
+                                            ot.status === 'traveling' ? 'bg-purple-500' :
+                                            ot.status === 'rework_required' ? 'bg-red-500' :
+                                            'bg-gray-400'
+                                          }`} />
+                                          {ot.status === 'rework_required' ? 'Rework' : ot.status}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
@@ -885,97 +1046,96 @@ export function ReviewClient() {
                               )}
                             </div>
 
-                            {/* ── Rework History (per-technician) ─────────── */}
+                            {/* ── Rework History Timeline ──────────────────── */}
                             {(() => {
                               // Filter rework requests to this technician only
                               const techReworks = expandedData.reworkRequests
                                 .filter((rw) => rw.technician_id === item.technician_id);
                               if (techReworks.length === 0) return null;
 
+                              // Determine closed_at from item data
+                              const closedAt = item.closed_at || null;
+
                               return (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-3">
-                                  <h4 className="text-xs font-semibold text-red-700 uppercase tracking-wide">
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                  <h4 className="text-xs font-semibold text-red-700 uppercase tracking-wide mb-3">
                                     Rework History — {item.technician_name}
                                   </h4>
-                                  {techReworks.map((rw, idx) => {
-                                    const cycleNumber = idx + 1;
-                                    const isOpen = rw.status === 'open';
-                                    const isInProgress = rw.status === 'open' && rw.resumed_at != null;
-                                    const isCompleted = rw.status === 'completed';
-                                    const statusLabel = isOpen && !rw.resumed_at ? 'Open' :
-                                      isOpen && rw.resumed_at ? 'In Progress' :
-                                      'Completed';
-
-                                    return (
-                                      <div key={rw.id} className="bg-white rounded-lg border border-red-100 p-3 space-y-2">
-                                        {/* Header — cycle + status badge */}
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-sm font-semibold text-gray-900">
-                                            Rework {cycleNumber}
-                                          </span>
-                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                            isOpen && !rw.resumed_at ? 'bg-red-100 text-red-700' :
-                                            isInProgress ? 'bg-amber-100 text-amber-700' :
-                                            'bg-green-100 text-green-700'
-                                          }`}>
-                                            <span className={`h-1.5 w-1.5 rounded-full ${
-                                              isOpen && !rw.resumed_at ? 'bg-red-500' :
-                                              isInProgress ? 'bg-amber-500' :
-                                              'bg-green-500'
-                                            }`} />
-                                            {statusLabel}
-                                          </span>
-                                        </div>
-
-                                        {/* Details grid */}
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-600">
-                                          <span>Technician: <span className="font-medium text-gray-900">{item.technician_name}</span></span>
-                                          <span>Status: <span className="font-medium">{statusLabel}</span></span>
-                                          {rw.reason && (
-                                            <span className="col-span-2">Reason: <span className="font-medium text-gray-900">{rw.reason}</span></span>
-                                          )}
-                                          <span>Requested by: <span className="font-medium text-gray-900">{rw.requested_by_name || 'Unknown'}</span></span>
-                                          <span className="text-gray-500">Requested at: {new Date(rw.requested_at).toLocaleString()}</span>
-                                          {rw.resumed_at && (
-                                            <span className="text-gray-500">Resumed at: {new Date(rw.resumed_at).toLocaleString()}</span>
-                                          )}
-                                          {rw.resolved_at && (
-                                            <span className="text-gray-500">Completed at: {new Date(rw.resolved_at).toLocaleString()}</span>
-                                          )}
-                                        </div>
-
-                                        {/* Timeline */}
-                                        <div className="mt-1 pt-2 border-t border-gray-100">
-                                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                                            <span className="flex items-center gap-1">
-                                              <span className="h-2 w-2 rounded-full bg-red-500" />
-                                              Requested
-                                            </span>
-                                            <span className="text-gray-300">→</span>
-                                            <span className={`flex items-center gap-1 ${rw.resumed_at ? 'text-gray-700' : 'text-gray-400'}`}>
-                                              <span className={`h-2 w-2 rounded-full ${rw.resumed_at ? 'bg-amber-500' : 'bg-gray-300'}`} />
-                                              Technician resumed
-                                            </span>
-                                            <span className="text-gray-300">→</span>
-                                            <span className={`flex items-center gap-1 ${rw.resolved_at ? 'text-gray-700' : 'text-gray-400'}`}>
-                                              <span className={`h-2 w-2 rounded-full ${rw.resolved_at ? 'bg-green-500' : 'bg-gray-300'}`} />
-                                              Completed
-                                            </span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
+                                  {renderReworkTimeline(
+                                    techReworks,
+                                    expandedData.attachments,
+                                    expandedData.signatures,
+                                    expandedData.notes,
+                                    closedAt,
+                                    item.technician_name,
+                                  )}
                                 </div>
                               );
                             })()}
 
                             {/* ── Actions ───────────────────────────────── */}
                             <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
-                              {/* Close Assignment — show for completed (all cases) and rework_pending */}
-                              {(isFirstCompletion || isPostReworkCompletion) && (
-                                <>
-                                  {allRequired ? (
+                              {(() => {
+                                const isClosed = item.status === 'closed';
+
+                                // ─── CLOSED STATE ──────────────────────────────
+                                if (isClosed) {
+                                  return (
+                                    <>
+                                      <div className="w-full mb-1">
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium">
+                                          <svg className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                          Assignment Closed
+                                        </span>
+                                      </div>
+                                      {/* View PDF */}
+                                      <a
+                                        href={`/api/proxy/api/v1/reports/completion/${item.schedule_id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                                      >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        View PDF
+                                      </a>
+                                    </>
+                                  );
+                                }
+
+                                // ─── REWORK REQUIRED / IN PROGRESS ──────────────
+                                if (item.status === 'rework_required') {
+                                  return (
+                                    <>
+                                      <div className="w-full mb-1">
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
+                                          <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                                          Waiting for Technician
+                                        </span>
+                                      </div>
+                                      {/* Admin: force close override */}
+                                      {isAdmin && (
+                                        <button
+                                          onClick={() => handleClose(item)}
+                                          disabled={isCloseLoading}
+                                          className="px-5 py-2.5 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          {isCloseLoading ? 'Processing...' : 'Close Assignment'}
+                                        </button>
+                                      )}
+                                    </>
+                                  );
+                                }
+
+                                // ─── COMPLETED STATE ────────────────────────────
+                                if (item.status === 'completed') {
+                                  const isReworkCycle = item.current_rework_version > 0;
+
+                                  // Close button
+                                  const closeBtn = allRequired ? (
                                     <button
                                       onClick={() => handleClose(item)}
                                       disabled={isCloseLoading}
@@ -1005,65 +1165,41 @@ export function ReviewClient() {
                                       </svg>
                                       Close Assignment
                                     </button>
-                                  )}
-                                </>
-                              )}
+                                  );
 
-                              {/* Rework pending state — show Close Assignment for admin override */}
-                              {isReworkPending && isAdmin && (
-                                <button
-                                  onClick={() => handleClose(item)}
-                                  disabled={isCloseLoading}
-                                  className="px-5 py-2.5 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {isCloseLoading ? 'Processing...' : 'Close Assignment'}
-                                </button>
-                              )}
+                                  // Rework button label
+                                  const reworkBtnLabel = isReworkCycle
+                                    ? 'Request Another Rework'
+                                    : 'Request Rework';
 
-                              {/* Rework Pending badge — shown when rework is open */}
-                              {isReworkPending && (
-                                <span className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-red-100 text-red-700 rounded-lg text-sm font-medium">
-                                  <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                                  Rework Pending
-                                </span>
-                              )}
+                                  return (
+                                    <>
+                                      {closeBtn}
+                                      <button
+                                        onClick={() => handleRework(item)}
+                                        disabled={isReworkLoading}
+                                        className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        {isReworkLoading ? 'Processing...' : reworkBtnLabel}
+                                      </button>
+                                      <a
+                                        href={`/api/proxy/api/v1/reports/completion/${item.schedule_id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                                      >
+                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        PDF
+                                      </a>
+                                    </>
+                                  );
+                                }
 
-                              {/* Request Rework — only for completed without open rework */}
-                              {isFirstCompletion && (
-                                <button
-                                  onClick={() => handleRework(item)}
-                                  disabled={isReworkLoading}
-                                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {isReworkLoading ? 'Processing...' : 'Request Rework'}
-                                </button>
-                              )}
-
-                              {/* Request Another Rework — post-rework completion */}
-                              {isPostReworkCompletion && (
-                                <button
-                                  onClick={() => handleRework(item)}
-                                  disabled={isReworkLoading}
-                                  className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {isReworkLoading ? 'Processing...' : 'Request Another Rework'}
-                                </button>
-                              )}
-
-                              {/* Download PDF completion report */}
-                              {(isFirstCompletion || isPostReworkCompletion) && (
-                                <a
-                                  href={`/api/proxy/api/v1/reports/completion/${item.schedule_id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
-                                >
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                  </svg>
-                                  PDF
-                                </a>
-                              )}
+                                // Fallback — unknown status
+                                return null;
+                              })()}
                             </div>
                           </div>
                         )}

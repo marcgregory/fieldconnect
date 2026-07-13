@@ -354,6 +354,7 @@ export async function findCompletedTechnicians(): Promise<ReviewItem[]> {
       u.name AS technician_name,
       st.status,
       st.completed_at::text,
+      st.closed_at::text,
       s.project_id,
       p.name AS project_name,
       p.address AS project_address,
@@ -427,6 +428,7 @@ export async function findCompletedTechnicians(): Promise<ReviewItem[]> {
     technician_name: row.technician_name,
     status: row.status,
     completed_at: row.completed_at,
+    closed_at: row.closed_at,
     project_id: row.project_id,
     project_name: row.project_name,
     project_address: row.project_address,
@@ -886,6 +888,14 @@ export async function updateStatus(data: {
                WHEN $1::varchar = 'rework_required' THEN TRUE
                WHEN $1::varchar IN ('completed', 'closed') THEN FALSE
                ELSE has_open_rework
+             END,
+             -- Increment current_rework_version when completing from on_site (rework completion)
+             current_rework_version = CASE
+               WHEN $1::varchar = 'completed' AND (
+                 SELECT status FROM schedule_technicians
+                 WHERE schedule_id = $2 AND technician_id = $3
+               ) = 'on_site' THEN current_rework_version + 1
+               ELSE current_rework_version
              END
          WHERE schedule_id = $2 AND technician_id = $3`,
         [data.status, data.id, techId],

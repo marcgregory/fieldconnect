@@ -55,6 +55,20 @@ export async function reworkRoutes(app: FastifyInstance) {
         });
       }
 
+      // ─── Guard: prevent duplicate rework requests ───────────────────────────
+      // Check if this technician already has an open rework request on this schedule.
+      // If so, reject — the existing one must be completed or cancelled first.
+      const existingOpen = await reworkQueries.getLatestOpenRework(
+        id,
+        technician_id as string,
+      );
+      if (existingOpen) {
+        return reply.status(400).send({
+          success: false,
+          error: 'This technician already has an open rework request. Complete or cancel it before requesting another.',
+        });
+      }
+
       try {
         // Resolve the affected technician's name from the existing workflow
         // (must be done before the broadcast which needs a single name, not the
@@ -64,7 +78,7 @@ export async function reworkRoutes(app: FastifyInstance) {
         );
         const reworkTechName = reworkTargetTech?.technician_name || (technician_id as string) || 'technician';
 
-        // Create the rework request
+        // Create the rework request (INSERT is inside updateStatus's transaction below)
         const rework = await reworkQueries.createReworkRequest(
           id,
           parsed.data.reason,

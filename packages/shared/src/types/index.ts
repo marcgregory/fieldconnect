@@ -564,6 +564,7 @@ export interface ReviewItem {
   technician_name: string;
   status: JobStatus;
   completed_at: string | null;
+  closed_at: string | null;
   // Schedule/project info
   project_id: string;
   project_name: string;
