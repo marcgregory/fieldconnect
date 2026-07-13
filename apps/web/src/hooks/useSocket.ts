@@ -9,6 +9,7 @@ import type {
   NoteEvent,
   AttachmentEvent,
   SignatureEvent,
+  AuthAuditEvent,
 } from '@fieldconnect/shared';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -22,10 +23,12 @@ interface UseSocketReturn {
   lastNoteEvent: NoteEvent | null;
   lastAttachmentEvent: AttachmentEvent | null;
   lastSignatureEvent: SignatureEvent | null;
+  lastAuthAuditEvent: AuthAuditEvent | null;
   onJobUpdate: (callback: (event: JobEvent) => void) => () => void;
   onNoteAdded: (callback: (event: NoteEvent) => void) => () => void;
   onAttachmentUpdate: (callback: (event: AttachmentEvent) => void) => () => void;
   onSignatureCaptured: (callback: (event: SignatureEvent) => void) => () => void;
+  onAuthAudit: (callback: (event: AuthAuditEvent) => void) => () => void;
 }
 
 /**
@@ -44,12 +47,14 @@ export function useSocket(): UseSocketReturn {
   const [lastNoteEvent, setLastNoteEvent] = useState<NoteEvent | null>(null);
   const [lastAttachmentEvent, setLastAttachmentEvent] = useState<AttachmentEvent | null>(null);
   const [lastSignatureEvent, setLastSignatureEvent] = useState<SignatureEvent | null>(null);
+  const [lastAuthAuditEvent, setLastAuthAuditEvent] = useState<AuthAuditEvent | null>(null);
 
   // Store callbacks for external listeners (used by components that want to refetch on events)
   const jobUpdateListeners = useRef<Set<(event: JobEvent) => void>>(new Set());
   const noteAddedListeners = useRef<Set<(event: NoteEvent) => void>>(new Set());
   const attachmentUpdateListeners = useRef<Set<(event: AttachmentEvent) => void>>(new Set());
   const signatureCapturedListeners = useRef<Set<(event: SignatureEvent) => void>>(new Set());
+  const authAuditListeners = useRef<Set<(event: AuthAuditEvent) => void>>(new Set());
 
   const onJobUpdate = useCallback((cb: (event: JobEvent) => void) => {
     jobUpdateListeners.current.add(cb);
@@ -69,6 +74,11 @@ export function useSocket(): UseSocketReturn {
   const onSignatureCaptured = useCallback((cb: (event: SignatureEvent) => void) => {
     signatureCapturedListeners.current.add(cb);
     return () => { signatureCapturedListeners.current.delete(cb); };
+  }, []);
+
+  const onAuthAudit = useCallback((cb: (event: AuthAuditEvent) => void) => {
+    authAuditListeners.current.add(cb);
+    return () => { authAuditListeners.current.delete(cb); };
   }, []);
 
   useEffect(() => {
@@ -144,6 +154,11 @@ export function useSocket(): UseSocketReturn {
         signatureCapturedListeners.current.forEach((cb) => cb(event));
       });
 
+      socket.on('auth:audit', (event: AuthAuditEvent) => {
+        setLastAuthAuditEvent(event);
+        authAuditListeners.current.forEach((cb) => cb(event));
+      });
+
       socket.on('connect_error', (error) => {
         console.error('Socket connection error:', error.message);
         // If auth failed, try to get a fresh token and reconnect
@@ -178,9 +193,11 @@ export function useSocket(): UseSocketReturn {
     lastNoteEvent,
     lastAttachmentEvent,
     lastSignatureEvent,
+    lastAuthAuditEvent,
     onJobUpdate,
     onNoteAdded,
     onAttachmentUpdate,
     onSignatureCaptured,
+    onAuthAudit,
   };
 }

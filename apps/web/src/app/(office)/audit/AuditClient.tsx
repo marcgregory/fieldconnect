@@ -1,17 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import type { AuthAuditEvent } from '@fieldconnect/shared';
+import { useSocket } from '@/hooks/useSocket';
 
-interface AuditEvent {
-  id: string;
-  user_id: string | null;
-  action: string;
-  metadata: Record<string, unknown> | null;
-  ip_address: string | null;
-  created_at: string;
-  user_name: string | null;
-  user_email: string | null;
-}
+type AuditEvent = AuthAuditEvent;
 
 const ACTION_LABELS: Record<string, string> = {
   verification_email_sent: 'Verification Email Sent',
@@ -90,6 +83,7 @@ export function AuditClient() {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const PER_PAGE = 50;
+  const { onAuthAudit } = useSocket();
 
   const fetchActions = useCallback(async () => {
     try {
@@ -140,6 +134,31 @@ export function AuditClient() {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  const eventMatchesFilters = useCallback((event: AuditEvent): boolean => {
+    if (filterAction && event.action !== filterAction) return false;
+
+    const eventTime = new Date(event.created_at).getTime();
+    if (filterDateFrom && eventTime < new Date(filterDateFrom).getTime()) return false;
+    if (filterDateTo && eventTime > new Date(filterDateTo).getTime()) return false;
+
+    return true;
+  }, [filterAction, filterDateFrom, filterDateTo]);
+
+  useEffect(() => {
+    return onAuthAudit((event) => {
+      fetchActions();
+      if (!eventMatchesFilters(event)) return;
+
+      setTotal((prev) => prev + 1);
+      if (page !== 0) return;
+
+      setEvents((prev) => [
+        event,
+        ...prev.filter((existing) => existing.id !== event.id),
+      ].slice(0, PER_PAGE));
+    });
+  }, [eventMatchesFilters, fetchActions, onAuthAudit, page]);
 
   const handleFilter = () => {
     setPage(0);

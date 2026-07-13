@@ -351,6 +351,17 @@ export interface AuditLogWithUser extends AuditLog {
   user_name: string;
 }
 
+export interface AuthAuditEvent {
+  id: string;
+  user_id: string | null;
+  action: string;
+  metadata: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+  user_name: string | null;
+  user_email: string | null;
+}
+
 // ─── Field Data Collection ──────────────────────────────────────────────────
 
 export type NoteType = 'technician' | 'internal';

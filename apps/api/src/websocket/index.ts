@@ -7,6 +7,7 @@ import type {
   NoteEvent,
   AttachmentEvent,
   SignatureEvent,
+  AuthAuditEvent,
 } from '@fieldconnect/shared';
 
 let io: SocketServer | null = null;
@@ -56,9 +57,14 @@ export function initWebSocket(httpServer: HTTPServer): SocketServer {
       // Join a personal room for targeted messages
       socket.join(`user:${userId}`);
 
-      // Office staff join the tech:status room for live feed
+      // Office staff join the tech:status room for live feed.
       if (role !== 'field_technician') {
         socket.join('tech:status');
+      }
+
+      // Auth audit events are admin-only.
+      if (role === 'admin') {
+        socket.join('auth:audit');
       }
 
       next();
@@ -142,4 +148,12 @@ export function broadcastSignatureEvent(event: SignatureEvent): void {
   if (event.technician_id) {
     io.to(`user:${event.technician_id}`).emit('signature:captured', event);
   }
+}
+
+/**
+ * Broadcast an auth audit event to connected admins.
+ */
+export function broadcastAuthAuditEvent(event: AuthAuditEvent): void {
+  if (!io) return;
+  io.to('auth:audit').emit('auth:audit', event);
 }

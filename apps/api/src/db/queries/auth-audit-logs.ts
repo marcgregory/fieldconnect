@@ -10,6 +10,8 @@
  * it boring, keep it typed.
  */
 
+import type { AuthAuditEvent } from '@fieldconnect/shared';
+import { broadcastAuthAuditEvent } from '../../websocket';
 import { query } from '../index';
 
 export type AuthAuditAction =
@@ -39,16 +41,6 @@ export type AuthAuditAction =
   | 'logout_all'
   | 'all_sessions_revoked';
 
-export interface AuthAuditEvent {
-  id: string;
-  user_id: string | null;
-  action: string;
-  metadata: Record<string, unknown> | null;
-  ip_address: string | null;
-  created_at: string;
-  user_name: string | null;
-  user_email: string | null;
-}
 
 export interface ListAuthAuditOptions {
   limit: number;
@@ -74,11 +66,30 @@ export async function log(
   metadata?: Record<string, unknown>,
   ipAddress?: string,
 ): Promise<void> {
-  await query(
-    `INSERT INTO auth_audit_logs (user_id, action, metadata, ip_address)
-     VALUES ($1, $2, $3, $4)`,
+  const result = await query(
+    `WITH inserted AS (
+       INSERT INTO auth_audit_logs (user_id, action, metadata, ip_address)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, user_id, action, metadata, ip_address, created_at
+     )
+     SELECT
+       inserted.id,
+       inserted.user_id,
+       inserted.action,
+       inserted.metadata,
+       inserted.ip_address,
+       inserted.created_at,
+       u.name AS user_name,
+       u.email AS user_email
+     FROM inserted
+     LEFT JOIN users u ON u.id = inserted.user_id`,
     [userId, action, metadata ? JSON.stringify(metadata) : null, ipAddress ?? null],
   );
+
+  const event = result.rows[0] as AuthAuditEvent | undefined;
+  if (event) {
+    broadcastAuthAuditEvent(event);
+  }
 }
 
 /**
