@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSocket } from '@/hooks/useSocket';
-import { CalendarView } from '@/components/office/CalendarView';
+import { CalendarView } from '@/components/office/CalendarViewTimeline';
 import { ScheduleForm } from '@/components/office/ScheduleForm';
 import { UnassignedQueue } from '@/components/office/UnassignedQueue';
 import {

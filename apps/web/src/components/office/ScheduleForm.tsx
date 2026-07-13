@@ -1,15 +1,28 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { getProjects, getAvailableTechnicians, getProjectAssignments } from '@/lib/api';
-import type {
-  Project,
-  User,
-  ScheduleWithDetails,
-  CreateScheduleInput,
-  UpdateScheduleInput,
-  TechnicianAvailability,
+import { useState, useEffect, useMemo } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@fieldconnect/ui';
+import {
+  createScheduleSchema,
+  type CreateScheduleInput,
+  type UpdateScheduleInput,
+  type ScheduleWithDetails,
+  type Project,
+  type TechnicianAvailability,
 } from '@fieldconnect/shared';
+import { getProjects, getAvailableTechnicians, getProjectAssignments } from '@/lib/api';
+import { z } from 'zod';
+
+type FormValues = z.infer<typeof createScheduleSchema>;
 
 interface ScheduleFormProps {
   schedule?: ScheduleWithDetails | null;
@@ -26,6 +39,14 @@ const AVAILABILITY_LABELS: Record<string, { label: string; class: string }> = {
   buffer_conflict: { label: 'Buffer conflict', class: 'text-blue-700 bg-blue-50' },
 };
 
+const ACTIVE_WORKFLOW_STATUSES = new Set([
+  'traveling',
+  'on_site',
+  'completed',
+  'closed',
+  'rework_required',
+]);
+
 export function ScheduleForm({
   schedule,
   defaultDate,
@@ -37,29 +58,10 @@ export function ScheduleForm({
   const [projects, setProjects] = useState<Project[]>([]);
   const [technicians, setTechnicians] = useState<TechnicianAvailability[]>([]);
   const [projectTeamIds, setProjectTeamIds] = useState<string[]>([]);
-  const [projectId, setProjectId] = useState(schedule?.project_id || '');
-  const [selectedTechIds, setSelectedTechIds] = useState<string[]>(schedule?.technician_ids || []);
-  // Avoid new Date() in initial state — use the provided date, defaultDate, or
-  // an empty string that gets updated after mount via useEffect.
-  const [date, setDate] = useState(
-    schedule?.scheduled_date || defaultDate || '',
-  );
-  const hasSetDefaultRef = useRef(false);
-  useEffect(() => {
-    if (!date && !hasSetDefaultRef.current) {
-      hasSetDefaultRef.current = true;
-      setDate(new Date().toLocaleDateString('en-CA'));
-    }
-  }, [date]);
-  const [startTime, setStartTime] = useState(
-    schedule?.start_time?.slice(0, 5) || defaultTime?.slice(0, 5) || '',
-  );
-  const [endTime, setEndTime] = useState(schedule?.end_time?.slice(0, 5) || '');
-  const [notes, setNotes] = useState(schedule?.notes || '');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [serverError, setServerError] = useState('');
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [loadingTechs, setLoadingTechs] = useState(false);
+  const [conflictSaving, setConflictSaving] = useState(false);
   const [conflictDialog, setConflictDialog] = useState<{
     message: string;
     conflicts: Array<{
@@ -71,23 +73,55 @@ export function ScheduleForm({
     }>;
   } | null>(null);
   const [pendingPayload, setPendingPayload] = useState<any>(null);
-  const [projectsLoaded, setProjectsLoaded] = useState(false);
-  const [techsLoaded, setTechsLoaded] = useState(false);
 
   const isEditing = !!schedule;
+
+  // Determine which technicians have active workflow state and cannot be removed
+  const lockedTechIds = useMemo(() => {
+    if (!schedule) return new Set<string>();
+    return new Set(
+      (schedule.technician_workflow || [])
+        .filter((w) => ACTIVE_WORKFLOW_STATUSES.has(w.status))
+        .map((w) => w.technician_id),
+    );
+  }, [schedule]);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(createScheduleSchema),
+    defaultValues: {
+      project_id: schedule?.project_id || '',
+      technician_ids: schedule?.technician_ids || [],
+      scheduled_date: schedule?.scheduled_date || defaultDate || '',
+      start_time:
+        schedule?.start_time?.slice(0, 5) || defaultTime?.slice(0, 5) || '',
+      end_time: schedule?.end_time?.slice(0, 5) || '',
+      notes: schedule?.notes || '',
+    },
+  });
+
+  const watchedProjectId = form.watch('project_id');
+  const watchedDate = form.watch('scheduled_date');
+  const watchedStartTime = form.watch('start_time');
+  const watchedEndTime = form.watch('end_time');
+
+  // Default date to today after mount when no value is set
+  useEffect(() => {
+    const date = form.getValues('scheduled_date');
+    if (!date) {
+      form.setValue('scheduled_date', new Date().toLocaleDateString('en-CA'));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load projects once
   useEffect(() => {
     async function load() {
       try {
         setLoadingProjects(true);
-        const [proj] = await Promise.all([
-          getProjects({ status: 'active' }),
-        ]);
+        const proj = await getProjects({ status: 'active' });
         setProjects(proj);
-        setProjectsLoaded(true);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
+        setServerError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
         setLoadingProjects(false);
       }
@@ -97,60 +131,56 @@ export function ScheduleForm({
 
   // Load project team members when project changes
   useEffect(() => {
-    if (!projectId) {
+    if (!watchedProjectId) {
       setProjectTeamIds([]);
       return;
     }
+    let cancelled = false;
     async function loadTeam() {
       try {
-        const team = await getProjectAssignments(projectId);
-        setProjectTeamIds(team.map((m: any) => m.user_id));
+        const team = await getProjectAssignments(watchedProjectId);
+        if (!cancelled) {
+          setProjectTeamIds(team.map((m: any) => m.user_id));
+        }
       } catch {
-        setProjectTeamIds([]);
+        if (!cancelled) setProjectTeamIds([]);
       }
     }
     loadTeam();
-  }, [projectId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [watchedProjectId]);
 
-  // Load technicians, optionally with availability when time slot is set
+  // Load technicians with availability when date/time changes
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       try {
         setLoadingTechs(true);
-        // Pass date/time so backend returns availability status
         const techs = await getAvailableTechnicians(
-          date || undefined,
-          startTime || undefined,
-          endTime || undefined,
+          watchedDate || undefined,
+          watchedStartTime || undefined,
+          watchedEndTime || undefined,
         );
-        setTechnicians(techs);
-        setTechsLoaded(true);
+        if (!cancelled) setTechnicians(techs);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load technicians');
+        if (!cancelled) {
+          setServerError(
+            err instanceof Error ? err.message : 'Failed to load technicians',
+          );
+        }
       } finally {
-        setLoadingTechs(false);
+        if (!cancelled) setLoadingTechs(false);
       }
     }
     load();
-  }, [date, startTime, endTime]);
-
-  // When projects/technicians load, set selected values from schedule
-  useEffect(() => {
-    if (schedule && projectsLoaded) {
-      setProjectId(schedule.project_id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule?.project_id, projectsLoaded]);
-
-  useEffect(() => {
-    if (schedule && techsLoaded && technicians.length > 0) {
-      setSelectedTechIds(schedule.technician_ids || []);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schedule?.technician_ids, techsLoaded, technicians.length]);
+    return () => {
+      cancelled = true;
+    };
+  }, [watchedDate, watchedStartTime, watchedEndTime]);
 
   function formatTime(time: string): string {
-    // Convert "10:45:00" or "10:45" to "10:45 AM"
     const parts = time.split(':');
     const h = parseInt(parts[0], 10);
     const m = parts[1];
@@ -159,11 +189,23 @@ export function ScheduleForm({
     return `${h12}:${m} ${ampm}`;
   }
 
+  function buildPayload(values: FormValues, force = false) {
+    return {
+      project_id: values.project_id,
+      technician_ids: values.technician_ids,
+      scheduled_date: values.scheduled_date,
+      start_time: values.start_time || undefined,
+      end_time: values.end_time || undefined,
+      notes: values.notes || undefined,
+      ...(force ? { force: true } : {}),
+    };
+  }
+
   async function handleForceAssign() {
     if (!pendingPayload) return;
     setConflictDialog(null);
     setPendingPayload(null);
-    setSaving(true);
+    setConflictSaving(true);
     try {
       if ('id' in pendingPayload) {
         await onSaved(pendingPayload);
@@ -171,8 +213,8 @@ export function ScheduleForm({
         await onSaved(pendingPayload as CreateScheduleInput);
       }
     } catch (innerErr) {
-      const msg2 = innerErr instanceof Error ? innerErr.message : 'Failed to force save';
-      // If still a conflict with no force option, show the error directly
+      const msg2 =
+        innerErr instanceof Error ? innerErr.message : 'Failed to force save';
       const innerConflict = innerErr as any;
       if (innerConflict?.conflicts) {
         setConflictDialog({
@@ -181,72 +223,42 @@ export function ScheduleForm({
         });
         setPendingPayload(pendingPayload);
       } else {
-        setError(msg2);
+        setServerError(msg2);
       }
     } finally {
-      setSaving(false);
+      setConflictSaving(false);
     }
   }
 
-  function toggleTechnician(techId: string) {
-    setSelectedTechIds((prev) =>
-      prev.includes(techId) ? prev.filter((id) => id !== techId) : [...prev, techId],
-    );
-  }
+  async function onSubmit(values: FormValues) {
+    setServerError('');
+    setConflictDialog(null);
+    setPendingPayload(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
+    const payload = buildPayload(values);
 
-    // Validation
-    if (!projectId) { setError('Please select a project'); return; }
-    if (selectedTechIds.length === 0) { setError('Please select at least one technician'); return; }
-    if (!date) { setError('Please select a date'); return; }
-    if (startTime && startTime < '06:00') { setError('Schedules cannot start before 6:00 AM.'); return; }
-    if (startTime && endTime && endTime <= startTime) { setError('End time must be after start time.'); return; }
-
-    setSaving(true);
     try {
-      const payload: any = {
-        project_id: projectId,
-        technician_ids: selectedTechIds,
-        scheduled_date: date,
-        start_time: startTime || undefined,
-        end_time: endTime || undefined,
-        notes: notes || undefined,
-      };
-
       if (isEditing) {
-        await onSaved({ id: schedule.id, ...payload });
+        await onSaved({ id: schedule!.id, ...payload });
       } else {
         await onSaved(payload as CreateScheduleInput);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save';
-
-      // Check if this is a conflict error with can_force_assign flag
       const conflictErr = err as any;
       if (conflictErr?.can_force_assign && conflictErr?.conflicts) {
-        // Show a proper conflict dialog instead of window.confirm
         setConflictDialog({
           message: msg,
           conflicts: conflictErr.conflicts,
         });
         setPendingPayload({
-          project_id: projectId,
-          technician_ids: selectedTechIds,
-          scheduled_date: date,
-          start_time: startTime || undefined,
-          end_time: endTime || undefined,
-          notes: notes || undefined,
+          id: isEditing ? schedule!.id : undefined,
+          ...payload,
           force: true,
-          ...(isEditing ? { id: schedule!.id } : {}),
         });
       } else {
-        setError(msg);
+        setServerError(msg);
       }
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -260,164 +272,260 @@ export function ScheduleForm({
           onClick={onClose}
           className="p-1 text-gray-400 hover:text-gray-600"
         >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
           </svg>
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4 whitespace-pre-line">
-          {error}
+      {serverError && (
+        <div
+          role="alert"
+          className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4 whitespace-pre-line"
+        >
+          {serverError}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Project */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
-          <select
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            disabled={loadingProjects}
-          >
-            <option value="">Select a project...</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="space-y-4"
+          noValidate
+        >
+          {/* Project */}
+          <FormField
+            control={form.control}
+            name="project_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Project</FormLabel>
+                <FormControl>
+                  <select
+                    {...field}
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={loadingProjects}
+                  >
+                    <option value="">Select a project...</option>
+                    {projects.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
-        {/* Scheduled Technicians (multi-select) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Technicians</label>
-          {!projectId ? (
-            <p className="text-sm text-gray-400 italic">Select a project first...</p>
-          ) : projectTeamIds.length === 0 ? (
-            <p className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded">
-              No technicians assigned to this project team. Add team members first.
-            </p>
-          ) : (
-            <div className="space-y-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
-              {technicians
-                .filter((t) => projectTeamIds.includes(t.id))
-                .map((t) => {
-                  const isSelected = selectedTechIds.includes(t.id);
-                  const avail = AVAILABILITY_LABELS[t.availability] || AVAILABILITY_LABELS.available;
-                  const isBusy = t.availability !== 'available';
-                  return (
-                    <label
-                      key={t.id}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-blue-50 border border-blue-300'
-                          : isBusy
-                            ? 'bg-red-50 border border-red-100'
-                            : 'bg-gray-50 border border-transparent hover:border-gray-300'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleTechnician(t.id)}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
-                      />
-                      <span className="font-medium">{t.name}</span>
-                      <span className={`ml-auto text-xs font-medium px-1.5 py-0.5 rounded ${avail.class}`}>
-                        {avail.label}
-                      </span>
-                    </label>
-                  );
-                })}
+          {/* Scheduled Technicians (multi-select) */}
+          <FormField
+            control={form.control}
+            name="technician_ids"
+            render={({ field, fieldState }) => (
+              <FormItem>
+                <FormLabel>Scheduled Technicians</FormLabel>
+                {!watchedProjectId ? (
+                  <p className="text-sm text-gray-400 italic">
+                    Select a project first...
+                  </p>
+                ) : projectTeamIds.length === 0 ? (
+                  <p className="text-xs text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                    No technicians assigned to this project team. Add team members
+                    first.
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                      {technicians
+                        .filter((t) => projectTeamIds.includes(t.id))
+                        .map((t) => {
+                          const isSelected = field.value.includes(t.id);
+                          const isLocked = isEditing && lockedTechIds.has(t.id);
+                          const avail =
+                            AVAILABILITY_LABELS[t.availability] ||
+                            AVAILABILITY_LABELS.available;
+                          const isBusy = t.availability !== 'available';
+                          return (
+                            <label
+                              key={t.id}
+                              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors ${
+                                isLocked
+                                  ? 'opacity-60 cursor-not-allowed'
+                                  : isSelected
+                                    ? 'bg-blue-50 border border-blue-300'
+                                    : isBusy
+                                      ? 'bg-red-50 border border-red-100'
+                                      : 'bg-gray-50 border border-transparent hover:border-gray-300'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                disabled={isLocked}
+                                onChange={() => {
+                                  const next = isSelected
+                                    ? field.value.filter((id) => id !== t.id)
+                                    : [...field.value, t.id];
+                                  field.onChange(next);
+                                }}
+                                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                              />
+                              <span className="font-medium">{t.name}</span>
+                              <span
+                                className={`ml-auto text-xs font-medium px-1.5 py-0.5 rounded ${avail.class}`}
+                              >
+                                {avail.label}
+                              </span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                    {field.value.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {field.value.length} technician
+                        {field.value.length !== 1 ? 's' : ''} selected
+                      </p>
+                    )}
+                    {fieldState.error && <FormMessage />}
+                  </>
+                )}
+              </FormItem>
+            )}
+          />
+
+          {/* Date */}
+          <FormField
+            control={form.control}
+            name="scheduled_date"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Date</FormLabel>
+                <FormControl>
+                  <input
+                    type="date"
+                    {...field}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Time Range */}
+          <div className="grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="start_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Time</FormLabel>
+                  <FormControl>
+                    <input
+                      type="time"
+                      {...field}
+                      value={field.value ?? ''}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="end_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>End Time</FormLabel>
+                  <FormControl>
+                    <input
+                      type="time"
+                      {...field}
+                      value={field.value ?? ''}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          {/* Notes */}
+          <FormField
+            control={form.control}
+            name="notes"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Notes</FormLabel>
+                <FormControl>
+                  <textarea
+                    {...field}
+                    value={field.value ?? ''}
+                    rows={3}
+                    maxLength={2000}
+                    placeholder="Optional notes about this schedule entry"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-2">
+            <div>
+              {isEditing && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(schedule!.id)}
+                  className="text-sm text-red-600 hover:text-red-700 font-medium"
+                >
+                  Delete
+                </button>
+              )}
             </div>
-          )}
-          {selectedTechIds.length > 0 && (
-            <p className="text-xs text-gray-500 mt-1">
-              {selectedTechIds.length} technician{selectedTechIds.length !== 1 ? 's' : ''} selected
-            </p>
-          )}
-        </div>
-
-        {/* Date */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-
-        {/* Time Range */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-            <input
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-            <input
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-
-        {/* Notes */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            maxLength={2000}
-            placeholder="Optional notes about this schedule entry"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-          />
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
-          <div>
-            {isEditing && onDelete && (
+            <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => onDelete(schedule.id)}
-                className="text-sm text-red-600 hover:text-red-700 font-medium"
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                Delete
+                Cancel
               </button>
-            )}
+              <button
+                type="submit"
+                disabled={
+                  form.formState.isSubmitting || loadingProjects || loadingTechs
+                }
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {form.formState.isSubmitting
+                  ? 'Saving...'
+                  : isEditing
+                    ? 'Update Schedule'
+                    : 'Create Schedule'}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving || loadingProjects || loadingTechs}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Saving...' : isEditing ? 'Update Schedule' : 'Create Schedule'}
-            </button>
-          </div>
-        </div>
-      </form>
+        </form>
+      </Form>
 
       {/* Conflict Force-Assign Modal */}
       {conflictDialog && (
@@ -434,11 +542,17 @@ export function ScheduleForm({
             {conflictDialog.conflicts.length > 0 && (
               <div className="space-y-3 mb-4 max-h-60 overflow-y-auto">
                 {conflictDialog.conflicts.map((c, i) => (
-                  <div key={i} className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
-                    <p className="font-semibold text-gray-900">{c.technician_name}</p>
-                    <p className="text-gray-600">{c.project_name}</p>
+                  <div
+                    key={i}
+                    className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm"
+                  >
+                    <p className="font-semibold text-gray-900">
+                      {c.technician_name || ''}
+                    </p>
+                    <p className="text-gray-600">{c.project_name || ''}</p>
                     <p className="text-gray-600">
-                      {formatTime(c.start_time)} — {formatTime(c.end_time)}
+                      {c.start_time ? formatTime(c.start_time) : ''} —
+                      {c.end_time ? formatTime(c.end_time) : ''}
                     </p>
                     {c.conflict_type && (
                       <p className="text-red-600 text-xs mt-1">
@@ -464,10 +578,10 @@ export function ScheduleForm({
               </button>
               <button
                 onClick={handleForceAssign}
-                disabled={saving}
+                disabled={conflictSaving}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Force Assign'}
+                {conflictSaving ? 'Saving...' : 'Force Assign'}
               </button>
             </div>
           </div>
@@ -476,4 +590,3 @@ export function ScheduleForm({
     </div>
   );
 }
-

@@ -5,6 +5,7 @@ import type { ScheduleWithDetails, JobStatus } from '@fieldconnect/shared';
 interface ScheduleCardProps {
   schedule: ScheduleWithDetails;
   compact?: boolean;
+  timeline?: boolean;
   onClick?: () => void;
   hasConflict?: boolean;
   conflictType?: 'overlap' | 'buffer' | null;
@@ -31,7 +32,14 @@ const CONFLICT_STYLES: Record<string, string> = {
   buffer: 'border-blue-400 !border-2 !border-blue-400',
 };
 
-export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, conflictType }: ScheduleCardProps) {
+export function ScheduleCard({
+  schedule,
+  compact = false,
+  timeline = false,
+  onClick,
+  hasConflict,
+  conflictType,
+}: ScheduleCardProps) {
   // Derive per-technician status from technician_workflow when the schedule
   // has exactly one technician assigned — this is the authoritative status
   // for that technician, more accurate than the aggregate schedules.status.
@@ -48,6 +56,44 @@ export function ScheduleCard({ schedule, compact = false, onClick, hasConflict, 
   function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
     onClick?.();
+  }
+
+  if (timeline) {
+    return (
+      <button
+        onClick={handleClick}
+        draggable={!compact}
+        title={`${schedule.project_name} — ${schedule.technician_name}`}
+        className={`h-full w-full min-w-0 overflow-hidden text-left border rounded-md ${
+          compact ? 'px-1.5 py-1' : 'px-2 py-1.5'
+        } ${style.bg} ${style.text} hover:shadow-md hover:z-10 transition-shadow ${conflictStyle}`}
+      >
+        <div className="flex min-w-0 items-center gap-1">
+          {hasConflict && (
+            <span
+              className={`flex-shrink-0 text-[10px] ${
+                conflictType === 'overlap' ? 'text-red-600' : 'text-blue-600'
+              }`}
+              aria-label={conflictType === 'overlap' ? 'Overlapping job' : 'Buffer conflict'}
+            >
+              {conflictType === 'overlap' ? '⚠' : '⏳'}
+            </span>
+          )}
+          <p className={`${compact ? 'text-[11px]' : 'text-xs'} min-w-0 truncate font-semibold leading-tight`}>
+            {schedule.project_name}
+          </p>
+        </div>
+        <p className={`${compact ? 'text-[9px]' : 'text-[11px]'} mt-0.5 truncate leading-tight opacity-75`}>
+          {schedule.technician_name}
+        </p>
+        {!compact && schedule.start_time && (
+          <p className="mt-0.5 truncate text-[10px] leading-tight opacity-65">
+            {schedule.start_time.slice(0, 5)}
+            {schedule.end_time ? ` — ${schedule.end_time.slice(0, 5)}` : ''}
+          </p>
+        )}
+      </button>
+    );
   }
 
   if (compact) {
