@@ -114,12 +114,23 @@ const latSchema = z.number().min(-90).max(90).optional();
 const lngSchema = z.number().min(-180).max(180).optional();
 const accuracySchema = z.number().min(0).max(10000).optional();
 
+export const CLOCK_IN_GPS_STATUSES = [
+  'captured',
+  'permission_denied',
+  'timeout',
+  'position_unavailable',
+  'unsupported',
+  'omitted',
+] as const;
+
 export const clockInSchema = z.object({
   project_id: z.string().uuid('Invalid project ID'),
   notes: z.string().max(5000).optional(),
   clock_in_lat: latSchema,
   clock_in_lng: lngSchema,
   clock_in_accuracy: accuracySchema,
+  clock_in_gps_status: z.enum(CLOCK_IN_GPS_STATUSES as unknown as [string, ...string[]]).optional(),
+  clock_in_gps_error: z.string().max(500).optional(),
   geofence_override: z.boolean().optional(),
 });
 

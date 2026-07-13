@@ -125,6 +125,8 @@ export interface UpdateProjectInput {
 
 // ─── Time Entry ────────────────────────────────────────────────────────────
 
+export type ClockInGpsStatus = 'captured' | 'permission_denied' | 'timeout' | 'position_unavailable' | 'unsupported' | 'omitted';
+
 export interface TimeEntry {
   id: string;
   user_id: string;
@@ -136,6 +138,8 @@ export interface TimeEntry {
   clock_in_lat: number | null;
   clock_in_lng: number | null;
   clock_in_accuracy: number | null;
+  clock_in_gps_status: ClockInGpsStatus | null;
+  clock_in_gps_error: string | null;
   clock_out_lat: number | null;
   clock_out_lng: number | null;
   clock_out_accuracy: number | null;
@@ -575,6 +579,8 @@ export interface ReviewItem {
   clock_in_lng: number | null;
   clock_in_accuracy: number | null;
   clock_in_time: string | null;
+  clock_in_gps_status: string | null;
+  clock_in_gps_error: string | null;
   // Per-tech evidence counts
   note_count: number;
   attachment_count: number;

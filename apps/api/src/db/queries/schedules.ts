@@ -391,6 +391,14 @@ export async function findCompletedTechnicians(): Promise<ReviewItem[]> {
          WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
            AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
          ORDER BY te.clock_in LIMIT 1) AS clock_in_time,
+      (SELECT te.clock_in_gps_status FROM time_entries te
+         WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_gps_status,
+      (SELECT te.clock_in_gps_error FROM time_entries te
+         WHERE te.user_id = st.technician_id AND te.project_id = s.project_id
+           AND te.clock_in >= s.scheduled_date::timestamptz - interval '1 day'
+         ORDER BY te.clock_in LIMIT 1) AS clock_in_gps_error,
       -- Other technicians on the same schedule (any status)
       COALESCE(
         (SELECT json_agg(
@@ -432,6 +440,8 @@ export async function findCompletedTechnicians(): Promise<ReviewItem[]> {
     clock_in_lng: row.clock_in_lng,
     clock_in_accuracy: row.clock_in_accuracy,
     clock_in_time: row.clock_in_time,
+    clock_in_gps_status: row.clock_in_gps_status ?? null,
+    clock_in_gps_error: row.clock_in_gps_error ?? null,
     note_count: row.note_count ?? 0,
     attachment_count: row.attachment_count ?? 0,
     signature_count: row.signature_count ?? 0,

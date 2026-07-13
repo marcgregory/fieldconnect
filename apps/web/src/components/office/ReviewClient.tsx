@@ -21,6 +21,7 @@ import type {
   JobStatus,
   GeofenceStatus,
   ReworkRequest,
+  ClockInGpsStatus,
 } from '@fieldconnect/shared';
 import {
   calculateDistance,
@@ -121,6 +122,53 @@ function buildTechnicianReviewChecklist(
  */
 function expandedKey(item: ReviewItem): string {
   return `${item.schedule_id}::${item.technician_id}`;
+}
+
+/**
+ * GPS-Not-Captured block — shows the exact failure reason or a neutral fallback.
+ * Never blames the device or browser without recorded evidence.
+ */
+function GpsNotCaptured({ status, error }: { status: string | null; error: string | null }) {
+  const config: Record<string, { title: string; message: string }> = {
+    permission_denied: {
+      title: 'GPS Permission Denied',
+      message: 'Location access was denied in the browser.',
+    },
+    timeout: {
+      title: 'GPS Timed Out',
+      message: 'The location request did not resolve in time.',
+    },
+    position_unavailable: {
+      title: 'GPS Unavailable',
+      message: 'The browser could not determine a position — weak signal or indoors.',
+    },
+    unsupported: {
+      title: 'GPS Not Supported',
+      message: 'This browser does not support geolocation.',
+    },
+    omitted: {
+      title: 'GPS Not Saved',
+      message: 'No location data was saved for this clock-in.',
+    },
+  };
+
+  const info = status && config[status] ? config[status] : {
+    title: 'GPS Not Saved',
+    message: 'No location data was saved for this clock-in.',
+  };
+
+  return (
+    <div className="bg-gray-50 rounded-lg px-3 py-3">
+      <p className="text-sm text-gray-500 flex items-center gap-1.5">
+        <span className="h-2 w-2 rounded-full bg-gray-400 inline-block" />
+        {info.title}
+      </p>
+      <p className="text-xs text-gray-400 mt-1">{info.message}</p>
+      {error && (
+        <p className="text-xs text-gray-400 mt-0.5 italic">{error}</p>
+      )}
+    </div>
+  );
 }
 
 export function ReviewClient() {
@@ -753,15 +801,7 @@ export function ReviewClient() {
                                   </a>
                                 </div>
                               ) : (
-                                <div className="bg-gray-50 rounded-lg px-3 py-3">
-                                  <p className="text-sm text-gray-500 flex items-center gap-1.5">
-                                    <span className="h-2 w-2 rounded-full bg-gray-400 inline-block" />
-                                    GPS Unavailable
-                                  </p>
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    No GPS data captured at clock-in. The device or browser did not provide a location — this can happen on desktop/laptop when GPS access is denied, blocked, or unavailable. Mobile devices typically capture GPS reliably.
-                                  </p>
-                                </div>
+                                <GpsNotCaptured status={item.clock_in_gps_status} error={item.clock_in_gps_error} />
                               )}
 
                               {item.project_latitude && item.project_longitude && (

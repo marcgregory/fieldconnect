@@ -21,7 +21,7 @@ export async function timeEntryRoutes(app: FastifyInstance) {
       }
 
       // Check that the technician is assigned to this project
-      const { project_id, notes, clock_in_lat, clock_in_lng, clock_in_accuracy } = parsed.data;
+      const { project_id, notes, clock_in_lat, clock_in_lng, clock_in_accuracy, clock_in_gps_status, clock_in_gps_error } = parsed.data;
 
       // Verify project exists
       const project = await projectQueries.findById(project_id);
@@ -49,6 +49,8 @@ export async function timeEntryRoutes(app: FastifyInstance) {
         clock_in_lat,
         clock_in_lng,
         clock_in_accuracy,
+        clock_in_gps_status,
+        clock_in_gps_error,
       );
 
       // Compute geofence status

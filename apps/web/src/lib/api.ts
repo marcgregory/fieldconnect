@@ -193,6 +193,8 @@ export async function clockIn(
   clockInLat?: number,
   clockInLng?: number,
   clockInAccuracy?: number,
+  clockInGpsStatus?: string,
+  clockInGpsError?: string,
 ): Promise<TimeEntry> {
   return bffFetch('/api/v1/time-entries/clock-in', {
     method: 'POST',
@@ -202,6 +204,8 @@ export async function clockIn(
       clock_in_lat: clockInLat,
       clock_in_lng: clockInLng,
       clock_in_accuracy: clockInAccuracy,
+      clock_in_gps_status: clockInGpsStatus,
+      clock_in_gps_error: clockInGpsError,
     }),
   });
 }

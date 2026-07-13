@@ -12,6 +12,8 @@ export interface TimeEntryRow {
   clock_in_lat: number | null;
   clock_in_lng: number | null;
   clock_in_accuracy: number | null;
+  clock_in_gps_status: string | null;
+  clock_in_gps_error: string | null;
   clock_out_lat: number | null;
   clock_out_lng: number | null;
   clock_out_accuracy: number | null;
@@ -31,6 +33,8 @@ function mapRow(row: TimeEntryRow): TimeEntry {
     clock_in_lat: row.clock_in_lat ?? null,
     clock_in_lng: row.clock_in_lng ?? null,
     clock_in_accuracy: row.clock_in_accuracy ?? null,
+    clock_in_gps_status: (row.clock_in_gps_status ?? null) as TimeEntry['clock_in_gps_status'],
+    clock_in_gps_error: row.clock_in_gps_error ?? null,
     clock_out_lat: row.clock_out_lat ?? null,
     clock_out_lng: row.clock_out_lng ?? null,
     clock_out_accuracy: row.clock_out_accuracy ?? null,
@@ -46,12 +50,14 @@ export async function clockIn(
   clockInLat?: number | null,
   clockInLng?: number | null,
   clockInAccuracy?: number | null,
+  clockInGpsStatus?: string | null,
+  clockInGpsError?: string | null,
 ): Promise<TimeEntry> {
   const result = await query(
-    `INSERT INTO time_entries (user_id, project_id, notes, clock_in_lat, clock_in_lng, clock_in_accuracy)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO time_entries (user_id, project_id, notes, clock_in_lat, clock_in_lng, clock_in_accuracy, clock_in_gps_status, clock_in_gps_error)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING *`,
-    [userId, projectId, notes ?? null, clockInLat ?? null, clockInLng ?? null, clockInAccuracy ?? null],
+    [userId, projectId, notes ?? null, clockInLat ?? null, clockInLng ?? null, clockInAccuracy ?? null, clockInGpsStatus ?? null, clockInGpsError ?? null],
   );
   return mapRow(result.rows[0]);
 }

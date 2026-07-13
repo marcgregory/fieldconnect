@@ -27,6 +27,18 @@ function googleMapsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
+type GpsStatus = 'captured' | 'permission_denied' | 'timeout' | 'position_unavailable' | 'unsupported' | 'omitted';
+
+/** Map a GeolocationPositionError code to our status string. */
+function gpsErrorToStatus(error: GeolocationPositionError): GpsStatus {
+  switch (error.code) {
+    case error.PERMISSION_DENIED: return 'permission_denied';
+    case error.TIMEOUT: return 'timeout';
+    case error.POSITION_UNAVAILABLE: return 'position_unavailable';
+    default: return 'position_unavailable';
+  }
+}
+
 /**
  * Attempt one geolocation call with the given timeout.
  * Returns null on failure or if geolocation is unavailable.
@@ -47,39 +59,78 @@ function getPositionOnce(
   });
 }
 
-/** Get current position via browser Geolocation API with retry support.
+/**
+ * Attempt one geolocation call with the given timeout — preserves the error reason.
+ * Returns { position, status, error } on failure so the caller knows why.
+ */
+function getPositionOnceWithStatus(
+  timeout: number,
+): Promise<{ position: GeolocationPosition | null; status: GpsStatus; error?: string }> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ position: null, status: 'unsupported' });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ position, status: 'captured' }),
+      (err) => resolve({
+        position: null,
+        status: gpsErrorToStatus(err),
+        error: err.message || undefined,
+      }),
+      { enableHighAccuracy: true, timeout, maximumAge: 60_000 },
+    );
+  });
+}
+
+/**
+ * Get current position via browser Geolocation API with retry support.
  *
  * iOS cold-starts GPS slowly (chip init + permission prompt can take >10s).
  * We use a two-phase strategy:
  *   1. Try a quick 5s attempt (catches already-warm GPS).
  *   2. If that fails, try again with a longer 20s timeout (handles cold-start).
  * This avoids blocking the UI for the full 20s when GPS is already ready.
+ *
+ * Always returns an object — even on failure — so the caller knows exactly why
+ * GPS is unavailable and can report the reason to the backend.
  */
 async function getCurrentPosition(): Promise<{
-  lat: number;
-  lng: number;
-  accuracy: number;
+  lat?: number;
+  lng?: number;
+  accuracy?: number;
+  gpsStatus: GpsStatus;
+  gpsError?: string;
   gpsDebug: string;
-} | null> {
+}> {
+  if (!navigator.geolocation) {
+    console.warn('[ClockInOut] Geolocation API unavailable in this browser');
+    return { gpsStatus: 'unsupported', gpsDebug: 'Geolocation API unavailable in this browser' };
+  }
+
   // Phase 1 — fast attempt (for already-warm GPS)
-  let pos = await getPositionOnce(5_000);
-  // Phase 2 — cold-start retry with long timeout
-  if (!pos) {
-    pos = await getPositionOnce(20_000);
+  let result = await getPositionOnceWithStatus(5_000);
+
+  // Phase 2 — cold-start retry with long timeout (only retry on timeout or position unavailable)
+  if (!result.position && (result.status === 'timeout' || result.status === 'position_unavailable')) {
+    result = await getPositionOnceWithStatus(20_000);
   }
-  if (!pos) {
-    const msg =
-      !navigator.geolocation
-        ? 'Geolocation API unavailable in this browser'
-        : 'GPS unavailable — could not determine location (weak signal, denied permission, or cold-start timeout). Common on first clock-in of the day on iPhone.';
-    console.warn('[ClockInOut]', msg);
-    return null;
+
+  if (!result.position) {
+    const status = result.status;
+    const errMsg = result.error
+      ? `GPS ${status.replace(/_/g, ' ')} — ${result.error}`
+      : `GPS ${status.replace(/_/g, ' ')} — could not determine location`;
+    console.warn('[ClockInOut]', errMsg);
+    return { gpsStatus: status, gpsError: result.error, gpsDebug: errMsg };
   }
+
   return {
-    lat: pos.coords.latitude,
-    lng: pos.coords.longitude,
-    accuracy: Math.round(pos.coords.accuracy),
-    gpsDebug: `GPS captured (accuracy ±${Math.round(pos.coords.accuracy)} m)`,
+    lat: result.position.coords.latitude,
+    lng: result.position.coords.longitude,
+    accuracy: Math.round(result.position.coords.accuracy),
+    gpsStatus: 'captured',
+    gpsDebug: `GPS captured (accuracy ±${Math.round(result.position.coords.accuracy)} m)`,
   };
 }
 
@@ -212,6 +263,8 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       clock_in_lat: null,
       clock_in_lng: null,
       clock_in_accuracy: null,
+      clock_in_gps_status: null,
+      clock_in_gps_error: null,
       clock_out_lat: null,
       clock_out_lng: null,
       clock_out_accuracy: null,
@@ -231,14 +284,21 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       // Capture GPS position (best-effort)
       const pos = await getCurrentPosition();
 
+      // Determine GPS status and error for the API
+      const gpsStatus = pos?.gpsStatus;
+      const gpsError = pos?.gpsError;
+      const gpsDebugMsg = pos?.gpsDebug;
+
       // Set GPS debug message for feedback
-      if (pos) {
-        setGpsDebugMessage(pos.gpsDebug);
+      if (gpsDebugMsg) {
+        setGpsDebugMessage(gpsDebugMsg);
+      } else if (gpsStatus) {
+        setGpsDebugMessage(`⚠ GPS ${gpsStatus.replace(/_/g, ' ')} — clock-in proceeds without location`);
       } else {
         setGpsDebugMessage('⚠ GPS unavailable — clock-in proceeds without location');
       }
 
-      await clockIn(selectedProjectId, undefined, pos?.lat, pos?.lng, pos?.accuracy);
+      await clockIn(selectedProjectId, undefined, pos?.lat, pos?.lng, pos?.accuracy, gpsStatus, gpsError);
 
       // Calculate distance from project site if we have both GPS and project coords
       if (pos && selectedAssignment?.project_latitude && selectedAssignment?.project_longitude) {
