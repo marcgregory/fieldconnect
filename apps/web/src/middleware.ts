@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
 // Note: middleware runs on the Edge Runtime where Node.js 'crypto' is not
 // available. Use the Web Crypto API (crypto.getRandomValues) instead.
@@ -17,18 +18,75 @@ try {
   // fallback: self-only
 }
 
+// ─── Auth route patterns ───────────────────────────────────────────────────────
+// Pages that authenticated users should never see.
+const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password'];
+
+// ─── Protected route patterns ──────────────────────────────────────────────────
+// Pages that require authentication. Unmatched public pages are allowed.
+const PROTECTED_PREFIXES = [
+  '/dashboard',
+  '/mobile',
+  '/jobs',
+  '/review',
+  '/reports',
+  '/audit',
+  '/sessions',
+];
+
 /**
- * Middleware that sets a per-request nonce and Content-Security-Policy header.
+ * Check whether the user is authenticated by reading the NextAuth JWT cookie.
+ * Uses `getToken` from next-auth/jwt which is Edge Runtime compatible.
  *
- * Next.js reads the `x-nonce` response header and automatically attaches the
- * nonce attribute to every inline <script> it injects (__NEXT_DATA__,
- * bootstrap chunks, route data). This lets us use `script-src 'nonce-<value>'`
- * instead of `'unsafe-inline'` for scripts.
- *
- * Styles still need `'unsafe-inline'` because Next.js 14 App Router emits
- * inline <style> tags for critical CSS — tracked as TD-010.
+ * Returns the token payload if valid, null otherwise.
  */
-export function middleware(request: NextRequest) {
+async function getSessionToken(
+  request: NextRequest,
+): Promise<{ id: string; role: string } | null> {
+  try {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+    if (!token || !token.id) return null;
+    return { id: token.id as string, role: token.role as string };
+  } catch {
+    // Token parsing failure — treat as unauthenticated
+    return null;
+  }
+}
+
+/**
+ * Middleware that:
+ *  1. Generates a per-request nonce + Content-Security-Policy header.
+ *  2. Redirects authenticated users away from auth-only pages (/login, /register).
+ *  3. Redirects unauthenticated users away from protected pages to /login.
+ */
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // ── Auth guard (skip for static assets and API routes) ──────────────
+  const isAuthRoute = AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + '/'));
+  const isProtectedRoute = PROTECTED_PREFIXES.some((r) => pathname.startsWith(r));
+
+  if (isAuthRoute || isProtectedRoute) {
+    const token = await getSessionToken(request);
+
+    // Authenticated user trying to visit login/register → redirect to dashboard
+    if (isAuthRoute && token) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
+
+    // Unauthenticated user trying to visit a protected page → redirect to login
+    if (isProtectedRoute && !token) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('callbackUrl', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // ── CSP + nonce (applied to all page routes) ───────────────────────
+
   // Generate a fresh nonce per request using the Web Crypto API
   // (Edge Runtime compatible). 16 random bytes → base64url string.
   const bytes = new Uint8Array(16);
