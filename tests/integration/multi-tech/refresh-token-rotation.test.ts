@@ -58,13 +58,14 @@ describe('Refresh token rotation', () => {
       }),
     });
     expect(reg.statusCode).toBe(201);
-    const user = reg.json();
-    expect(user.id).toBeTruthy();
+    const regBody = reg.json();
+    expect(regBody.user).toBeTruthy();
+    const userId = regBody.user.id;
 
     // Mark email verified so the refresh flow works
     const { Pool } = await import('pg');
     const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
-    await pool.query('UPDATE users SET email_verified_at = NOW() WHERE id = $1', [user.id]);
+    await pool.query('UPDATE users SET email_verified_at = NOW() WHERE id = $1', [userId]);
     await pool.end();
 
     // Now login
@@ -78,7 +79,7 @@ describe('Refresh token rotation', () => {
     const body = login.json();
     expect(body.refresh_token).toBeTruthy();
 
-    return { refresh_token: body.refresh_token, userId: user.id };
+    return { refresh_token: body.refresh_token, userId };
   }
 
   it('rotates a valid refresh token (standard flow)', async () => {
@@ -171,7 +172,7 @@ describe('Refresh token rotation', () => {
     expect(res.json().error).toContain('refresh_token is required');
   });
 
-  it('rejects refresh for unverified user', async () => {
+  it('rejects login (and therefore refresh) for unverified user', async () => {
     // Register a user but do NOT mark email verified
     const email = `unverified-${Date.now()}@fieldconnect.test`;
     const password = 'testPass123!';
@@ -188,27 +189,20 @@ describe('Refresh token rotation', () => {
       }),
     });
     expect(reg.statusCode).toBe(201);
-    const user = reg.json();
+    const regBody = reg.json();
+    expect(regBody.user).toBeTruthy();
 
-    // Login still works (login does not check email_verified_at)
+    // Login should fail with 403 — email not verified.
+    // (This is the effective block point; an unverified user cannot get a
+    //  refresh token in the first place, which means the refresh endpoint
+    //  cannot be reached with a real token from an unverified session.)
     const login = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
       headers: { 'content-type': 'application/json' },
       payload: JSON.stringify({ email, password }),
     });
-    expect(login.statusCode).toBe(200);
-    const loginBody = login.json();
-    expect(loginBody.refresh_token).toBeTruthy();
-
-    // Refresh should fail with 403 — email not verified
-    const refresh = await app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/refresh',
-      headers: { 'content-type': 'application/json' },
-      payload: JSON.stringify({ refresh_token: loginBody.refresh_token }),
-    });
-    expect(refresh.statusCode).toBe(403);
-    expect(refresh.json().code).toBe('EMAIL_NOT_VERIFIED');
+    expect(login.statusCode).toBe(403);
+    expect(login.json().code).toBe('EMAIL_NOT_VERIFIED');
   });
 });
