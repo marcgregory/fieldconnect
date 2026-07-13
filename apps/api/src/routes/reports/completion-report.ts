@@ -17,7 +17,11 @@ export async function completionReportRoutes(app: FastifyInstance) {
 
       try {
         const data = await getCompletionReport(scheduleId);
-        const pdfBuffer = generateCompletionReportPdf(data);
+        const pdfBuffer = await generateCompletionReportPdf(data);
+
+        if (!pdfBuffer.subarray(0, 4).equals(Buffer.from('%PDF'))) {
+          throw new Error('Generated report was not a valid PDF');
+        }
 
         const safeName = data.project.name
           .replace(/[^a-zA-Z0-9\s\-_\.]/g, '-')

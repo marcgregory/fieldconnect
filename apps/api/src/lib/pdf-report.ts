@@ -411,11 +411,10 @@ function validateReportData(data: CompletionReportData): string[] {
  * Returns a Buffer of the PDF document.
  *
  * Uses a PageTracker to number pages on-the-fly so bufferPages:true
- * is NOT needed — PDFKit defaults to bufferPages:false, which flushes
- * every page synchronously onto the stream as it's created, ensuring
- * Buffer.concat after doc.end() always has the complete PDF.
+ * is NOT needed. PDFKit still flushes stream chunks asynchronously after
+ * doc.end(), so callers must await the returned buffer.
  */
-export function generateCompletionReportPdf(data: CompletionReportData): Buffer {
+export async function generateCompletionReportPdf(data: CompletionReportData): Promise<Buffer> {
   const validation = validateReportData(data);
   if (validation.length > 0) {
     throw new Error(`Invalid report data: ${validation.join('; ')}`);
@@ -433,10 +432,11 @@ export function generateCompletionReportPdf(data: CompletionReportData): Buffer 
 
   const chunks: Buffer[] = [];
   const stream = doc as unknown as Readable;
-  let streamError: Error | null = null;
-
-  stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-  stream.on('error', (err: Error) => { streamError = err; });
+  const finished = new Promise<Buffer>((resolve, reject) => {
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(Buffer.concat(chunks)));
+  });
 
   const pages = new PageTracker(doc);
 
@@ -451,9 +451,5 @@ export function generateCompletionReportPdf(data: CompletionReportData): Buffer 
 
   doc.end();
 
-  if (streamError) {
-    throw streamError;
-  }
-
-  return Buffer.concat(chunks);
+  return finished;
 }
