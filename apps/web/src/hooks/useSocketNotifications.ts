@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useSocket } from './useSocket';
 import { useToast } from '@/components/Toast';
+import { getAttachmentLabel } from '@/lib/attachment-labels';
 
 /**
  * Hook that listens for socket events and shows toast notifications.
@@ -69,15 +70,17 @@ export function useSocketNotifications() {
   useEffect(() => {
     if (!lastAttachmentEvent) return;
 
+    const attachmentLabel = getAttachmentLabel(lastAttachmentEvent.attachment_type);
+
     if (lastAttachmentEvent.type === 'attachment_uploaded') {
       addToast({
-        message: `Photo added to ${lastAttachmentEvent.project_name} by ${lastAttachmentEvent.user_name}`,
+        message: `${attachmentLabel} added to ${lastAttachmentEvent.project_name} by ${lastAttachmentEvent.user_name}`,
         type: 'success',
         duration: 4000,
       });
     } else {
       addToast({
-        message: `Photo removed from ${lastAttachmentEvent.project_name}`,
+        message: `${attachmentLabel} removed from ${lastAttachmentEvent.project_name}`,
         type: 'info',
         duration: 4000,
       });

@@ -36,24 +36,17 @@ if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
-async function main() {
-  // Validate email config at boot. A typo in EMAIL_PROVIDER (e.g. "resent")
-  // would otherwise surface only on the first email send, deep inside a
-  // request handler. Fail fast instead.
-  try {
-    assertEmailConfigValid();
-  } catch (err) {
-    console.error('Email configuration is invalid:', (err as Error).message);
-    process.exit(1);
-  }
-
+export async function buildApp() {
   const app = Fastify({
-    logger: {
-      transport: {
-        target: 'pino-pretty',
-        options: { colorize: true },
-      },
-    },
+    // Quiet logger in test mode; verbose in dev/prod.
+    logger: process.env.NODE_ENV === 'test'
+      ? false
+      : {
+          transport: {
+            target: 'pino-pretty',
+            options: { colorize: true },
+          },
+        },
     // trustProxy: true — Fastify reads X-Forwarded-For from the Render proxy
     // to resolve the real client IP. On Render the proxy is the only ingress
     // and overwrites any client-supplied X-Forwarded-For, so spoofing is not
@@ -196,6 +189,22 @@ async function main() {
   // Activity feed
   await app.register(activityRoutes);
 
+  return app;
+}
+
+async function main() {
+  // Validate email config at boot. A typo in EMAIL_PROVIDER (e.g. "resent")
+  // would otherwise surface only on the first email send, deep inside a
+  // request handler. Fail fast instead.
+  try {
+    assertEmailConfigValid();
+  } catch (err) {
+    console.error('Email configuration is invalid:', (err as Error).message);
+    process.exit(1);
+  }
+
+  const app = await buildApp();
+
   // Start server
   try {
     await app.listen({ port: PORT, host: HOST });
@@ -211,4 +220,6 @@ async function main() {
   }
 }
 
-main();
+if (require.main === module) {
+  main();
+}

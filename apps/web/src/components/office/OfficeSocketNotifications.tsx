@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useSocket } from '@/hooks/useSocket';
 import { useToast } from '@/components/Toast';
+import { getAttachmentLabel } from '@/lib/attachment-labels';
 
 /**
  * Client component that wires up real-time socket notifications for the office dashboard.
@@ -68,15 +69,17 @@ export function OfficeSocketNotifications() {
     if (!lastAttachmentEvent) return;
     if (lastAttachmentEvent.user_name === session?.user?.name) return;
 
+    const attachmentLabel = getAttachmentLabel(lastAttachmentEvent.attachment_type);
+
     if (lastAttachmentEvent.type === 'attachment_uploaded') {
       addToast({
-        message: `Photo added to ${lastAttachmentEvent.project_name} by ${lastAttachmentEvent.user_name}`,
+        message: `${attachmentLabel} added to ${lastAttachmentEvent.project_name} by ${lastAttachmentEvent.user_name}`,
         type: 'success',
         duration: 4000,
       });
     } else {
       addToast({
-        message: `Photo removed from ${lastAttachmentEvent.project_name}`,
+        message: `${attachmentLabel} removed from ${lastAttachmentEvent.project_name}`,
         type: 'info',
         duration: 4000,
       });

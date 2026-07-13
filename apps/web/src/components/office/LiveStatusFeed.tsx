@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Card } from '@fieldconnect/ui';
 import { useSocket } from '@/hooks/useSocket';
+import { getAttachmentLabel } from '@/lib/attachment-labels';
 
 type FeedItem = {
   id: string;
@@ -574,14 +575,4 @@ function buildContentKey(fields: {
   return `${type}|${scheduleId}|${techId}|${techName}|${ts}`;
 }
 
-/** Map attachment_type to a human-readable label. */
-function getAttachmentLabel(type?: string): string {
-  switch (type) {
-    case 'before':  return 'Before photo';
-    case 'during':  return 'During photo';
-    case 'after':   return 'After photo';
-    case 'document': return 'Document';
-    default:        return 'Photo';
-  }
-}
 

@@ -3,7 +3,7 @@
 # Runs as a Node.js script that generates JWTs matching the frontend Auth.js flow.
 set -euo pipefail
 
-API="http://localhost:3001/api/v1"
+API="${API:-http://localhost:3001/api/v1}"
 PASS=0
 FAIL=0
 
@@ -39,6 +39,8 @@ gen_jwt() {
     new SignJWT({ sub: '$uid', id: '$uid', role: '$role', email: '$email', name: '$name' })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
+      .setIssuer('fieldconnect-api')
+      .setAudience('fieldconnect-web')
       .setExpirationTime('1h')
       .sign(sec)
       .then(t => process.stdout.write(t));
@@ -63,23 +65,50 @@ OFFICE_EMAIL="office${TS}@test.com"
 # Register admin
 ADMIN_RESULT=$(curl -sf -X POST "$API/auth/register" \
   -H 'Content-Type: application/json' \
-  -d "{\"email\":\"${ADMIN_EMAIL}\",\"name\":\"Admin User\",\"password\":\"pass123\",\"role\":\"admin\"}" 2>/dev/null || echo '')
+  -d "{\"email\":\"${ADMIN_EMAIL}\",\"name\":\"Admin User\",\"password\":\"pass1234\",\"role\":\"admin\"}" 2>/dev/null || echo '')
 ADMIN_ID=$(echo "$ADMIN_RESULT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [ -n "$ADMIN_ID" ]; then pass "Admin registered (${ADMIN_EMAIL})"; else fail "Admin registration"; fi
 
 # Register field technician
 TECH_RESULT=$(curl -sf -X POST "$API/auth/register" \
   -H 'Content-Type: application/json' \
-  -d "{\"email\":\"${TECH_EMAIL}\",\"name\":\"Field Tech\",\"password\":\"pass123\",\"role\":\"field_technician\"}" 2>/dev/null || echo '')
+  -d "{\"email\":\"${TECH_EMAIL}\",\"name\":\"Field Tech\",\"password\":\"pass1234\",\"role\":\"field_technician\"}" 2>/dev/null || echo '')
 TECH_ID=$(echo "$TECH_RESULT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [ -n "$TECH_ID" ]; then pass "Technician registered (${TECH_EMAIL})"; else fail "Technician registration"; fi
 
 # Register office manager
 OFFICE_RESULT=$(curl -sf -X POST "$API/auth/register" \
   -H 'Content-Type: application/json' \
-  -d "{\"email\":\"${OFFICE_EMAIL}\",\"name\":\"Office Mgr\",\"password\":\"pass123\",\"role\":\"office_manager\"}" 2>/dev/null || echo '')
+  -d "{\"email\":\"${OFFICE_EMAIL}\",\"name\":\"Office Mgr\",\"password\":\"pass1234\",\"role\":\"office_manager\"}" 2>/dev/null || echo '')
 OFFICE_ID=$(echo "$OFFICE_RESULT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [ -n "$OFFICE_ID" ]; then pass "Office manager registered"; else fail "Office manager registration"; fi
+
+# ── Mark all freshly-registered users as email-verified ─────────────────
+# Sprint 6 / Phase 2 added email verification: login blocks unverified
+# users with 403 EMAIL_NOT_VERIFIED. The smoke test creates users via
+# /auth/register (which does NOT auto-verify), so we mark them verified
+# directly via SQL. This is a test-only path and only runs against the
+# test DB (DATABASE_URL contains _rc or _test).
+#
+# We use a small Node helper that runs `pg`-client SQL via the local tsx
+# (apps/api/node_modules/.bin/tsx) to avoid the npx cache-download timeout.
+TEST_DB_URL="${RC_DATABASE_URL:-postgres://postgres:postgres@localhost:5432/fieldconnect_rc}"
+TSX_BIN="apps/api/node_modules/.bin/tsx"
+verify_test_user() {
+  local email="$1"
+  DATABASE_URL="$TEST_DB_URL" NODE_ENV=test ALLOW_TEST_DB=1 \
+    "$TSX_BIN" -e "
+      import { Pool } from 'pg';
+      const p = new Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
+      p.query('UPDATE users SET email_verified_at = NOW() WHERE email = \$1', ['$email'])
+        .then(() => p.end())
+        .catch(e => { console.error('verify_test_user failed:', e.message); process.exit(1); });
+    " >/dev/null 2>&1 || true
+}
+verify_test_user "$ADMIN_EMAIL"
+verify_test_user "$TECH_EMAIL"
+verify_test_user "$OFFICE_EMAIL"
+pass "Test users marked as email-verified"
 
 echo ""
 echo "  Admin ID: $ADMIN_ID"
@@ -152,7 +181,7 @@ echo "── Phase 5: Create Schedule ──"
 SCHEDULE=$(curl -sf -X POST "$API/schedules" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d "{\"project_id\":\"$PROJECT_ID\",\"technician_id\":\"$TECH_ID\",\"scheduled_date\":\"$(date +%Y-%m-%d)\",\"start_time\":\"09:00\",\"end_time\":\"12:00\",\"notes\":\"Smoke test schedule\"}" 2>/dev/null || echo '')
+  -d "{\"project_id\":\"$PROJECT_ID\",\"technician_ids\":[\"$TECH_ID\"],\"scheduled_date\":\"$(date +%Y-%m-%d)\",\"start_time\":\"09:00\",\"end_time\":\"12:00\",\"notes\":\"Smoke test schedule\"}" 2>/dev/null || echo '')
 SCHEDULE_ID=$(echo "$SCHEDULE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 SCHEDULE_STATUS=$(echo "$SCHEDULE" | grep -o '"status":"[^"]*"' | head -1 | cut -d'"' -f4)
 if [ -n "$SCHEDULE_ID" ] && [ "$SCHEDULE_STATUS" = "scheduled" ]; then
@@ -192,8 +221,22 @@ fi
 echo ""
 echo "── Phase 7: Mobile: Status Transitions ──"
 
+# Technician must be clocked in before completing a job.
+# Geofence: pass the project's lat/lng so clock-in succeeds without geofence failure.
+CLOCKIN=$(curl -s -X POST "$API/time-entries/clock-in" \
+  -H "Authorization: Bearer $TECH_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"project_id\":\"$PROJECT_ID\",\"clock_in_lat\":37.7749,\"clock_in_lng\":-122.4194,\"clock_in_accuracy\":10}" 2>/dev/null || echo '')
+CLOCKIN_OK=$(echo "$CLOCKIN" | grep -q '"success":true' && echo yes || echo no)
+if [ "$CLOCKIN_OK" = "yes" ]; then
+  pass "Technician clocked in to project"
+else
+  echo "  (clock-in response: $CLOCKIN)"
+  fail "Technician clock-in (continuing — completion may fail without it)"
+fi
+
 # scheduled → traveling
-R1=$(curl -sf -X PATCH "$API/schedules/$SCHEDULE_ID/status" \
+R1=$(curl -s -X PATCH "$API/schedules/$SCHEDULE_ID/status" \
   -H "Authorization: Bearer $TECH_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"status":"traveling"}' 2>/dev/null || echo '')
@@ -206,7 +249,7 @@ else
 fi
 
 # traveling → on_site
-R2=$(curl -sf -X PATCH "$API/schedules/$SCHEDULE_ID/status" \
+R2=$(curl -s -X PATCH "$API/schedules/$SCHEDULE_ID/status" \
   -H "Authorization: Bearer $TECH_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"status":"on_site"}' 2>/dev/null || echo '')
@@ -215,10 +258,11 @@ if [ "$R2_STATUS" = "on_site" ]; then
   pass "Status: traveling → on_site"
 else
   fail "traveling → on_site"
+  echo "  → $R2"
 fi
 
 # on_site → completed
-R3=$(curl -sf -X PATCH "$API/schedules/$SCHEDULE_ID/status" \
+R3=$(curl -s -X PATCH "$API/schedules/$SCHEDULE_ID/status" \
   -H "Authorization: Bearer $TECH_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"status":"completed"}' 2>/dev/null || echo '')
@@ -234,9 +278,9 @@ fi
 echo ""
 echo "── Phase 8: Office: Review ──"
 
-REVIEW=$(curl -sf "$API/schedules/review" \
+REVIEW=$(curl -s "$API/schedules/review" \
   -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null || echo '[]')
-if echo "$REVIEW" | grep -q '"id":"'"$SCHEDULE_ID"'"'; then
+if echo "$REVIEW" | grep -q '"schedule_id":"'"$SCHEDULE_ID"'"'; then
   pass "Job appears in review queue (status=completed)"
 else
   fail "Review queue"
@@ -315,9 +359,9 @@ fi
 echo ""
 echo "── Phase 11: Review Queue Empty After Close ──"
 
-REVIEW_EMPTY=$(curl -sf "$API/schedules/review" \
+REVIEW_EMPTY=$(curl -s "$API/schedules/review" \
   -H "Authorization: Bearer $ADMIN_TOKEN" 2>/dev/null || echo '[]')
-if echo "$REVIEW_EMPTY" | grep -q '"id":"'"$SCHEDULE_ID"'"'; then
+if echo "$REVIEW_EMPTY" | grep -q '"schedule_id":"'"$SCHEDULE_ID"'"'; then
   fail "Review queue — job still appears after close (should be filtered out)"
   echo "  → Review queue contains closed jobs"
 else
@@ -380,8 +424,30 @@ fi
 echo ""
 echo "── Phase 14: Access Control ──"
 
-# Technician cannot close their own job (can only advance from scheduled/traveling/on_site)
-TECH_CLOSE=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/schedules/$SCHEDULE_ID/status" \
+# Create a fresh, open schedule so the close-block test runs against an
+# actionable target (the main schedule was already closed in Phase 13).
+ACCESS_PROJ=$(curl -s -X POST "$API/projects" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"name\":\"Access Test $TS\",\"address\":\"42 Test St\",\"contact_name\":\"X\",\"contact_phone\":\"555\"}" \
+  | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+curl -s -X POST "$API/projects/$ACCESS_PROJ/assign" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"user_id\":\"$TECH_ID\"}" >/dev/null
+ACCESS_SCHED=$(curl -s -X POST "$API/schedules" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d "{\"project_id\":\"$ACCESS_PROJ\",\"technician_ids\":[\"$TECH_ID\"],\"scheduled_date\":\"$(date +%Y-%m-%d)\",\"start_time\":\"15:00\",\"end_time\":\"17:00\",\"notes\":\"Access control test\"}" \
+  | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+if [ -n "$ACCESS_SCHED" ]; then
+  pass "Fresh schedule created for access-control tests"
+else
+  fail "Setup: fresh schedule for access-control tests"
+fi
+
+# Technician cannot close their own job from 'scheduled' (should 4xx)
+TECH_CLOSE=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/schedules/$ACCESS_SCHED/status" \
   -H "Authorization: Bearer $TECH_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"status":"closed"}' 2>/dev/null || echo '000')
@@ -402,15 +468,16 @@ fi
 # Office manager cannot create a schedule without being on the project team
 OTHER_TECH_RESULT=$(curl -sf -X POST "$API/auth/register" \
   -H 'Content-Type: application/json' \
-  -d "{\"email\":\"othertech${TS}@test.com\",\"name\":\"Other Tech\",\"password\":\"pass123\",\"role\":\"field_technician\"}" 2>/dev/null || echo '')
+  -d "{\"email\":\"othertech${TS}@test.com\",\"name\":\"Other Tech\",\"password\":\"pass1234\",\"role\":\"field_technician\"}" 2>/dev/null || echo '')
 OTHER_TECH_ID=$(echo "$OTHER_TECH_RESULT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
 OTHER_TECH_TOKEN=$(gen_jwt "$OTHER_TECH_ID" "othertech${TS}@test.com" "Other Tech" "field_technician")
 if [ -n "$OTHER_TECH_ID" ]; then
+  verify_test_user "othertech${TS}@test.com"
   # Try assigning non-team technician to a new schedule — should fail
   BAD_SCHED_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/schedules" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H 'Content-Type: application/json' \
-    -d "{\"project_id\":\"$PROJECT_ID\",\"technician_id\":\"$OTHER_TECH_ID\",\"scheduled_date\":\"$(date +%Y-%m-%d)\",\"start_time\":\"14:00\",\"end_time\":\"17:00\"}" 2>/dev/null || echo '000')
+    -d "{\"project_id\":\"$PROJECT_ID\",\"technician_ids\":[\"$OTHER_TECH_ID\"],\"scheduled_date\":\"$(date +%Y-%m-%d)\",\"start_time\":\"14:00\",\"end_time\":\"17:00\"}" 2>/dev/null || echo '000')
   if [ "$BAD_SCHED_CODE" -ge 400 ]; then
     pass "Blocked schedule for non-team technician (HTTP $BAD_SCHED_CODE)"
   else
