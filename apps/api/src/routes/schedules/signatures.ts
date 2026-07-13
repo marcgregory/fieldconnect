@@ -2,11 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { createSignatureSchema } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as signatureQueries from '../../db/queries/signatures';
-import * as reworkQueries from '../../db/queries/rework';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastSignatureEvent } from '../../websocket';
 import { insertActivityEvent } from '../../db/queries/activity-events';
 import { uploadSignatureToCloudinary } from '../../lib/cloudinary-storage';
+import { getEvidenceReworkVersion } from './evidence-version';
 
 export async function signatureRoutes(app: FastifyInstance) {
   // ─── List Signatures ────────────────────────────────────────────────────
@@ -64,14 +64,7 @@ export async function signatureRoutes(app: FastifyInstance) {
         console.warn('Cloudinary signature upload failed, storing base64 only:', cloudinaryErr);
       }
 
-      // Determine rework_version: if there's an open rework, use the next version
-      let reworkVersion = 0;
-      if (schedule.status === 'on_site') {
-        const hasOpen = await reworkQueries.hasOpenRework(id);
-        if (hasOpen) {
-          reworkVersion = await reworkQueries.getNextReworkVersion(id);
-        }
-      }
+      const reworkVersion = getEvidenceReworkVersion(schedule, request.user!.id);
 
       const signature = await signatureQueries.create({
         schedule_id: id,

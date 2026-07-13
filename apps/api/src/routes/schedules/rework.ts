@@ -180,7 +180,7 @@ export async function reworkRoutes(app: FastifyInstance) {
       }
 
       // Verify the rework request exists and is open
-      const rework = await reworkQueries.getLatestOpenRework(id);
+      const rework = await reworkQueries.getLatestOpenRework(id, targetTechId);
       if (!rework || rework.id !== rid) {
         return reply.status(400).send({
           success: false,
@@ -267,7 +267,7 @@ export async function reworkRoutes(app: FastifyInstance) {
       }
 
       // Verify the rework request exists and is open
-      const rework = await reworkQueries.getLatestOpenRework(id);
+      const rework = await reworkQueries.getLatestOpenRework(id, targetTechId);
       if (!rework || rework.id !== rid) {
         return reply.status(400).send({
           success: false,

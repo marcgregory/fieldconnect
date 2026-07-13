@@ -9,6 +9,7 @@ import type {
   ReworkRequest,
   GeofenceStatus,
 } from '@fieldconnect/shared';
+import { normalizeEvidenceVersionForReview, evidenceSectionTitle } from './evidenceGrouping';
 import {
   calculateDistance,
   evaluateGeofence,
@@ -193,29 +194,33 @@ function EvidenceGallery({
   attachments,
   signatures,
   notes,
+  reworkRequests,
   getAttachmentUrl,
 }: {
   attachments: JobAttachment[];
   signatures: Signature[];
   notes: JobNote[];
+  reworkRequests: ReworkRequest[];
   getAttachmentUrl: (att: JobAttachment) => string;
 }) {
-  // Group by rework_version
+  const normalizeVersion = (version: number) =>
+    normalizeEvidenceVersionForReview(version, reworkRequests);
+
   const attVersions: Record<number, JobAttachment[]> = {};
   attachments.forEach((a) => {
-    const v = a.rework_version ?? 0;
+    const v = normalizeVersion(a.rework_version ?? 0);
     if (!attVersions[v]) attVersions[v] = [];
     attVersions[v].push(a);
   });
   const sigVersions: Record<number, Signature[]> = {};
   signatures.forEach((s) => {
-    const v = s.rework_version ?? 0;
+    const v = normalizeVersion(s.rework_version ?? 0);
     if (!sigVersions[v]) sigVersions[v] = [];
     sigVersions[v].push(s);
   });
   const noteVersions: Record<number, JobNote[]> = {};
   notes.filter((n) => n.note_type === 'technician').forEach((n) => {
-    const v = n.rework_version ?? 0;
+    const v = normalizeVersion(n.rework_version ?? 0);
     if (!noteVersions[v]) noteVersions[v] = [];
     noteVersions[v].push(n);
   });
@@ -235,11 +240,9 @@ function EvidenceGallery({
     <>
       {sortedV.map((version) => (
         <div key={version} className="border-t border-gray-100 pt-3 mt-3 first:border-0 first:pt-0 first:mt-0">
-          {sortedV.length > 1 && (
-            <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2 tracking-wide">
-              {version === 0 ? 'Original Submission' : `Rework Cycle ${version}`}
-            </p>
-          )}
+          <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2 tracking-wide">
+            {evidenceSectionTitle(version)}
+          </p>
           {attVersions[version]?.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {attVersions[version].map((att) =>
@@ -273,7 +276,10 @@ function EvidenceGallery({
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {sigVersions[version].map((sig) => (
                 <div key={sig.id} className="bg-gray-50 rounded px-2 py-1 text-xs text-gray-600">
-                  ✍️ {sig.label.charAt(0).toUpperCase() + sig.label.slice(1)}
+                  <p className="font-semibold text-gray-800">Customer Signature</p>
+                  <p>Signed by: {sig.label === 'customer' ? 'Customer' : sig.label}</p>
+                  <p>Captured by: {sig.user_name}</p>
+                  <p className="text-gray-400">Date: {new Date(sig.created_at).toLocaleString()}</p>
                 </div>
               ))}
             </div>
@@ -281,9 +287,11 @@ function EvidenceGallery({
           {noteVersions[version]?.length > 0 && (
             <div className="space-y-1 mt-1.5">
               {noteVersions[version].map((note) => (
-                <p key={note.id} className="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1">
-                  {note.content}
-                </p>
+                <div key={note.id} className="text-xs text-gray-600 bg-gray-50 rounded px-2 py-1">
+                  <p className="font-semibold text-gray-800">{version === 0 ? 'Technician Note' : 'Technician Rework Note'}</p>
+                  <p className="whitespace-pre-wrap">&quot;{note.content}&quot;</p>
+                  <p className="text-gray-400 mt-0.5">By {note.user_name} - {new Date(note.created_at).toLocaleString()}</p>
+                </div>
               ))}
             </div>
           )}
@@ -619,6 +627,7 @@ export function TechnicianReviewPanel({
             attachments={expandedData.attachments}
             signatures={expandedData.signatures}
             notes={expandedData.notes}
+            reworkRequests={techReworks}
             getAttachmentUrl={getAttachmentUrl}
           />
         </section>

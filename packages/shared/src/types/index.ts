@@ -319,6 +319,7 @@ export interface ReworkRequest {
   schedule_id: string;
   technician_id: string;
   technician_name?: string;
+  rework_version: number;
   reason: string;
   requested_by: string;
   requested_by_name?: string;

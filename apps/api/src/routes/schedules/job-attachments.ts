@@ -9,10 +9,10 @@ import {
 import { requireRole } from '../../middleware/auth';
 import * as jobAttachmentQueries from '../../db/queries/job-attachments';
 import * as scheduleQueries from '../../db/queries/schedules';
-import * as reworkQueries from '../../db/queries/rework';
 import { broadcastAttachmentEvent } from '../../websocket';
 import { insertActivityEvent } from '../../db/queries/activity-events';
 import { saveUpload, deleteUpload } from '../../lib/file-storage';
+import { getEvidenceReworkVersion } from './evidence-version';
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -187,14 +187,7 @@ export async function jobAttachmentRoutes(app: FastifyInstance) {
       }
 
       try {
-        // Determine rework_version: if there's an open rework, use the next version
-        let reworkVersion = 0;
-        if (schedule.status === 'on_site') {
-          const hasOpen = await reworkQueries.hasOpenRework(id);
-          if (hasOpen) {
-            reworkVersion = await reworkQueries.getNextReworkVersion(id);
-          }
-        }
+        const reworkVersion = getEvidenceReworkVersion(schedule, request.user!.id);
 
         const attachment = await jobAttachmentQueries.create({
           schedule_id: id,

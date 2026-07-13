@@ -889,12 +889,11 @@ export async function updateStatus(data: {
                WHEN $1::varchar IN ('completed', 'closed') THEN FALSE
                ELSE has_open_rework
              END,
-             -- Increment current_rework_version when completing from on_site (rework completion)
              current_rework_version = CASE
-               WHEN $1::varchar = 'completed' AND (
+               WHEN $1::varchar = 'rework_required' AND (
                  SELECT status FROM schedule_technicians
                  WHERE schedule_id = $2 AND technician_id = $3
-               ) = 'on_site' THEN current_rework_version + 1
+               ) = 'completed' THEN current_rework_version + 1
                ELSE current_rework_version
              END
          WHERE schedule_id = $2 AND technician_id = $3`,

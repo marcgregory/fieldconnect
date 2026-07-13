@@ -18,6 +18,7 @@ function mapReworkRow(row: any): ReworkRequest {
     schedule_id: row.schedule_id,
     technician_id: row.technician_id,
     technician_name: row.technician_name || undefined,
+    rework_version: row.rework_version,
     reason: row.reason,
     requested_by: row.requested_by,
     requested_by_name: row.requested_by_name,
@@ -38,8 +39,13 @@ export async function createReworkRequest(
   technicianId: string,
 ): Promise<ReworkRequest> {
   const result = await query(
-    `INSERT INTO rework_requests (schedule_id, reason, requested_by, technician_id)
-     VALUES ($1, $2, $3, $4)
+    `WITH next_version AS (
+       SELECT COALESCE(MAX(rework_version), 0) + 1 AS version
+       FROM rework_requests
+       WHERE schedule_id = $1 AND technician_id = $4
+     )
+     INSERT INTO rework_requests (schedule_id, reason, requested_by, technician_id, rework_version)
+     SELECT $1, $2, $3, $4, version FROM next_version
      RETURNING *`,
     [scheduleId, reason, userId, technicianId],
   );

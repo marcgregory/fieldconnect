@@ -5,10 +5,10 @@ import {
 } from '@fieldconnect/shared';
 import { requireRole } from '../../middleware/auth';
 import * as jobNoteQueries from '../../db/queries/job-notes';
-import * as reworkQueries from '../../db/queries/rework';
 import * as scheduleQueries from '../../db/queries/schedules';
 import { broadcastNoteEvent } from '../../websocket';
 import { insertActivityEvent } from '../../db/queries/activity-events';
+import { getEvidenceReworkVersion } from './evidence-version';
 
 export async function jobNoteRoutes(app: FastifyInstance) {
   // ─── List Notes ──────────────────────────────────────────────────────────
@@ -69,25 +69,21 @@ export async function jobNoteRoutes(app: FastifyInstance) {
         });
       }
 
-      // Determine rework_version: if there's an open rework, use the next version
-      let reworkVersion = parsed.data.rework_version ?? 0;
-      if (reworkVersion === 0 && schedule.status === 'on_site') {
-        const hasOpen = await reworkQueries.hasOpenRework(id);
-        if (hasOpen) {
-          reworkVersion = await reworkQueries.getNextReworkVersion(id);
-        }
-      }
-
       // When an office staff adds an internal note to a specific technician
       // review card, honor the provided technician_id. Otherwise use the
       // requesting user's ID for field_technician or null for office bulk notes.
       const body = request.body as Record<string, unknown>;
       const bodyTechId = body.technician_id as string | undefined;
+      const evidenceTechId = bodyTechId || (request.user!.role === 'field_technician' ? request.user!.id : null);
+      const reworkVersion =
+        parsed.data.note_type === 'internal'
+          ? 0
+          : getEvidenceReworkVersion(schedule, evidenceTechId);
 
       const note = await jobNoteQueries.create({
         schedule_id: id,
         user_id: request.user!.id,
-        technician_id: bodyTechId || (request.user!.role === 'field_technician' ? request.user!.id : null),
+        technician_id: evidenceTechId,
         content: parsed.data.content,
         note_type: parsed.data.note_type || 'technician',
         rework_version: reworkVersion,

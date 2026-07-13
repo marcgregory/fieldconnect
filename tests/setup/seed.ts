@@ -252,15 +252,17 @@ async function main(): Promise<void> {
   try {
     await pool.query(
       `INSERT INTO rework_requests (
-         schedule_id, requested_by, reason, status
+         schedule_id, technician_id, requested_by, reason, status, rework_version
        )
-       VALUES ($1, $2, $3, 'open')
+       VALUES ($1, $2, $3, $4, 'open', 1)
        ON CONFLICT DO NOTHING`,
-      [scheduleRework.id, office.id, 'Missing before photos — please upload and resubmit.'],
+      [scheduleRework.id, tech1.id, office.id, 'Missing before photos — please upload and resubmit.'],
     );
     await pool.query(
       `UPDATE schedule_technicians
-       SET status = 'rework_required'
+       SET status = 'rework_required',
+           current_rework_version = 1,
+           has_open_rework = TRUE
        WHERE schedule_id = $1 AND technician_id = $2`,
       [scheduleRework.id, tech1.id],
     );
