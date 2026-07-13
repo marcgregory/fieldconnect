@@ -354,22 +354,22 @@ function ReworkTimeline({
               </p>
             </div>
             <div className="p-4">
-              <div className="relative pl-8 space-y-0">
+              <div className="relative pl-10 space-y-0">
                 {events.map((evt, evtIdx) => {
                   const { bg, ring } = iconMap[evt.icon];
                   const isLast = evtIdx === events.length - 1;
                   return (
-                    <div key={`${evt.ts}-${evtIdx}`} className="relative pb-4 last:pb-0">
+                    <div key={`${evt.ts}-${evtIdx}`} className="relative pb-5 last:pb-0">
                       {!isLast && (
-                        <div className="absolute left-[11px] top-4 bottom-0 w-0.5 bg-gray-200" />
+                        <div className="absolute left-[13px] top-4 bottom-0 w-0.5 bg-gray-200" />
                       )}
-                      <div className={`absolute left-0 top-0.5 h-5 w-5 rounded-full ${bg} ring-2 ${ring} flex items-center justify-center`}>
-                        <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                      <div className={`absolute left-0 top-0.5 h-6 w-6 rounded-full ${bg} ring-[3px] ${ring} flex items-center justify-center`}>
+                        <div className="h-2 w-2 rounded-full bg-white" />
                       </div>
-                      <div className="pt-0">
-                        <p className="text-sm font-medium text-gray-900">{evt.label}</p>
-                        {evt.detail && <p className="text-xs text-gray-500 mt-0.5">{evt.detail}</p>}
-                        <p className="text-[11px] text-gray-400 mt-0.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 leading-snug">{evt.label}</p>
+                        {evt.detail && <p className="text-xs text-gray-500 mt-1 leading-relaxed">{evt.detail}</p>}
+                        <p className="text-[11px] text-gray-400 mt-1">
                           {new Date(evt.ts).toLocaleString()}
                         </p>
                       </div>
@@ -379,13 +379,13 @@ function ReworkTimeline({
               </div>
               {/* Closed event after the last cycle's events */}
               {closedAt && (
-                <div className="relative pl-8 mt-0 border-t border-gray-100 pt-3">
-                  <div className="absolute left-0 top-3 h-5 w-5 rounded-full bg-gray-500 ring-2 ring-gray-200 flex items-center justify-center">
-                    <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                <div className="relative pl-10 mt-0 border-t border-gray-100 pt-4">
+                  <div className="absolute left-0 top-4 h-6 w-6 rounded-full bg-gray-500 ring-[3px] ring-gray-200 flex items-center justify-center">
+                    <div className="h-2 w-2 rounded-full bg-white" />
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Assignment closed</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 leading-snug">Assignment closed</p>
+                    <p className="text-[11px] text-gray-400 mt-1">
                       {new Date(closedAt).toLocaleString()}
                     </p>
                   </div>
