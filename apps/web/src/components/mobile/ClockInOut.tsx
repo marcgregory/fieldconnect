@@ -27,45 +27,60 @@ function googleMapsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
-/** Get current position via browser Geolocation API */
-function getCurrentPosition(
-  timeout = 10000,
-): Promise<{ lat: number; lng: number; accuracy: number; gpsDebug: string } | null> {
+/**
+ * Attempt one geolocation call with the given timeout.
+ * Returns null on failure or if geolocation is unavailable.
+ */
+function getPositionOnce(
+  timeout: number,
+): Promise<GeolocationPosition | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
       resolve(null);
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve({
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: Math.round(position.coords.accuracy),
-          gpsDebug: `GPS captured (accuracy ±${Math.round(position.coords.accuracy)} m)`,
-        });
-      },
-      (error) => {
-        let reason: string;
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            reason = 'Location permission denied by user or browser';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            reason = 'GPS unavailable — device/browser could not determine location (common on desktop/laptop without GPS hardware)';
-            break;
-          case error.TIMEOUT:
-            reason = 'GPS request timed out — weak signal or no satellite fix';
-            break;
-          default:
-            reason = `GPS error (code ${error.code})`;
-        }
-        console.warn('[ClockInOut]', reason, error.message);
-        resolve(null);
-      },
-      { enableHighAccuracy: true, timeout, maximumAge: 30000 },
+      (position) => resolve(position),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout, maximumAge: 60_000 },
     );
   });
+}
+
+/** Get current position via browser Geolocation API with retry support.
+ *
+ * iOS cold-starts GPS slowly (chip init + permission prompt can take >10s).
+ * We use a two-phase strategy:
+ *   1. Try a quick 5s attempt (catches already-warm GPS).
+ *   2. If that fails, try again with a longer 20s timeout (handles cold-start).
+ * This avoids blocking the UI for the full 20s when GPS is already ready.
+ */
+async function getCurrentPosition(): Promise<{
+  lat: number;
+  lng: number;
+  accuracy: number;
+  gpsDebug: string;
+} | null> {
+  // Phase 1 — fast attempt (for already-warm GPS)
+  let pos = await getPositionOnce(5_000);
+  // Phase 2 — cold-start retry with long timeout
+  if (!pos) {
+    pos = await getPositionOnce(20_000);
+  }
+  if (!pos) {
+    const msg =
+      !navigator.geolocation
+        ? 'Geolocation API unavailable in this browser'
+        : 'GPS unavailable — could not determine location (weak signal, denied permission, or cold-start timeout). Common on first clock-in of the day on iPhone.';
+    console.warn('[ClockInOut]', msg);
+    return null;
+  }
+  return {
+    lat: pos.coords.latitude,
+    lng: pos.coords.longitude,
+    accuracy: Math.round(pos.coords.accuracy),
+    gpsDebug: `GPS captured (accuracy ±${Math.round(pos.coords.accuracy)} m)`,
+  };
 }
 
 /** Geofence badge UI helper */
