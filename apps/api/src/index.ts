@@ -12,6 +12,7 @@ import { refreshRoutes } from './routes/auth/refresh';
 import { verificationRoutes } from './routes/auth/verification';
 import { passwordResetRoutes } from './routes/auth/password-reset';
 import { sessionRoutes } from './routes/auth/sessions';
+import { authAuditRoutes } from './routes/auth/audit-logs';
 import { projectRoutes } from './routes/projects';
 import { timeEntryRoutes } from './routes/time-entries';
 import { technicianRoutes } from './routes/technicians';
@@ -19,6 +20,7 @@ import { scheduleRoutes } from './routes/schedules';
 // Report routes
 import { reportRoutes } from './routes/reports';
 import { dashboardRoutes } from './routes/dashboard';
+import { completionReportRoutes } from './routes/reports/completion-report';
 // Activity feed routes
 import { activityRoutes } from './routes/activity';
 import { registerAuth } from './middleware/auth';
@@ -172,6 +174,7 @@ async function main() {
   await app.register(verificationRoutes);
   await app.register(passwordResetRoutes);
   await app.register(sessionRoutes);
+  await app.register(authAuditRoutes);
 
   // Project routes
   await app.register(projectRoutes);
@@ -188,6 +191,7 @@ async function main() {
   // Report routes
   await app.register(reportRoutes);
   await app.register(dashboardRoutes);
+  await app.register(completionReportRoutes);
 
   // Activity feed
   await app.register(activityRoutes);

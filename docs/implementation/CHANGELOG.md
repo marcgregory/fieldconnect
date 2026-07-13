@@ -2,6 +2,47 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.14.0 — 2026-07-13
+
+### Added
+
+- **TD-009 — Periodic Cleanup Script** ✅
+  - `apps/api/src/scripts/cleanup.ts` — standalone idempotent cleanup script for Render Cron Job
+  - Retention policies: `rate_limit_events` (7 days), `verification_tokens` (30 days), `password_reset_tokens` (30 days), `refresh_tokens` (90 days), `sessions` (90 days), `login_lockouts` (24h), `activity_events` with `retention='feed'` (30 days)
+  - Bounded 1000-row batch deletes to avoid long-held locks
+  - `DRY_RUN=1` mode for report-only execution
+  - Package scripts: `pnpm cleanup` and `pnpm cleanup:dry-run`
+  - Never deletes `activity_events` with `retention='audit'` or `'both'` — permanent audit records are safe
+  - All tables have indexed columns on the WHERE clauses
+
+- **Audit Monitoring UI** ✅
+  - `GET /api/v1/auth/audit-logs` — admin-only, paginated with user JOIN, action filter, date range filter
+  - `GET /api/v1/auth/audit-logs/actions` — distinct action list for filter dropdown
+  - `GET /api/v1/auth/audit-logs/summary` — event counts grouped by action for the last N hours
+  - Query module `list()`, `listActions()`, `getSummary()` in `auth-audit-logs.ts`
+  - Web `/audit` page — admin-only table view with color-coded action badges, metadata display, pagination, time-based filters
+  - Nav link for admin users positioned after Dashboard in the office navigation
+  - All `pnpm typecheck` and `pnpm build` pass
+
+- **Sprint 7 — Customer Completion Report PDF** ✅
+  - `apps/api/src/db/queries/completion-report.ts` — fetches full schedule data: project info, technicians, time entries, notes, attachments, signatures
+  - `apps/api/src/lib/pdf-report.ts` — PDFKit-based A4 PDF generation with professional layout
+    - Header with project name and schedule info
+    - Project information section (name, address, contact, technicians)
+    - Time summary with total hours, break time, and per-entry detail table
+    - Job notes section with author and timestamp
+    - Photos & attachments section with type and uploader
+    - Customer signatures page with embedded PNG signatures
+    - Page numbers on every page
+  - `GET /api/v1/reports/completion/:scheduleId` — returns PDF as downloadable attachment
+  - PDF download button on Review page for completed/closed/office_review jobs
+  - `pdfkit` added as dependency
+  - All `pnpm typecheck` and `pnpm build` pass
+
+### Technical Debt
+
+- **TD-009** — Completed. Cleanup script deployed for Render Cron Job. Retention policies documented in the script header.
+
 ## v0.13.0 — 2026-07-11
 
 ### Added

@@ -86,7 +86,7 @@ Last updated: 2026-07-11
 
 ## Completed
 
-- **Sprint 6 — Security & Account Hardening** 🚧 (in progress)
+- **Sprint 6 — Security & Account Hardening** ✅
   - **Phase 1 — Email Infrastructure** ✅ — `EmailProvider` abstraction, `ResendProvider`, `PreviewProvider` (writes `.emails/*.html` + console mode), `getEmailService()` lazy singleton, four inline HTML + plain-text templates (Verify Email, Password Reset, Invitation, Welcome), HTML escaping on every user-supplied value
   - **Phase 2 — Email Verification** ✅ — `users.email_verified_at` column, `verification_tokens` table (SHA-256 hash, 24h TTL, single active token), `auth_audit_logs` table (auth events with `user_id` nullable), `rate_limit_events` table (atomic check-and-increment), `GET /api/v1/auth/verify-email` and `POST /api/v1/auth/resend-verification` (1/min + 5/hr windows, generic 200 to prevent enumeration), login blocks unverified users with 403 `EMAIL_NOT_VERIFIED`, refresh route revokes tokens for unverified users, web `/verify-email` and `/verify-email/result` pages with 60s client cooldown
   - **Form Architecture — react-hook-form + zod** ✅ — shadcn-style `<Form>`, `<FormField>`, `<FormItem>`, `<FormLabel>`, `<FormControl>`, `<FormDescription>`, `<FormMessage>` in `@fieldconnect/ui` (built on `react-hook-form` + `@hookform/resolvers/zod`), `mapApiErrorToFormError` central server-error parser, auth forms (`login`, `register`, `verify-email`) and `ProjectForm` migrated; `ScheduleForm`/`ClockInOut`/`JobDetailClient` deferred to TD-008 (Sprint 7)
@@ -94,3 +94,6 @@ Last updated: 2026-07-11
   - **Phase 3 — Forgot Password / Reset Password** ✅ — Complete password reset flow with email
   - **Phase 5 — Session Security** ✅ — Refresh token rotation with reuse detection, `sessions` table (list/revoke/logout-all), JWT hardening (issuer/audience/15min TTL), trusted proxy secret + `net.isIP()`, password reset revokes all sessions, web `/sessions` page, 7 new audit events
   - **Phase 7 — Security Headers** ✅ — Fastify `onSend` hook sets 8 security headers (X-Content-Type-Options, Referrer-Policy, Permissions-Policy, Cross-Origin-Resource-Policy, Cross-Origin-Opener-Policy, Origin-Agent-Cluster, X-DNS-Prefetch-Control, HSTS in production), Next.js `next.config.js` `async headers()` sets full CSP and same headers on frontend HTML pages, X-Powered-By removed, CORS reviewed and confirmed (no wildcard, credentials only with explicit origin), CSP exception documented (Next.js 14 inline styles = `style-src 'unsafe-inline'`, tracked TD-009)
+- **TD-009 — Periodic Cleanup Script** ✅ — Idempotent cleanup for 7 expiring tables with bounded batch deletes, dry-run mode, Render Cron Job compatible
+- **Sprint 6 Cleanup — Audit Monitoring UI** ✅ — Admin-only audit event viewer with pagination, filtering, action badges, and summary
+- **Sprint 7 — Customer Completion Report PDF** ✅ — PDFKit-based A4 completion report with project info, time summary, notes, photos, and signatures

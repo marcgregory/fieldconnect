@@ -1,16 +1,44 @@
 # FieldConnect Project Status
 
-Last updated: 2026-07-11
+Last updated: 2026-07-13
 
 This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 6 — Security & Account Hardening 🚧
+Sprint 7 — Customer Completion Report PDF ✅
 
 ## Current Progress
 
-### Sprint 6 / Phase 1 — Email Infrastructure — Complete ✅
+### Sprint 7 — Customer Completion Report PDF — Complete ✅
+- `completion-report.ts` query module — fetches full schedule/project data: project info, technicians, time entries, notes, attachments, signatures ✅
+- `pdf-report.ts` — PDFKit-based A4 PDF generation with professional layout ✅
+  - Header with project name and schedule info ✅
+  - Project information section (name, address, contact, technicians) ✅
+  - Time summary with total hours, break time, and per-entry detail table ✅
+  - Job notes section with author and timestamp ✅
+  - Photos & attachments section with type and uploader ✅
+  - Customer signatures page with embedded PNG signatures ✅
+  - Page numbers on every page ✅
+- `GET /api/v1/reports/completion/:scheduleId` — returns PDF as downloadable attachment ✅
+- PDF download button on Review page for completed/closed/office_review jobs ✅
+- `pdfkit` added as dependency ✅
+- All `pnpm typecheck` and `pnpm build` pass ✅
+
+### TD-009 — Periodic Cleanup — Complete ✅
+- `apps/api/src/scripts/cleanup.ts` — standalone idempotent cleanup script for Render Cron Job ✅
+- Retention policies: `rate_limit_events` (7 days), `verification_tokens` (30 days), `password_reset_tokens` (30 days), `refresh_tokens` (90 days), `sessions` (90 days), `login_lockouts` (24h), `activity_events` with `retention='feed'` (30 days) ✅
+- Bounded 1000-row batch deletes to avoid long-held locks ✅
+- `DRY_RUN=1` mode for report-only execution ✅
+- Package scripts: `pnpm cleanup` and `pnpm cleanup:dry-run` ✅
+
+### Sprint 6 Cleanup — Audit Monitoring UI — Complete ✅
+- `GET /api/v1/auth/audit-logs` — admin-only, paginated with user JOIN, action filter, date range filter ✅
+- `GET /api/v1/auth/audit-logs/actions` — distinct action list for filter dropdown ✅
+- `GET /api/v1/auth/audit-logs/summary` — event counts grouped by action for the last N hours ✅
+- Web `/audit` page — admin-only table view with color-coded action badges, metadata display, pagination, time-based filters ✅
+- Nav link for admin users in office navigation ✅
+- All `pnpm typecheck` and `pnpm build` pass ✅
 - `EmailProvider` abstraction with `EmailMessage`, `SendResult`, and `EmailCategory` ✅
 - `ResendProvider` using the official `resend` SDK with descriptive env-missing errors ✅
 - `PreviewProvider` (writes `.emails/*.html`) + `console` mode (logs only) ✅

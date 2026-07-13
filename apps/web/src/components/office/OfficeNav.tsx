@@ -21,33 +21,45 @@ function Icon({ children }: { children: ReactNode }) {
   );
 }
 
-const NAV_ITEMS: NavItem[] = [
-  {
-    label: 'Dashboard',
-    href: '/dashboard',
-    icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M4 13h6V4H4v9zm10 7h6V4h-6v16zM4 20h6v-4H4v4z" /></Icon>,
-  },
-  {
-    label: 'Projects',
-    href: '/projects',
-    icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></Icon>,
-  },
-  {
-    label: 'Schedule',
-    href: '/schedule',
-    icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3M5 11h14M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" /></Icon>,
-  },
-  {
-    label: 'Review',
-    href: '/review',
-    icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4z" /></Icon>,
-  },
-  {
-    label: 'Reports',
-    href: '/reports',
-    icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m0 14h16M8 16v-5m4 5V8m4 8v-3" /></Icon>,
-  },
-];
+function buildNavItems(role: string): NavItem[] {
+  const items: NavItem[] = [
+    {
+      label: 'Dashboard',
+      href: '/dashboard',
+      icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M4 13h6V4H4v9zm10 7h6V4h-6v16zM4 20h6v-4H4v4z" /></Icon>,
+    },
+    {
+      label: 'Projects',
+      href: '/projects',
+      icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h5l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></Icon>,
+    },
+    {
+      label: 'Schedule',
+      href: '/schedule',
+      icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3M5 11h14M6 5h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2z" /></Icon>,
+    },
+    {
+      label: 'Review',
+      href: '/review',
+      icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4z" /></Icon>,
+    },
+    {
+      label: 'Reports',
+      href: '/reports',
+      icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M4 19V5m0 14h16M8 16v-5m4 5V8m4 8v-3" /></Icon>,
+    },
+  ];
+
+  if (role === 'admin') {
+    items.splice(2, 0, {
+      label: 'Audit',
+      href: '/audit',
+      icon: <Icon><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></Icon>,
+    });
+  }
+
+  return items;
+}
 
 export function OfficeNav() {
   const pathname = usePathname();
@@ -56,6 +68,8 @@ export function OfficeNav() {
   if (!session || session.user.role === 'field_technician') {
     return null;
   }
+
+  const NAV_ITEMS = buildNavItems(session.user.role);
 
   return (
     <nav className="sticky top-0 z-40 border-b border-white/70 bg-stone-50/80 shadow-sm shadow-brand-900/5 backdrop-blur-xl">
