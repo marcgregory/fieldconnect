@@ -20,7 +20,16 @@ try {
 
 // ─── Auth route patterns ───────────────────────────────────────────────────────
 // Pages that authenticated users should never see.
-const AUTH_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password'];
+// Includes /verify-email and /verify-email/result — once verified, there's no
+// reason to stay on these pages. An unverified user who logs in and lands on
+// /dashboard can still access verify-email via the banner resend link.
+const AUTH_ROUTES = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+];
 
 // ─── Protected route patterns ──────────────────────────────────────────────────
 // Pages that require authentication. Unmatched public pages are allowed.
