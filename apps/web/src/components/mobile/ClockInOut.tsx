@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, Button, Spinner } from '@fieldconnect/ui';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Card, Spinner } from '@fieldconnect/ui';
 import {
   clockIn,
   clockOut,
@@ -12,9 +14,13 @@ import {
   calculateDistance,
   evaluateGeofence,
   formatDistance,
+  clockInFormSchema,
   type GeofenceStatus,
 } from '@fieldconnect/shared';
 import type { ActiveTimeEntry, TechnicianAssignmentWithDetails } from '@fieldconnect/shared';
+import { z } from 'zod';
+
+type ClockInFormValues = z.infer<typeof clockInFormSchema>;
 
 interface ClockInOutProps {
   userId: string;
@@ -22,12 +28,14 @@ interface ClockInOutProps {
   onStatusChange?: () => void;
 }
 
+// ─── GPS types ────────────────────────────────────────────────────────────────
+
+type GpsStatus = 'captured' | 'permission_denied' | 'timeout' | 'position_unavailable' | 'unsupported' | 'omitted';
+
 /** Build a Google Maps URL from lat/lng */
 function googleMapsUrl(lat: number, lng: number): string {
   return `https://www.google.com/maps?q=${lat},${lng}`;
 }
-
-type GpsStatus = 'captured' | 'permission_denied' | 'timeout' | 'position_unavailable' | 'unsupported' | 'omitted';
 
 /** Map a GeolocationPositionError code to our status string. */
 function gpsErrorToStatus(error: GeolocationPositionError): GpsStatus {
@@ -37,26 +45,6 @@ function gpsErrorToStatus(error: GeolocationPositionError): GpsStatus {
     case error.POSITION_UNAVAILABLE: return 'position_unavailable';
     default: return 'position_unavailable';
   }
-}
-
-/**
- * Attempt one geolocation call with the given timeout.
- * Returns null on failure or if geolocation is unavailable.
- */
-function getPositionOnce(
-  timeout: number,
-): Promise<GeolocationPosition | null> {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      resolve(null);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) => resolve(position),
-      () => resolve(null),
-      { enableHighAccuracy: true, timeout, maximumAge: 60_000 },
-    );
-  });
 }
 
 /**
@@ -155,7 +143,24 @@ function GeofenceBadge({ status }: { status: GeofenceStatus }) {
   return null;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Component
+// ══════════════════════════════════════════════════════════════════════════════
+
 export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
+  // ─── React Hook Form (clock-in only) ───────────────────────────────────────
+  const form = useForm<ClockInFormValues>({
+    resolver: zodResolver(clockInFormSchema),
+    defaultValues: {
+      project_id: '',
+    },
+    mode: 'onSubmit',
+  });
+
+  const selectedProjectId = form.watch('project_id');
+  const formErrors = form.formState.errors;
+
+  // ─── Server state ────────────────────────────────────────────────────────────
   const [activeEntry, setActiveEntry] = useState<ActiveTimeEntry | null>(null);
   const [assignments, setAssignments] = useState<TechnicianAssignmentWithDetails[]>([]);
   // Backend now filters by schedule_technicians.status so only actionable
@@ -164,28 +169,44 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
   const clockableAssignments = assignments.filter(
     (a) => a.project_status !== 'cancelled',
   );
+
+  // ─── Scoped loading states ────────────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+
+  // Scoped: acquiring GPS position
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  // Scoped: submitting clock-in (includes GPS + API)
+  const [clockInSubmitting, setClockInSubmitting] = useState(false);
+
+  // Scoped: submitting clock-out (includes GPS + API)
+  const [clockOutSubmitting, setClockOutSubmitting] = useState(false);
+
+  // ─── Error state (form-level) ────────────────────────────────────────────────
+  const [serverError, setServerError] = useState('');
+
+  // ─── Timer state (outside RHF — must survive re-renders) ─────────────────────
+  const [elapsed, setElapsed] = useState(0);
+
+  // ─── UI state ────────────────────────────────────────────────────────────────
   const [showConfirmClockOut, setShowConfirmClockOut] = useState(false);
-  const [elapsed, setElapsed] = useState(0); // elapsed seconds
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
-  const [clockInError, setClockInError] = useState('');
   const [clockedOutEntry, setClockedOutEntry] = useState<{
     duration: string;
     projectName: string;
   } | null>(null);
   const [distanceFromSite, setDistanceFromSite] = useState<number | null>(null);
   const [geofenceStatus, setGeofenceStatus] = useState<GeofenceStatus>('unavailable');
-  const [locationLoading, setLocationLoading] = useState(false);
   const [gpsDebugMessage, setGpsDebugMessage] = useState<string | null>(null);
+
   // Optimistic rollback snapshot — keeps last known state so we can revert on failure
   const optimisticRollbackRef = useRef<{
     activeEntry: typeof activeEntry;
     assignments: typeof assignments;
   } | null>(null);
 
-  // Fetch current state
+  // ─── Data fetching ───────────────────────────────────────────────────────────
+
   const fetchState = useCallback(async () => {
     try {
       setLoading(true);
@@ -218,7 +239,8 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     fetchState();
   }, [fetchState]);
 
-  // Running timer effect
+  // ─── Running timer effect (outside RHF) ─────────────────────────────────────
+
   useEffect(() => {
     if (!activeEntry) {
       setElapsed(0);
@@ -233,15 +255,21 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     return () => clearInterval(interval);
   }, [activeEntry]);
 
-  async function handleClockIn() {
-    if (!selectedProjectId) {
-      setClockInError('Please select a project');
-      return;
-    }
+  // ─── Clock In ────────────────────────────────────────────────────────────────
+
+  async function handleClockIn(values: ClockInFormValues) {
+    // Clear stale errors
+    setServerError('');
+    setGpsDebugMessage(null);
 
     const selectedAssignment = assignments.find(
-      (a) => a.project_id === selectedProjectId,
+      (a) => a.project_id === values.project_id,
     );
+
+    if (!selectedAssignment) {
+      setServerError('Selected assignment not found. Please try again.');
+      return;
+    }
 
     // Snapshot current state for rollback
     optimisticRollbackRef.current = {
@@ -253,7 +281,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     const optimisticEntry: ActiveTimeEntry = {
       id: `optimistic-${Date.now()}`,
       user_id: userId,
-      project_id: selectedProjectId,
+      project_id: values.project_id,
       project_name: selectedAssignment?.project_name || '',
       project_address: null,
       clock_in: new Date().toISOString(),
@@ -275,9 +303,7 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     // Apply optimistic state immediately
     setActiveEntry(optimisticEntry);
     setElapsed(0);
-    setClockInError('');
-    setError('');
-    setActionLoading(true);
+    setClockInSubmitting(true);
     setLocationLoading(true);
 
     try {
@@ -298,7 +324,15 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
         setGpsDebugMessage('⚠ GPS unavailable — clock-in proceeds without location');
       }
 
-      await clockIn(selectedProjectId, undefined, pos?.lat, pos?.lng, pos?.accuracy, gpsStatus, gpsError);
+      await clockIn(
+        values.project_id,
+        undefined,
+        pos?.lat,
+        pos?.lng,
+        pos?.accuracy,
+        gpsStatus,
+        gpsError,
+      );
 
       // Calculate distance from project site if we have both GPS and project coords
       if (pos && selectedAssignment?.project_latitude && selectedAssignment?.project_longitude) {
@@ -314,7 +348,8 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
         );
       }
 
-      // Success — refetch to get server-authoritative state
+      // On success — reset form and refetch
+      form.reset({ project_id: '' });
       await fetchState();
       onStatusChange?.();
     } catch (err) {
@@ -322,13 +357,15 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       if (optimisticRollbackRef.current) {
         setActiveEntry(optimisticRollbackRef.current.activeEntry);
       }
-      setClockInError(err instanceof Error ? err.message : 'Failed to clock in');
+      setServerError(err instanceof Error ? err.message : 'Failed to clock in');
     } finally {
       optimisticRollbackRef.current = null;
-      setActionLoading(false);
+      setClockInSubmitting(false);
       setLocationLoading(false);
     }
   }
+
+  // ─── Clock Out ───────────────────────────────────────────────────────────────
 
   async function handleClockOut() {
     // Snapshot for rollback
@@ -340,12 +377,14 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     const currentEntry = activeEntry;
     if (!currentEntry) return;
 
+    // Clear stale errors
+    setServerError('');
+
     // Optimistic — mark as clocked out immediately
     const clockOutSeconds = elapsed;
     setActiveEntry(null);
     setShowConfirmClockOut(false);
-    setActionLoading(true);
-    setError('');
+    setClockOutSubmitting(true);
     setLocationLoading(true);
 
     try {
@@ -371,15 +410,17 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
       if (optimisticRollbackRef.current) {
         setActiveEntry(optimisticRollbackRef.current.activeEntry);
       }
-      setError(err instanceof Error ? err.message : 'Failed to clock out');
+      setServerError(err instanceof Error ? err.message : 'Failed to clock out');
     } finally {
       optimisticRollbackRef.current = null;
-      setActionLoading(false);
+      setClockOutSubmitting(false);
       setLocationLoading(false);
     }
   }
 
-  // Format elapsed time as HH:MM:SS
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  /** Format elapsed time as HH:MM:SS */
   function formatElapsed(totalSeconds: number): string {
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -391,7 +432,12 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     ].join(':');
   }
 
-  // Loading state
+  const isSubmitting = clockInSubmitting || clockOutSubmitting;
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // Render: Loading
+  // ════════════════════════════════════════════════════════════════════════════
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -400,45 +446,59 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     );
   }
 
-  // Error state
+  // ════════════════════════════════════════════════════════════════════════════
+  // Render: Error (no active entry — initial fetch failed)
+  // ════════════════════════════════════════════════════════════════════════════
+
   if (error && !activeEntry) {
     return (
       <Card className="text-center">
         <p className="text-red-600 text-sm mb-3">{error}</p>
-        <Button size="sm" onClick={fetchState}>
+        <button
+          onClick={fetchState}
+          className="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors"
+        >
           Retry
-        </Button>
+        </button>
       </Card>
     );
   }
 
-  // Clocked out success state
+  // ════════════════════════════════════════════════════════════════════════════
+  // Render: Clocked out success summary
+  // ════════════════════════════════════════════════════════════════════════════
+
   if (clockedOutEntry) {
     return (
       <Card className="text-center">
-        <div className="text-green-600 text-3xl mb-2">✓</div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">Clocked Out</h3>
-        <p className="text-sm text-gray-500 mb-1">{clockedOutEntry.projectName}</p>
-        <p className="text-2xl font-bold text-gray-900 mb-4">{clockedOutEntry.duration}</p>
-        <Button
-          onClick={() => {
-            setClockedOutEntry(null);
-            fetchState();
-          }}
-        >
-          Done
-        </Button>
+        <div role="status" aria-live="polite">
+          <div className="text-green-600 text-3xl mb-2">✓</div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Clocked Out</h3>
+          <p className="text-sm text-gray-500 mb-1">{clockedOutEntry.projectName}</p>
+          <p className="text-2xl font-bold text-gray-900 mb-4">{clockedOutEntry.duration}</p>
+          <button
+            onClick={() => {
+              setClockedOutEntry(null);
+              fetchState();
+            }}
+            className="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors"
+          >
+            Done
+          </button>
+        </div>
       </Card>
     );
   }
 
-  // Active entry — show running timer
+  // ════════════════════════════════════════════════════════════════════════════
+  // Render: Active entry — running timer
+  // ════════════════════════════════════════════════════════════════════════════
+
   if (activeEntry) {
     const hasClockInCoords = activeEntry.clock_in_lat && activeEntry.clock_in_lng;
     const selectedAssignment = assignments
       .find((a) => a.project_id === activeEntry.project_id);
 
-    // Calculate distance from clock-in GPS vs project site (works even after refetch)
     const activeDist = hasClockInCoords && selectedAssignment?.project_latitude && selectedAssignment?.project_longitude
       ? calculateDistance(
           activeEntry.clock_in_lat!,
@@ -486,7 +546,11 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
             </a>
           )}
 
-          <div className="text-5xl font-mono font-bold text-brand-700 my-4">
+          <div
+            className="text-5xl font-mono font-bold text-brand-700 my-4"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {formatElapsed(elapsed)}
           </div>
           <p className="text-sm text-gray-500">
@@ -509,11 +573,19 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
           </div>
         )}
 
+        {/* Server error banner */}
+        {serverError && (
+          <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mt-3">
+            {serverError}
+          </div>
+        )}
+
         {/* Clock Out Button */}
         {!showConfirmClockOut ? (
           <button
             onClick={() => setShowConfirmClockOut(true)}
-            className="w-full mt-6 bg-red-600 text-white rounded-xl py-5 text-lg font-bold shadow-lg active:bg-red-700 transition-colors"
+            disabled={clockOutSubmitting}
+            className="w-full mt-6 bg-red-600 text-white rounded-xl py-5 text-lg font-bold shadow-lg active:bg-red-700 transition-colors disabled:opacity-50"
           >
             Clock Out
           </button>
@@ -523,16 +595,22 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowConfirmClockOut(false)}
-                className="flex-1 bg-gray-200 text-gray-800 rounded-xl py-3 font-medium active:bg-gray-300 transition-colors"
+                disabled={clockOutSubmitting}
+                className="flex-1 bg-gray-200 text-gray-800 rounded-xl py-3 font-medium active:bg-gray-300 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleClockOut}
-                disabled={actionLoading}
+                disabled={clockOutSubmitting}
                 className="flex-1 bg-red-600 text-white rounded-xl py-3 font-bold shadow-lg active:bg-red-700 transition-colors disabled:opacity-50"
               >
-                {actionLoading ? 'Clocking out...' : 'Confirm'}
+                {clockOutSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Spinner size="sm" />
+                    Clocking out...
+                  </span>
+                ) : 'Confirm'}
               </button>
             </div>
           </div>
@@ -541,15 +619,26 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
     );
   }
 
-  // No active entry — show clock in UI
+  // ════════════════════════════════════════════════════════════════════════════
+  // Render: Clock-in form
+  // ════════════════════════════════════════════════════════════════════════════
+
   return (
-    <div className="space-y-4">
+    <form onSubmit={form.handleSubmit(handleClockIn)} noValidate>
       <Card className="text-center">
         <p className="text-gray-500 text-sm mb-4">Select a project to clock in</p>
 
-        {clockInError && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-3">
-            {clockInError}
+        {/* Server/API-level error banner */}
+        {serverError && (
+          <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-3">
+            {serverError}
+          </div>
+        )}
+
+        {/* Field-level error from RHF */}
+        {formErrors.project_id?.message && (
+          <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-3">
+            {formErrors.project_id.message}
           </div>
         )}
 
@@ -564,15 +653,31 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
             </p>
           </div>
         ) : (
-          <div className="space-y-2 mb-4">
+          <div
+            className="space-y-2 mb-4"
+            role="radiogroup"
+            aria-label="Select project"
+            aria-invalid={!!formErrors.project_id}
+            aria-describedby={formErrors.project_id ? 'project-error' : undefined}
+          >
             {clockableAssignments.map((assignment) => {
               const hasProjectCoords = assignment.project_latitude && assignment.project_longitude;
+              const isSelected = selectedProjectId === assignment.project_id;
               return (
                 <button
                   key={assignment.id}
-                  onClick={() => setSelectedProjectId(assignment.project_id)}
+                  type="button"
+                  onClick={() => {
+                    form.setValue('project_id', assignment.project_id, {
+                      shouldValidate: false,
+                      shouldDirty: true,
+                    });
+                  }}
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={`Select project ${assignment.project_name}`}
                   className={`w-full text-left px-4 py-4 rounded-xl border-2 transition-all ${
-                    selectedProjectId === assignment.project_id
+                    isSelected
                       ? 'border-brand-500 bg-brand-50'
                       : 'border-slate-200 bg-white active:bg-stone-50'
                   }`}
@@ -591,6 +696,12 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
                 </button>
               );
             })}
+            {/* Hidden error anchor for aria-describedby */}
+            {formErrors.project_id?.message && (
+              <p id="project-error" className="text-sm font-medium text-red-600 text-left">
+                {formErrors.project_id.message}
+              </p>
+            )}
           </div>
         )}
 
@@ -611,11 +722,12 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
 
         {/* Clock In Button */}
         <button
-          onClick={handleClockIn}
-          disabled={actionLoading || clockableAssignments.length === 0 || !selectedProjectId}
+          type="submit"
+          disabled={clockInSubmitting || clockableAssignments.length === 0}
+          aria-busy={clockInSubmitting}
           className="w-full rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 py-5 text-xl font-bold text-white shadow-lg shadow-brand-700/20 transition-colors active:bg-brand-700 disabled:opacity-50 disabled:active:bg-brand-600"
         >
-          {actionLoading ? (
+          {clockInSubmitting ? (
             <span className="flex items-center justify-center gap-2">
               <Spinner size="sm" />
               Clocking in...
@@ -625,10 +737,6 @@ export function ClockInOut({ userId, onStatusChange }: ClockInOutProps) {
           )}
         </button>
       </Card>
-    </div>
+    </form>
   );
 }
-
-
-
-

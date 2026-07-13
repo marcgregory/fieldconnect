@@ -141,6 +141,16 @@ export const clockOutSchema = z.object({
   clock_out_accuracy: accuracySchema,
 });
 
+/**
+ * Client-facing clock-in form schema.
+ * Only the project selection is managed by react-hook-form.
+ * GPS fields, notes, and geofence_override are captured procedurally
+ * during submission and validated against the API schema (clockInSchema).
+ */
+export const clockInFormSchema = z.object({
+  project_id: z.string().min(1, 'Please select a project'),
+});
+
 // ─── Schedule Validation ────────────────────────────────────────────────────
 
 const timeStringRegex = /^\d{2}:\d{2}$/;
