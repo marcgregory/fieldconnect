@@ -273,7 +273,7 @@ function EvidenceGallery({
             <div className="flex flex-wrap gap-1.5 mt-1.5">
               {sigVersions[version].map((sig) => (
                 <div key={sig.id} className="bg-gray-50 rounded px-2 py-1 text-xs text-gray-600">
-                  ✍️ {sig.label} — {sig.user_name}
+                  ✍️ {sig.label.charAt(0).toUpperCase() + sig.label.slice(1)}
                 </div>
               ))}
             </div>
