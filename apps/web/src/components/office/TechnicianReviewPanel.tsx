@@ -362,17 +362,19 @@ function ReworkTimeline({
               </p>
             </div>
             <div className="p-4">
-              <div className="relative pl-10 space-y-0">
+              <div className="space-y-0">
                 {events.map((evt, evtIdx) => {
                   const { bg, ring } = iconMap[evt.icon];
                   const isLast = evtIdx === events.length - 1;
                   return (
-                    <div key={`${evt.ts}-${evtIdx}`} className="relative pb-5 last:pb-0">
-                      {!isLast && (
-                        <div className="absolute left-[13px] top-4 bottom-0 w-0.5 bg-gray-200" />
-                      )}
-                      <div className={`absolute left-0 top-0.5 h-6 w-6 rounded-full ${bg} ring-[3px] ${ring} flex items-center justify-center`}>
-                        <div className="h-2 w-2 rounded-full bg-white" />
+                    <div key={`${evt.ts}-${evtIdx}`} className="grid grid-cols-[2rem_1fr] gap-3 pb-5 last:pb-0">
+                      <div className="relative flex justify-center">
+                        {!isLast && (
+                          <div className="absolute top-7 bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-gray-200" />
+                        )}
+                        <div className={`relative z-10 h-6 w-6 rounded-full ${bg} ring-[3px] ${ring} flex items-center justify-center`}>
+                          <div className="h-2 w-2 rounded-full bg-white" />
+                        </div>
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 leading-snug">{evt.label}</p>
@@ -387,9 +389,11 @@ function ReworkTimeline({
               </div>
               {/* Closed event after the last cycle's events */}
               {closedAt && (
-                <div className="relative pl-10 mt-0 border-t border-gray-100 pt-4">
-                  <div className="absolute left-0 top-4 h-6 w-6 rounded-full bg-gray-500 ring-[3px] ring-gray-200 flex items-center justify-center">
-                    <div className="h-2 w-2 rounded-full bg-white" />
+                <div className="grid grid-cols-[2rem_1fr] gap-3 mt-0 border-t border-gray-100 pt-4">
+                  <div className="flex justify-center">
+                    <div className="h-6 w-6 rounded-full bg-gray-500 ring-[3px] ring-gray-200 flex items-center justify-center">
+                      <div className="h-2 w-2 rounded-full bg-white" />
+                    </div>
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 leading-snug">Assignment closed</p>
