@@ -56,6 +56,14 @@ export async function reworkRoutes(app: FastifyInstance) {
       }
 
       try {
+        // Resolve the affected technician's name from the existing workflow
+        // (must be done before the broadcast which needs a single name, not the
+        // aggregate schedule.technician_name which contains ALL techs joined)
+        const reworkTargetTech = existing.technician_workflow?.find(
+          (tw) => tw.technician_id === technician_id
+        );
+        const reworkTechName = reworkTargetTech?.technician_name || (technician_id as string) || 'technician';
+
         // Create the rework request
         const rework = await reworkQueries.createReworkRequest(
           id,
@@ -78,7 +86,7 @@ export async function reworkRoutes(app: FastifyInstance) {
           type: 'status_change',
           schedule_id: id,
           project_name: result.schedule.project_name,
-          technician_name: result.schedule.technician_name,
+          technician_name: reworkTechName,
           old_status: 'completed',
           new_status: 'rework_required',
           changed_by: request.user!.name,
@@ -87,10 +95,6 @@ export async function reworkRoutes(app: FastifyInstance) {
         });
 
         // Persist to activity feed
-        const reworkTargetTech = existing.technician_workflow?.find(
-          (tw) => tw.technician_id === technician_id
-        );
-        const reworkTechName = reworkTargetTech?.technician_name || 'technician';
         await insertActivityEvent({
           event_type: 'rework_requested',
           schedule_id: id,
@@ -179,12 +183,17 @@ export async function reworkRoutes(app: FastifyInstance) {
           notes: 'Resumed work for rework',
         });
 
+        // Resolve the affected technician's name
+        const resumeTechName = existing.technician_workflow?.find(
+          (tw) => tw.technician_id === targetTechId
+        )?.technician_name || targetTechId;
+
         // Broadcast WebSocket event
         broadcastJobEvent({
           type: 'status_change',
           schedule_id: id,
           project_name: result.schedule.project_name,
-          technician_name: result.schedule.technician_name,
+          technician_name: resumeTechName,
           old_status: 'rework_required',
           new_status: 'on_site',
           changed_by: request.user!.name,
@@ -193,9 +202,6 @@ export async function reworkRoutes(app: FastifyInstance) {
         });
 
         // Persist to activity feed
-        const resumeTechName = existing.technician_workflow?.find(
-          (tw) => tw.technician_id === targetTechId
-        )?.technician_name || targetTechId;
         await insertActivityEvent({
           event_type: 'rework_resumed',
           schedule_id: id,
@@ -265,12 +271,17 @@ export async function reworkRoutes(app: FastifyInstance) {
           notes: 'Rework completed',
         });
 
+        // Resolve the affected technician's name
+        const completeReworkTechName = existing.technician_workflow?.find(
+          (tw) => tw.technician_id === targetTechId
+        )?.technician_name || targetTechId;
+
         // Broadcast WebSocket event
         broadcastJobEvent({
           type: 'status_change',
           schedule_id: id,
           project_name: result.schedule.project_name,
-          technician_name: result.schedule.technician_name,
+          technician_name: completeReworkTechName,
           old_status: 'on_site',
           new_status: 'completed',
           changed_by: request.user!.name,
@@ -279,9 +290,6 @@ export async function reworkRoutes(app: FastifyInstance) {
         });
 
         // Persist to activity feed
-        const completeReworkTechName = existing.technician_workflow?.find(
-          (tw) => tw.technician_id === targetTechId
-        )?.technician_name || targetTechId;
         await insertActivityEvent({
           event_type: 'rework_completed',
           schedule_id: id,
