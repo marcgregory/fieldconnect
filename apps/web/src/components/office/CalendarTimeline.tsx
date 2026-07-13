@@ -46,7 +46,11 @@ export function CalendarTimeline({
   const calendarHeight = HOURS.length * pixelsPerHour;
 
   return (
-    <div className={`overflow-y-auto ${compact ? 'max-h-[calc(100vh-320px)]' : 'max-h-[calc(100vh-280px)]'}`}>
+    <div
+      className={`overflow-y-auto [scrollbar-gutter:stable] ${
+        compact ? 'max-h-[calc(100vh-320px)]' : 'max-h-[calc(100vh-280px)]'
+      }`}
+    >
       <div className="flex" style={{ height: calendarHeight }}>
         <div className="relative w-16 flex-shrink-0 border-r border-gray-100" aria-hidden="true">
           {HOURS.map((hour, index) => (

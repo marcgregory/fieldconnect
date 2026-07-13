@@ -165,7 +165,7 @@ function WeekView({ currentDate, schedules, onSlotClick, onScheduleClick }: View
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
       <div className="min-w-[840px]">
-        <div className="flex border-b border-gray-200">
+        <div className="flex overflow-y-auto border-b border-gray-200 [scrollbar-gutter:stable]">
           <div className="w-16 flex-shrink-0" />
           {days.map((day) => {
             const date = formatDate(day);
