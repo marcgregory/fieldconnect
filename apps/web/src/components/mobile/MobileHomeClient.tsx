@@ -2,23 +2,16 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Card } from '@fieldconnect/ui';
 import { ClockInOut } from './ClockInOut';
 import { TimeHistory } from './TimeHistory';
 
-interface MobileHomeClientProps {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  };
-}
-
 type MobileView = 'home' | 'history';
 
-export function MobileHomeClient({ user }: MobileHomeClientProps) {
+export function MobileHomeClient() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [view, setView] = useState<MobileView>('home');
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -26,11 +19,21 @@ export function MobileHomeClient({ user }: MobileHomeClientProps) {
     setRefreshKey((k) => k + 1);
   }, []);
 
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <span className="text-sm text-slate-500">Loading your workspace...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {view === 'home' ? (
         <>
-          <ClockInOut userId={user.id} onStatusChange={handleStatusChange} />
+          <ClockInOut userId={userId} onStatusChange={handleStatusChange} />
 
           <Card title="Quick Links">
             <div className="space-y-3">
