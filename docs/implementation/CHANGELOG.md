@@ -6,9 +6,7 @@ All notable project changes should be documented here. Keep this file versioned 
 
 ### Technical Debt
 
-- **TD-008 Part 2 (ClockInOut):** Verified — already uses `react-hook-form` + `zodResolver` with `clockInFormSchema`. Tracking label was stale. **Done ✅**
-- **TD-008 Part 3 (JobDetailClient):** Full audit (1649 lines) — zero `safeParse` calls, 2 `FormData` usages (both for file uploads, correct pattern), 1 single-text-field note input (no RHF benefit). **Closed — Not Needed ✅**
-- **ScheduleForm** remains as the only unverified item from the original TD-008.
+- **TD-008 fully closed:** All three components (`ScheduleForm`, `ClockInOut`, `JobDetailClient`) manually audited against actual code. All three already use appropriate patterns — `useForm` + `zodResolver` + RHF primitives where applicable, file uploads via `FormData` (correct), and server/UI state outside RHF (correct). The TD claim of "useState + FormData + manual safeParse" was inaccurate for all three. No code changes needed. **Closed ✅**
 
 ### Changed
 

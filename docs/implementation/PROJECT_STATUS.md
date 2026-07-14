@@ -1,6 +1,6 @@
 # FieldConnect Project Status
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 This document is a snapshot. It is not a changelog.
 
@@ -82,9 +82,7 @@ Sprint 7 — Customer Completion Report PDF ✅
 - `react-hook-form` and `@hookform/resolvers` added to `apps/web` deps + `packages/ui` peer deps ✅
 - All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
 - TD-008 logged for the three larger forms (`ScheduleForm`, `ClockInOut`, `JobDetailClient`) still pending migration in Sprint 7 ✅
-- **TD-008 Part 2 (ClockInOut):** Reviewed — already uses `useForm` + `zodResolver` with `clockInFormSchema`. Stale tracking label. **Done ✅**
-- **TD-008 Part 3 (JobDetailClient):** Full audit — zero `safeParse` calls, 2 `FormData` (file uploads — correct), 1 text input. Not a migration candidate. **Closed — Not Needed ✅**
-- **ScheduleForm** remains as the only unverified item.
+- **TD-008 fully closed:** Full manual audit of all three components confirmed `useForm` + `zodResolver` + RHF primitives already in use where applicable. JobDetailClient's single text input and file uploads are appropriate patterns. TD item was inaccurate. **Closed ✅**
 
 ### Sprint 6 / Phase 3 — Forgot Password / Reset Password — Complete ✅
 - `password_reset_tokens` table (migration 029), `db/queries/password-reset-tokens.ts` with `peek()` / `consume()` / `markUsed()` / `invalidateAllForUser()` ✅
