@@ -80,48 +80,59 @@ export function OfficeNav({ user }: OfficeNavProps) {
   const NAV_ITEMS = buildNavItems(resolvedUser.role);
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-white/70 bg-stone-50/80 shadow-sm shadow-brand-900/5 backdrop-blur-xl">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between gap-4">
-          <Link href="/dashboard" className="flex flex-shrink-0 items-center gap-2">
-            <Logo size={30} showText />
-          </Link>
+    <nav className="sticky top-0 z-40 border-b border-white/70 bg-stone-50/90 shadow-sm shadow-brand-900/5 backdrop-blur-xl">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-3 py-3 sm:gap-4 sm:py-4">
+          <div className="flex items-center justify-between gap-3">
+            <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
+              <Logo size={26} />
+              <div className="min-w-0">
+                <p className="truncate text-lg font-black tracking-tight text-slate-950">FieldConnect</p>
+                <p className="hidden text-[11px] uppercase tracking-[0.18em] text-slate-500 sm:block">
+                  Office Console
+                </p>
+              </div>
+            </Link>
 
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-full border border-slate-200/80 bg-white/70 p-1 shadow-insetline">
-            {NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-semibold transition-all ${
-                    isActive
-                      ? 'border border-brand-200 bg-brand-100 text-brand-900 shadow-sm'
-                      : 'text-slate-600 hover:bg-white hover:text-slate-950'
-                  }`}
-                >
-                  {item.icon}
-                  {item.label}
-                </Link>
-              );
-            })}
+            <div className="flex flex-shrink-0 items-center gap-2 sm:gap-3">
+              <div className="hidden text-right md:block">
+                <p className="max-w-[160px] truncate text-sm font-semibold text-slate-900">{resolvedUser.name}</p>
+                <p className="text-xs capitalize tracking-wide text-slate-500">{resolvedUser.role.replace('_', ' ')}</p>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-red-200 hover:text-red-600"
+                title="Sign Out"
+                aria-label="Sign Out"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-shrink-0 items-center gap-3">
-            <div className="hidden text-right md:block">
-              <p className="max-w-[160px] truncate text-sm font-semibold text-slate-900">{resolvedUser.name}</p>
-              <p className="text-xs capitalize tracking-wide text-slate-500">{resolvedUser.role.replace('_', ' ')}</p>
+          <div className="-mx-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max items-center gap-2 px-1 sm:flex-wrap sm:gap-2 sm:px-0">
+              {NAV_ITEMS.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    aria-label={item.label}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition-all sm:px-3.5 ${
+                      isActive
+                        ? 'border-brand-200 bg-brand-100 text-brand-900 shadow-sm'
+                        : 'border-slate-200/80 bg-white/80 text-slate-600 hover:bg-white hover:text-slate-950'
+                    }`}
+                  >
+                    {item.icon}
+                    <span className="hidden sm:inline">{item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
-            <button
-              onClick={handleSignOut}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-red-200 hover:text-red-600"
-              title="Sign Out"
-              aria-label="Sign Out"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>

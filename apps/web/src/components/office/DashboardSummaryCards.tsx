@@ -46,9 +46,9 @@ export function DashboardSummaryCards() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-32 animate-pulse rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
+          <div key={i} className="h-28 animate-pulse rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm sm:h-32">
             <div className="mb-5 h-3 w-20 rounded bg-slate-200" />
             <div className="h-9 w-16 rounded bg-slate-200" />
           </div>
@@ -124,7 +124,7 @@ export function DashboardSummaryCards() {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:gap-4">
       {cards.map((card) => (
         <div
           key={card.label}
@@ -150,4 +150,3 @@ export function DashboardSummaryCards() {
     </div>
   );
 }
-

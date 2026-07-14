@@ -24,8 +24,6 @@ type ViewMode = 'day' | 'week';
 
 export function ScheduleClient() {
   const [viewMode, setViewMode] = useState<ViewMode>('day');
-  // Lazy initialize with null; set the real date after mount via useEffect
-  // to avoid hydration mismatch (server and client render different dates).
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const mounted = useHasMounted();
   useEffect(() => {
@@ -37,10 +35,7 @@ export function ScheduleClient() {
   const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<ScheduleWithDetails | null>(null);
-  const [creatingForSlot, setCreatingForSlot] = useState<{
-    date: string;
-    time?: string;
-  } | null>(null);
+  const [creatingForSlot, setCreatingForSlot] = useState<{ date: string; time?: string } | null>(null);
 
   const fetchSchedules = useCallback(async () => {
     try {
@@ -49,28 +44,25 @@ export function ScheduleClient() {
 
       const d = currentDate || new Date();
       if (viewMode === 'day') {
-        const dateStr = d.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
+        const dateStr = d.toLocaleDateString('en-CA');
         const data = await getSchedules({ date: dateStr });
         setSchedules(data);
       } else {
-        // Week view: get Monday to Sunday
         const startOfWeek = new Date(d);
         startOfWeek.setDate(d.getDate() - d.getDay());
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
 
-        const from = startOfWeek.toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const from = startOfWeek.toLocaleDateString('en-CA');
         const to = endOfWeek.toLocaleDateString('en-CA');
         const data = await getCalendarSchedules(from, to);
         setSchedules(data);
       }
 
-      // Also fetch unassigned jobs
       try {
         const unassignedData = await getUnassignedJobs();
         setUnassigned(unassignedData);
       } catch {
-        // Unassigned may return error if not authorized
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load schedules');
@@ -83,7 +75,6 @@ export function ScheduleClient() {
     fetchSchedules();
   }, [fetchSchedules]);
 
-  // ─── Socket: refetch on any job update ─────────────────────────────────
   const { onJobUpdate } = useSocket();
   useEffect(() => {
     const unsub = onJobUpdate(() => {
@@ -138,7 +129,7 @@ export function ScheduleClient() {
       setCreatingForSlot(null);
       fetchSchedules();
     } catch (err) {
-      throw err; // Let the form handle errors
+      throw err;
     }
   }
 
@@ -160,7 +151,6 @@ export function ScheduleClient() {
   ) {
     try {
       if (scheduleId) {
-        // Update existing schedule
         const updates: UpdateScheduleInput = {
           technician_ids: [technicianId],
           scheduled_date: date,
@@ -168,9 +158,8 @@ export function ScheduleClient() {
         if (startTime) updates.start_time = startTime;
         await updateSchedule(scheduleId, updates);
       } else {
-        // Create new from unassigned
         await createSchedule({
-          project_id: '', // Will be set by the drop data
+          project_id: '',
           technician_ids: [technicianId],
           scheduled_date: date,
           start_time: startTime,
@@ -201,76 +190,77 @@ export function ScheduleClient() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-xl font-bold text-gray-900">Schedule</h1>
+      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Schedule</h1>
           <button
             onClick={handleCreateNew}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
           >
             + New Schedule
           </button>
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center justify-between mb-6 bg-white rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center gap-3">
-            {/* View toggle */}
-            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-              <button
-                onClick={() => setViewMode('day')}
-                className={`px-3 py-1.5 text-sm font-medium ${
-                  viewMode === 'day'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                Day
-              </button>
-              <button
-                onClick={() => setViewMode('week')}
-                className={`px-3 py-1.5 text-sm font-medium ${
-                  viewMode === 'week'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                Week
-              </button>
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex overflow-hidden rounded-lg border border-gray-200">
+                <button
+                  onClick={() => setViewMode('day')}
+                  className={`px-3 py-1.5 text-sm font-medium ${
+                    viewMode === 'day'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Day
+                </button>
+                <button
+                  onClick={() => setViewMode('week')}
+                  className={`px-3 py-1.5 text-sm font-medium ${
+                    viewMode === 'week'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Week
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate('prev')}
+                  className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={goToToday}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => navigate('next')}
+                  className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            {/* Navigation */}
-            <button
-              onClick={() => navigate('prev')}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={goToToday}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => navigate('next')}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-            <span className="text-sm font-medium text-gray-900 ml-2">
+            <span className="text-sm font-medium text-gray-900 lg:text-right">
               {formatDateLabel()}
             </span>
           </div>
         </div>
 
-        {/* Error State */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-6">
+          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
             <button onClick={fetchSchedules} className="ml-2 underline">
               Retry
@@ -278,19 +268,16 @@ export function ScheduleClient() {
           </div>
         )}
 
-        {/* Loading State */}
         {loading && (
-          <div className="text-center py-12">
-            <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-3" />
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
             <p className="text-sm text-gray-500">Loading schedule...</p>
           </div>
         )}
 
-        {/* Main Layout: Calendar + Unassigned Sidebar */}
         {!loading && (
-          <div className="flex gap-6">
-            {/* Calendar */}
-            <div className="flex-1 min-w-0">
+          <div className="flex flex-col gap-6 lg:flex-row">
+            <div className="min-w-0 flex-1">
               {currentDate !== null ? (
                 <CalendarView
                   viewMode={viewMode}
@@ -302,26 +289,25 @@ export function ScheduleClient() {
                 />
               ) : (
                 <div className="flex items-center justify-center py-20">
-                  <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+                  <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
                 </div>
               )}
             </div>
 
-            {/* Unassigned Queue Sidebar */}
-            <div className="w-72 flex-shrink-0 hidden lg:block">
-              <UnassignedQueue
-                items={unassigned}
-                onAssign={(item) => handleEdit(item)}
-              />
+            <div className="w-full lg:hidden">
+              <UnassignedQueue items={unassigned} onAssign={(item) => handleEdit(item)} />
+            </div>
+
+            <div className="hidden w-72 flex-shrink-0 lg:block">
+              <UnassignedQueue items={unassigned} onAssign={(item) => handleEdit(item)} />
             </div>
           </div>
         )}
       </main>
 
-      {/* Schedule Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-5 shadow-xl sm:p-6">
             <ScheduleForm
               schedule={editingSchedule}
               defaultDate={creatingForSlot?.date}

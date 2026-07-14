@@ -26,22 +26,23 @@ const quickLinks = [
 export function DashboardClient() {
   return (
     <div className="min-h-screen">
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-        <section className="mb-6 rounded-2xl border border-white/80 bg-white/90 px-6 py-5 shadow-premium backdrop-blur-xl sm:px-8">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <section className="mb-4 rounded-2xl border border-white/80 bg-white/90 px-4 py-4 shadow-premium backdrop-blur-xl sm:mb-6 sm:px-8 sm:py-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700 sm:mb-3">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 Live
               </div>
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-950">Dashboard</h2>
+              <h2 className="text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl">Dashboard</h2>
+              <p className="mt-1 text-sm text-slate-500">Keep projects, schedules, and field activity moving without the desktop squeeze.</p>
             </div>
           </div>
         </section>
 
         <DashboardSummaryCards />
 
-        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:mt-6 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card title="Quick Links">
             <div className="space-y-3">
               {quickLinks.map((item) => (
