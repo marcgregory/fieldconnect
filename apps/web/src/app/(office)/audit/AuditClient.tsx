@@ -93,7 +93,6 @@ export function AuditClient() {
         setActions(data.actions || []);
       }
     } catch {
-      // Non-critical
     }
   }, []);
 
@@ -193,18 +192,14 @@ export function AuditClient() {
 
   function formatMetadata(meta: Record<string, unknown> | null): string {
     if (!meta) return '';
-    const entries = Object.entries(meta).filter(
-      ([k, v]) => v !== null && v !== undefined && v !== '',
-    );
+    const entries = Object.entries(meta).filter(([_, v]) => v !== null && v !== undefined && v !== '');
     if (entries.length === 0) return '';
-    return entries
-      .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`)
-      .join(' • ');
+    return entries.map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(' • ');
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8">
+    <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
+      <div className="mb-6 sm:mb-8">
         <h1 className="text-2xl font-bold text-slate-900">Audit Log</h1>
         <p className="mt-1 text-sm text-slate-500">
           Authentication and security events across the platform.
@@ -220,14 +215,10 @@ export function AuditClient() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[200px]">
-            <label
-              htmlFor="action-filter"
-              className="mb-1 block text-xs font-medium text-slate-500"
-            >
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_repeat(2,minmax(200px,1fr))_auto]">
+          <div className="min-w-0">
+            <label htmlFor="action-filter" className="mb-1 block text-xs font-medium text-slate-500">
               Action
             </label>
             <select
@@ -245,10 +236,7 @@ export function AuditClient() {
             </select>
           </div>
           <div>
-            <label
-              htmlFor="date-from"
-              className="mb-1 block text-xs font-medium text-slate-500"
-            >
+            <label htmlFor="date-from" className="mb-1 block text-xs font-medium text-slate-500">
               From
             </label>
             <input
@@ -256,14 +244,11 @@ export function AuditClient() {
               type="datetime-local"
               value={filterDateFrom}
               onChange={(e) => setFilterDateFrom(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
           <div>
-            <label
-              htmlFor="date-to"
-              className="mb-1 block text-xs font-medium text-slate-500"
-            >
+            <label htmlFor="date-to" className="mb-1 block text-xs font-medium text-slate-500">
               To
             </label>
             <input
@@ -271,19 +256,18 @@ export function AuditClient() {
               type="datetime-local"
               value={filterDateTo}
               onChange={(e) => setFilterDateTo(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
           </div>
           <button
             onClick={handleFilter}
-            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+            className="w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 xl:w-auto xl:self-end"
           >
             Apply
           </button>
         </div>
       </div>
 
-      {/* Results */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-brand-600" />
@@ -295,59 +279,57 @@ export function AuditClient() {
       ) : (
         <>
           <div className="mb-3 text-sm text-slate-500">
-            Showing {page * PER_PAGE + 1}–
-            {Math.min((page + 1) * PER_PAGE, total)} of {total} events
+            Showing {page * PER_PAGE + 1}–{Math.min((page + 1) * PER_PAGE, total)} of {total} events
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50">
-                  <th className="px-4 py-3 font-semibold text-slate-600">Time</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Action</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">User</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">IP</th>
-                  <th className="px-4 py-3 font-semibold text-slate-600">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {events.map((e) => {
-                  const { label, variant } = getActionBadge(e.action);
-                  return (
-                    <tr key={e.id} className="hover:bg-slate-50/50">
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-500">
-                        {formatDate(e.created_at)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${VARIANT_CLASSES[variant]}`}
-                        >
-                          {label}
-                        </span>
-                      </td>
-                      <td className="max-w-[200px] truncate px-4 py-3 text-slate-700">
-                        {formatUser(e.user_name, e.user_email)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">
-                        {formatIp(e.ip_address)}
-                      </td>
-                      <td className="max-w-[250px] truncate px-4 py-3 text-xs text-slate-400">
-                        {formatMetadata(e.metadata)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto overscroll-x-contain">
+              <table className="min-w-[920px] w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    <th className="px-4 py-3 font-semibold text-slate-600">Time</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600">Action</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600">User</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600">IP</th>
+                    <th className="px-4 py-3 font-semibold text-slate-600">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {events.map((e) => {
+                    const { label, variant } = getActionBadge(e.action);
+                    return (
+                      <tr key={e.id} className="hover:bg-slate-50/50">
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">
+                          {formatDate(e.created_at)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${VARIANT_CLASSES[variant]}`}>
+                            {label}
+                          </span>
+                        </td>
+                        <td className="max-w-[220px] truncate px-4 py-3 text-slate-700">
+                          {formatUser(e.user_name, e.user_email)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-500">
+                          {formatIp(e.ip_address)}
+                        </td>
+                        <td className="max-w-[280px] truncate px-4 py-3 text-xs text-slate-400">
+                          {formatMetadata(e.metadata)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-2">
+            <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
                 disabled={page === 0}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
               >
                 Previous
               </button>
@@ -357,7 +339,7 @@ export function AuditClient() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
               >
                 Next
               </button>
