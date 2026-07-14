@@ -9,3 +9,8 @@ dist/
 *.log
 .DS_Store
 .emails/
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
