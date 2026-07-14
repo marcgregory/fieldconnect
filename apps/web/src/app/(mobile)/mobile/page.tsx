@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { MobileHomeClient } from '@/components/mobile/MobileHomeClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'FieldConnect - Mobile',
   description: 'Clock in and manage your jobs',

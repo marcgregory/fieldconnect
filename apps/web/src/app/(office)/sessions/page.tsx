@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { SessionsClient } from './SessionsClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Sessions',
   description: 'Manage your active login sessions and devices',

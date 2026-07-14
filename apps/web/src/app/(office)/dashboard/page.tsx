@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { DashboardClient } from './DashboardClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Dashboard',
   description: 'FieldConnect office dashboard — overview of hours, active technicians, and live job feed',

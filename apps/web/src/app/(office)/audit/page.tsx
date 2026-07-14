@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { AuditClient } from './AuditClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Audit Log',
   description: 'View authentication audit events and security activity',

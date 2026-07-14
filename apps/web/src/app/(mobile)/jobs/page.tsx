@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { JobQueueClient } from '@/components/mobile/JobQueueClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'FieldConnect - My Jobs',
   description: 'View your scheduled and completed jobs',

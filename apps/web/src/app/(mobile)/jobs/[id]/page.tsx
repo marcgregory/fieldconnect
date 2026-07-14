@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { JobDetailClient } from '@/components/mobile/JobDetailClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'FieldConnect - Job Details',
   description: 'View job details and actions',

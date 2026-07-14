@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
 import { ReviewClient } from '@/components/office/ReviewClient';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
   title: 'Work Review - FieldConnect',
   description: 'Review completed technician jobs',
