@@ -24,10 +24,14 @@ export default async function OfficeLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen bg-gray-50">
       <OfficeClientWrapper>
-        <OfficeNav />
+        <OfficeNav
+          user={{
+            name: session.user.name,
+            role: session.user.role,
+          }}
+        />
         <main id="main-content">{children}</main>
       </OfficeClientWrapper>
     </div>
   );
 }
-

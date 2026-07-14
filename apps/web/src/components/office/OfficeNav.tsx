@@ -13,6 +13,13 @@ interface NavItem {
   icon: ReactNode;
 }
 
+interface OfficeNavProps {
+  user: {
+    name?: string | null;
+    role: string;
+  };
+}
+
 function Icon({ children }: { children: ReactNode }) {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -61,15 +68,16 @@ function buildNavItems(role: string): NavItem[] {
   return items;
 }
 
-export function OfficeNav() {
+export function OfficeNav({ user }: OfficeNavProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const resolvedUser = session?.user ?? user;
 
-  if (!session || session.user.role === 'field_technician') {
+  if (!resolvedUser || resolvedUser.role === 'field_technician') {
     return null;
   }
 
-  const NAV_ITEMS = buildNavItems(session.user.role);
+  const NAV_ITEMS = buildNavItems(resolvedUser.role);
 
   return (
     <nav className="sticky top-0 z-40 border-b border-white/70 bg-stone-50/80 shadow-sm shadow-brand-900/5 backdrop-blur-xl">
@@ -101,8 +109,8 @@ export function OfficeNav() {
 
           <div className="flex flex-shrink-0 items-center gap-3">
             <div className="hidden text-right md:block">
-              <p className="max-w-[160px] truncate text-sm font-semibold text-slate-900">{session.user.name}</p>
-              <p className="text-xs capitalize tracking-wide text-slate-500">{session.user.role.replace('_', ' ')}</p>
+              <p className="max-w-[160px] truncate text-sm font-semibold text-slate-900">{resolvedUser.name}</p>
+              <p className="text-xs capitalize tracking-wide text-slate-500">{resolvedUser.role.replace('_', ' ')}</p>
             </div>
             <button
               onClick={handleSignOut}
@@ -120,6 +128,3 @@ export function OfficeNav() {
     </nav>
   );
 }
-
-
-
