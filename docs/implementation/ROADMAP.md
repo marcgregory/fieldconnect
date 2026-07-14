@@ -97,3 +97,8 @@ Last updated: 2026-07-11
 - **TD-009 — Periodic Cleanup Script** ✅ — Idempotent cleanup for 7 expiring tables with bounded batch deletes, dry-run mode, Render Cron Job compatible
 - **Sprint 6 Cleanup — Audit Monitoring UI** ✅ — Admin-only audit event viewer with pagination, filtering, action badges, and summary
 - **Sprint 7 — Customer Completion Report PDF** ✅ — PDFKit-based A4 completion report with project info, time summary, notes, photos, and signatures
+- **RC Lite — Release Readiness Assessment** ✅ — 46/46 release gates Passed, GO decision, v1.0.0-beta-feature-complete tagged
+
+## Sprint Queue (Next)
+
+- **Sprint 8 — Inventory / Materials Management** (planned — pending release push)

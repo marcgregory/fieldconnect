@@ -6,7 +6,21 @@ This document is a snapshot. It is not a changelog.
 
 ## Current Sprint
 
-Sprint 7 — Customer Completion Report PDF ✅
+RC Lite — Release Readiness Assessment ✅
+
+## Release Milestone
+
+v1.0.0-beta-feature-complete — **Tagged** ✅
+
+- **RC report**: 46/46 release gates Passed — GO decision
+- **Build fix**: `export const dynamic = 'force-dynamic'` added to 8 auth-guarded pages (was failing production build)
+- **Deployment checklist**: documented pre/post-deploy steps
+- **Release notes**: closed-beta feature summary
+- **Tag**: `v1.0.0-beta-feature-complete` — "FieldConnect feature-complete for closed beta"
+
+## Next Sprint
+
+Sprint 8 — Planning pending release push
 
 ## Current Progress
 

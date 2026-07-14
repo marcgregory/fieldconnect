@@ -2,6 +2,24 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v1.0.0-beta-feature-complete — 2026-07-14
+
+### Release
+
+- **RC Lite — Release Readiness Assessment** ✅
+  - Full 46-gate release readiness assessment completed
+  - All 46 release gates **Passed** with documented execution evidence
+  - GO decision issued — feature-complete for closed beta
+  - See `docs/reports/rc/FINAL_RELEASE_READINESS.md`
+
+### Fixed
+
+- **Critical: Production build failure** — Next.js 14 was trying to statically prerender pages using `getServerSession()`, causing `TypeError: Cannot read properties of undefined (reading 'call')` during `next build`. Added `export const dynamic = 'force-dynamic'` to all 8 auth-guarded pages.
+
+### Added
+
+- **RC deliverables** — `docs/reports/rc/FINAL_RELEASE_READINESS.md`, `docs/reports/rc/deployment-checklist.md`, `docs/reports/rc/release-notes.md`
+
 ## v0.14.2 — 2026-07-14
 
 ### Technical Debt
