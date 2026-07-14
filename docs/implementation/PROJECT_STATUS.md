@@ -82,6 +82,9 @@ Sprint 7 — Customer Completion Report PDF ✅
 - `react-hook-form` and `@hookform/resolvers` added to `apps/web` deps + `packages/ui` peer deps ✅
 - All `pnpm typecheck`, `pnpm build`, `pnpm lint` pass (4/4 tasks each) ✅
 - TD-008 logged for the three larger forms (`ScheduleForm`, `ClockInOut`, `JobDetailClient`) still pending migration in Sprint 7 ✅
+- **TD-008 Part 2 (ClockInOut):** Reviewed — already uses `useForm` + `zodResolver` with `clockInFormSchema`. Stale tracking label. **Done ✅**
+- **TD-008 Part 3 (JobDetailClient):** Full audit — zero `safeParse` calls, 2 `FormData` (file uploads — correct), 1 text input. Not a migration candidate. **Closed — Not Needed ✅**
+- **ScheduleForm** remains as the only unverified item.
 
 ### Sprint 6 / Phase 3 — Forgot Password / Reset Password — Complete ✅
 - `password_reset_tokens` table (migration 029), `db/queries/password-reset-tokens.ts` with `peek()` / `consume()` / `markUsed()` / `invalidateAllForUser()` ✅

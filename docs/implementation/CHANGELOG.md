@@ -2,6 +2,20 @@
 
 All notable project changes should be documented here. Keep this file versioned and historical; do not use it as a current status report.
 
+## v0.14.2 — 2026-07-14
+
+### Technical Debt
+
+- **TD-008 Part 2 (ClockInOut):** Verified — already uses `react-hook-form` + `zodResolver` with `clockInFormSchema`. Tracking label was stale. **Done ✅**
+- **TD-008 Part 3 (JobDetailClient):** Full audit (1649 lines) — zero `safeParse` calls, 2 `FormData` usages (both for file uploads, correct pattern), 1 single-text-field note input (no RHF benefit). **Closed — Not Needed ✅**
+- **ScheduleForm** remains as the only unverified item from the original TD-008.
+
+### Changed
+
+- **Playwright artifacts removed from git** — `test-results/` and `playwright-report/` directories deleted from tracking, added to `.gitignore`
+- **RC report created** — `docs/reports/rc/TD-008-part2-clockinout.md` with browser execution evidence for all 7 validation items
+- **Stale dev servers cleaned up** — 8 old API dev server processes terminated
+
 ## v0.14.1 — 2026-07-13
 
 ### Changed
