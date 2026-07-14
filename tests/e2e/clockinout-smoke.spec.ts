@@ -10,55 +10,23 @@ import { test, expect, type Page, type BrowserContext } from '@playwright/test';
 const TECH_EMAIL = 'rc-tech-1@fieldconnect.test';
 const TECH_PASSWORD = 'rc-test-password';
 
+const TIMER_SELECTOR = '[data-testid="timer-display"], .text-5xl.font-mono';
+
 async function loginAsTech(page: Page) {
+  // Use the real UI login flow — not the API bypass hack.
+  // The login form now blocks native GET submission before hydration.
   await page.goto('/login');
-  await page.waitForLoadState('networkidle');
 
-  // Wait for React hydration by checking for a known React-managed element.
-  // The Button component from @fieldconnect/ui has role="button" and loading state.
-  // When React hydrates, the Sign In button becomes interactive.
-  await page.waitForSelector('button:has-text("Sign In"):not([type="submit"])', { state: 'attached', timeout: 10_000 }).catch(() => {});
-  // Wait extra long for React to hydrate event handlers
-  await page.waitForTimeout(2000);
+  // Wait for hydration: button transitions from "Initializing..." to "Sign In"
+  await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible({ timeout: 10_000 });
 
-  // Use page.evaluate to call the login API + NextAuth signIn directly
-  // This bypasses the React form entirely and avoids native form submission
-  await page.evaluate(async ({ email, password }) => {
-    // 1. Call BFF login
-    const bffRes = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!bffRes.ok) throw new Error(`BFF login: ${await bffRes.text()}`);
-
-    // 2. Get CSRF token
-    const csrfRes = await fetch('/api/auth/csrf');
-    const { csrfToken } = await csrfRes.json();
-
-    // 3. Call NextAuth credentials callback with form-urlencoded body
-    const params = new URLSearchParams({
-      csrfToken, email, password,
-      callbackUrl: '/mobile',
-      json: 'true',
-    });
-    const cbRes = await fetch('/api/auth/callback/credentials', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-    });
-    if (!cbRes.ok) {
-      const body = await cbRes.json();
-      console.log('Credentials callback status:', cbRes.status, 'body:', JSON.stringify(body));
-      // The cookie may still be set on the redirect — try navigating anyway
-    }
-
-    // 4. Navigate to mobile
-    window.location.href = '/mobile';
-  }, { email: TECH_EMAIL, password: TECH_PASSWORD });
+  // Fill credentials and submit
+  await page.fill('input[type="email"]', TECH_EMAIL);
+  await page.fill('input[type="password"]', TECH_PASSWORD);
+  await page.click('button[type="submit"]');
 
   // Wait for mobile page
-  await page.waitForURL(/\/mobile/, { timeout: 15_000 });
+  await page.waitForURL(/\/mobile/, { timeout: 20_000 });
   await page.waitForLoadState('networkidle');
   await expect(page.getByText(/Welcome, RC Tech 1/i)).toBeVisible({ timeout: 10_000 });
 }
@@ -79,7 +47,7 @@ async function waitForClockInForm(page: Page) {
 async function doClockIn(page: Page) {
   await page.click('role=radio[name="Select project Smith Residence"]');
   await page.click('button:has-text("Clock In")');
-  await expect(page.locator('.text-5xl.font-mono')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator(TIMER_SELECTOR).first()).toBeVisible({ timeout: 15_000 });
 }
 
 async function doClockOut(page: Page, confirm: boolean) {
@@ -92,7 +60,7 @@ async function doClockOut(page: Page, confirm: boolean) {
     await page.waitForTimeout(1000);
   } else {
     await page.click('button:has-text("Cancel")');
-    await expect(page.locator('.text-5xl.font-mono')).toBeVisible();
+    await expect(page.locator(TIMER_SELECTOR).first()).toBeVisible();
   }
 }
 
@@ -113,13 +81,14 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     // STEP 2: Clock In (GPS denied — best-effort)
     // ══════════════════════════════════════════════════════════════════
     await waitForClockInForm(page);
-    await expect(page.getByText('Smith Residence')).toBeVisible();
+    await expect(page.getByRole('radio', { name: /Smith Residence/ })).toBeVisible();
     await doClockIn(page);
 
-    const timerText = await page.locator('.text-5xl.font-mono').textContent();
+    const timerLocator = page.locator(TIMER_SELECTOR).first();
+    const timerText = await timerLocator.textContent();
     expect(timerText).toMatch(/^\d{2}:\d{2}:\d{2}$/);
     await expect(page.getByText('Clocked in at')).toBeVisible();
-    await expect(page.getByText('Smith Residence')).toBeVisible();
+    await expect(page.getByText('Smith Residence').first()).toBeVisible();
     console.log(`  ✅ Clock-in success: ${timerText}`);
     await page.screenshot({ path: 'test-results/e2e/clockinout/01-clockin-gps-denied.png' });
 
@@ -147,6 +116,7 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     await page.waitForLoadState('networkidle');
 
     await waitForClockInForm(page);
+    await expect(page.getByRole('radio', { name: /Smith Residence/ })).toBeVisible({ timeout: 10_000 });
     await doClockIn(page);
 
     await expect(page.getByText('Inside Geofence')).toBeVisible({ timeout: 10_000 });
@@ -158,16 +128,16 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     // ══════════════════════════════════════════════════════════════════
     // STEP 6: Timer restoration after refresh
     // ══════════════════════════════════════════════════════════════════
-    const timerBefore = await page.locator('.text-5xl.font-mono').textContent();
+    const timerBefore = await timerLocator.textContent();
     await page.waitForTimeout(2000);
 
     await page.reload();
     await page.waitForLoadState('networkidle');
 
-    await expect(page.locator('.text-5xl.font-mono')).toBeVisible({ timeout: 15_000 });
+    await expect(timerLocator).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Clocked in at')).toBeVisible();
-    await expect(page.getByText('Smith Residence')).toBeVisible();
-    const timerAfter = await page.locator('.text-5xl.font-mono').textContent();
+    await expect(page.getByText('Smith Residence').first()).toBeVisible();
+    const timerAfter = await timerLocator.textContent();
     console.log(`  ✅ Timer: before=${timerBefore}, after=${timerAfter}`);
     await page.screenshot({ path: 'test-results/e2e/clockinout/05-timer-after-refresh.png' });
 
@@ -181,7 +151,7 @@ test.describe('ClockInOut Browser Smoke Test', () => {
 
     await page.reload();
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('.text-5xl.font-mono')).toBeVisible({ timeout: 15_000 });
+    await expect(timerLocator).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(1000);
 
     console.log(`  ✅ Hydration errors: ${hydErrors.length === 0 ? 'none' : hydErrors}`);

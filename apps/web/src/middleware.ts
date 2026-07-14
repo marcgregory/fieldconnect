@@ -106,6 +106,15 @@ export async function middleware(request: NextRequest) {
     .replace(/=+$/, '');
   const nonceCsp = `'nonce-${nonce}'`;
 
+  // Next.js dev mode uses new Function() / eval for Hot Module Replacement
+  // and React dev mode uses eval for component stack traces, both of which
+  // are blocked by a strict script-src. Conditionally allow unsafe-eval in
+  // development to keep hydration working.
+  const isDev = process.env.NODE_ENV === 'development';
+  const scriptSrc = isDev
+    ? `script-src 'self' ${nonceCsp} 'unsafe-eval'`
+    : `script-src 'self' ${nonceCsp}`;
+
   const response = NextResponse.next();
 
   // Tell Next.js to add nonce="..." to its inline scripts
@@ -116,7 +125,7 @@ export async function middleware(request: NextRequest) {
     'Content-Security-Policy',
     [
       `default-src 'self'`,
-      `script-src 'self' ${nonceCsp}`,
+      scriptSrc,
       `style-src 'self' 'unsafe-inline'`,
       `img-src 'self' data: blob: https://res.cloudinary.com`,
       `connect-src ${API_CONNECT_HOST}`,

@@ -28,11 +28,19 @@ export default function LoginPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState<FormError | null>(null);
   const [retryAfter, setRetryAfter] = useState(0);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
+
+  // Mark hydration complete so form controls become interactive.
+  // Before hydration the browser would perform a native GET submission
+  // exposing credentials in the URL.
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   // Tick down the Retry-After countdown every second when active.
   useEffect(() => {
@@ -93,6 +101,7 @@ export default function LoginPage() {
   }
 
   const isRateLimited = serverError?.code === 'RATE_LIMITED';
+  const formDisabled = !isHydrated || isRateLimited;
 
   return (
     <div className="premium-panel overflow-hidden rounded-[1.75rem] p-0">
@@ -106,7 +115,16 @@ export default function LoginPage() {
 
       <div className="px-8 py-7">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <form
+            method="post"
+            onSubmit={(event) => {
+              event.preventDefault();
+              form.handleSubmit(onSubmit)(event);
+            }}
+            className="space-y-4"
+            noValidate
+            aria-busy={!isHydrated}
+          >
             {serverError && (
               <div
                 className={`rounded-xl border p-3 text-sm font-medium ${
@@ -149,6 +167,7 @@ export default function LoginPage() {
                       type="email"
                       autoComplete="email"
                       placeholder="you@company.com"
+                      disabled={formDisabled}
                       {...field}
                     />
                   </FormControl>
@@ -168,6 +187,7 @@ export default function LoginPage() {
                       type="password"
                       autoComplete="current-password"
                       placeholder="Password"
+                      disabled={formDisabled}
                       {...field}
                     />
                   </FormControl>
@@ -187,11 +207,11 @@ export default function LoginPage() {
 
             <Button
               type="submit"
-              loading={form.formState.isSubmitting}
-              disabled={retryAfter > 0 || form.formState.isSubmitting}
+              loading={!isHydrated || form.formState.isSubmitting}
+              disabled={formDisabled}
               className="w-full"
             >
-              {retryAfter > 0 ? `Wait ${retryAfter}s` : 'Sign In'}
+              {!isHydrated ? 'Initializing...' : retryAfter > 0 ? `Wait ${retryAfter}s` : 'Sign In'}
             </Button>
           </form>
         </Form>
