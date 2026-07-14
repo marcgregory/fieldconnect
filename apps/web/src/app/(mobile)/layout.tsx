@@ -2,7 +2,6 @@ import type { Viewport } from 'next';
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import { authOptions } from '@/lib/auth';
-import { MobileShell } from '@/components/mobile/MobileShell';
 import { OfflineIndicator } from '@/components/mobile/OfflineIndicator';
 
 export const viewport: Viewport = {
@@ -24,7 +23,7 @@ export default async function MobileLayout({ children }: { children: React.React
 
   return (
     <div className="mx-auto min-h-screen max-w-md bg-gray-50" style={{ maxWidth: '430px' }}>
-      <MobileShell>{children}</MobileShell>
+      <main id="main-content">{children}</main>
       <OfflineIndicator />
     </div>
   );

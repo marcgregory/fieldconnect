@@ -1,17 +1,26 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { handleSignOut } from '@/lib/logout';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
 import { Card } from '@fieldconnect/ui';
+import { Logo } from '@/components/Logo';
 import { ClockInOut } from './ClockInOut';
 import { TimeHistory } from './TimeHistory';
 
+interface MobileHomeClientProps {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
 type MobileView = 'home' | 'history';
 
-export function MobileHomeClient() {
+export function MobileHomeClient({ user }: MobileHomeClientProps) {
   const router = useRouter();
-  const { data: session } = useSession();
   const [view, setView] = useState<MobileView>('home');
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -19,63 +28,71 @@ export function MobileHomeClient() {
     setRefreshKey((k) => k + 1);
   }, []);
 
-  const userId = session?.user?.id;
-
-  if (!userId) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <span className="text-sm text-slate-500">Loading your workspace...</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {view === 'home' ? (
-        <>
-          <ClockInOut userId={userId} onStatusChange={handleStatusChange} />
-
-          <Card title="Quick Links">
-            <div className="space-y-3">
-              <button
-                onClick={() => setView('history')}
-                className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left font-semibold text-slate-700 shadow-sm transition-colors active:bg-stone-100"
-              >
-                Time History
-              </button>
-              <button
-                onClick={() => router.push('/jobs')}
-                className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left font-semibold text-slate-700 shadow-sm transition-colors active:bg-stone-100"
-              >
-                My Jobs
-              </button>
-              <button
-                className="w-full rounded-2xl border border-slate-200 bg-slate-100/70 px-4 py-3 text-left font-semibold text-slate-400"
-                disabled
-              >
-                Profile
-              </button>
-            </div>
-          </Card>
-
-          <TimeHistory refreshTrigger={refreshKey} />
-        </>
-      ) : (
-        <>
-          <button
-            onClick={() => setView('home')}
-            className="flex items-center gap-1 text-sm font-semibold text-brand-700"
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </button>
-          <div className="space-y-4">
-            <TimeHistory refreshTrigger={refreshKey} />
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <div className="bg-blue-600 px-4 pb-6 pt-12 text-white">
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Logo size={22} />
+            <h1 className="text-lg font-bold tracking-tight">FieldConnect</h1>
           </div>
-        </>
-      )}
+          <button
+            onClick={handleSignOut}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 shadow-sm"
+          >
+            Sign Out
+          </button>
+        </div>
+        <p className="text-sm text-white/80">Welcome, {user.name}</p>
+      </div>
+
+      <div className="flex-1 space-y-4 px-4 py-6">
+        {view === 'home' ? (
+          <>
+            <ClockInOut userId={user.id} onStatusChange={handleStatusChange} />
+
+            <Card title="Quick Links">
+              <div className="space-y-3">
+                <button
+                  onClick={() => setView('history')}
+                  className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left font-semibold text-slate-700 shadow-sm transition-colors active:bg-stone-100"
+                >
+                  Time History
+                </button>
+                <button
+                  onClick={() => router.push('/jobs')}
+                  className="w-full rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-left font-semibold text-slate-700 shadow-sm transition-colors active:bg-stone-100"
+                >
+                  My Jobs
+                </button>
+                <button
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-100/70 px-4 py-3 text-left font-semibold text-slate-400"
+                  disabled
+                >
+                  Profile
+                </button>
+              </div>
+            </Card>
+
+            <TimeHistory refreshTrigger={refreshKey} />
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => setView('home')}
+              className="flex items-center gap-1 text-sm font-semibold text-brand-700"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+            <div className="space-y-4">
+              <TimeHistory refreshTrigger={refreshKey} />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
