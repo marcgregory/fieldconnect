@@ -3,6 +3,9 @@
  *
  * All scenarios run in one test to share the login session and avoid
  * rate-limiting issues. Each step captures a screenshot as evidence.
+ *
+ * Wait strategy: never use `networkidle` (Socket.IO WebSocket keeps the
+ * network active forever). Use `domcontentloaded` and explicit UI state waits.
  */
 
 import { test, expect, type Page, type BrowserContext } from '@playwright/test';
@@ -12,9 +15,9 @@ const TECH_PASSWORD = 'rc-test-password';
 
 const TIMER_SELECTOR = '[data-testid="timer-display"], .text-5xl.font-mono';
 
+// ─── Helpers ───────────────────────────────────────────────────────────────────────
+
 async function loginAsTech(page: Page) {
-  // Use the real UI login flow — not the API bypass hack.
-  // The login form now blocks native GET submission before hydration.
   await page.goto('/login');
 
   // Wait for hydration: button transitions from "Initializing..." to "Sign In"
@@ -25,9 +28,9 @@ async function loginAsTech(page: Page) {
   await page.fill('input[type="password"]', TECH_PASSWORD);
   await page.click('button[type="submit"]');
 
-  // Wait for mobile page
+  // Login page pushes to /dashboard → server redirects field_technician to /mobile
   await page.waitForURL(/\/mobile/, { timeout: 20_000 });
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await expect(page.getByText(/Welcome, RC Tech 1/i)).toBeVisible({ timeout: 10_000 });
 }
 
@@ -50,21 +53,17 @@ async function doClockIn(page: Page) {
   await expect(page.locator(TIMER_SELECTOR).first()).toBeVisible({ timeout: 15_000 });
 }
 
-async function doClockOut(page: Page, confirm: boolean) {
+async function doClockOut(page: Page) {
   await page.click('button:has-text("Clock Out")');
   await expect(page.getByText('Confirm clock out?')).toBeVisible();
-  if (confirm) {
-    await page.click('button:has-text("Confirm")');
-    await expect(page.getByText('Clocked Out')).toBeVisible({ timeout: 15_000 });
-    await page.click('button:has-text("Done")');
-    await page.waitForTimeout(1000);
-  } else {
-    await page.click('button:has-text("Cancel")');
-    await expect(page.locator(TIMER_SELECTOR).first()).toBeVisible();
-  }
+  await page.click('button:has-text("Confirm")');
+
+  // Wait for the "Clocked Out" summary heading to appear
+  await expect(page.locator('h3:has-text("Clocked Out")')).toBeVisible({ timeout: 20_000 });
+  await page.click('button:has-text("Done")');
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────────
+// ─── Tests ─────────────────────────────────────────────────────────────────────────
 
 test.describe('ClockInOut Browser Smoke Test', () => {
   test('All ClockInOut browser behaviors', async ({ page, context }) => {
@@ -95,7 +94,9 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     // ══════════════════════════════════════════════════════════════════
     // STEP 3: Clock Out Cancel → still active
     // ══════════════════════════════════════════════════════════════════
-    await doClockOut(page, false);
+    await page.click('button:has-text("Clock Out")');
+    await expect(page.getByText('Confirm clock out?')).toBeVisible();
+    await page.click('button:has-text("Cancel")');
     await expect(page.getByText('Clocked in at')).toBeVisible();
     console.log('  ✅ Cancel: entry still active');
     await page.screenshot({ path: 'test-results/e2e/clockinout/02-cancel-kept-active.png' });
@@ -103,17 +104,16 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     // ══════════════════════════════════════════════════════════════════
     // STEP 4: Clock Out Confirm → closed + summary
     // ══════════════════════════════════════════════════════════════════
-    await doClockOut(page, true);
-    await expect(page.getByText('Clocked Out')).toBeVisible();
+    await doClockOut(page);
     console.log('  ✅ Confirm: entry closed, summary shown');
     await page.screenshot({ path: 'test-results/e2e/clockinout/03-clockout-confirmed.png' });
 
     // ══════════════════════════════════════════════════════════════════
     // STEP 5: Clock In with GPS → geofence + Maps link
     // ══════════════════════════════════════════════════════════════════
-    await enableGps(context, 37.7749, -122.4194); // exactly at Smith Residence
+    await enableGps(context, 37.7749, -122.4194);
     await page.goto('/mobile');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await waitForClockInForm(page);
     await expect(page.getByRole('radio', { name: /Smith Residence/ })).toBeVisible({ timeout: 10_000 });
@@ -132,7 +132,7 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     await page.waitForTimeout(2000);
 
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     await expect(timerLocator).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('Clocked in at')).toBeVisible();
@@ -150,9 +150,8 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     });
 
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
     await expect(timerLocator).toBeVisible({ timeout: 15_000 });
-    await page.waitForTimeout(1000);
 
     console.log(`  ✅ Hydration errors: ${hydErrors.length === 0 ? 'none' : hydErrors}`);
     expect(hydErrors).toEqual([]);
@@ -161,7 +160,7 @@ test.describe('ClockInOut Browser Smoke Test', () => {
     // ══════════════════════════════════════════════════════════════════
     // STEP 8: Clean up — clock out
     // ══════════════════════════════════════════════════════════════════
-    await doClockOut(page, true);
+    await doClockOut(page);
     console.log('  ✅ Cleaned up');
     await page.screenshot({ path: 'test-results/e2e/clockinout/07-cleaned-up.png' });
 
