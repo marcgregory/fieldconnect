@@ -47,7 +47,7 @@ export async function refreshRoutes(app: FastifyInstance) {
       }
 
       // If unverified, reject rotation and revoke the new token too.
-      if (!user.email_verified_at) {
+      if (!user.email_verified_at && !process.env.SKIP_EMAIL_VERIFICATION) {
         await refreshTokenQueries.revokeByFamily(rotated.familyId);
         await authAuditLog.log(
           user.id,

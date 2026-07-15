@@ -151,7 +151,7 @@ export async function loginRoutes(app: FastifyInstance) {
     // Do NOT count as a failure — the user has valid credentials but is
     // blocked by a separate policy. The IP rate-limit slot was already
     // charged (step 1), which is acceptable.
-    if (!user.email_verified_at) {
+    if (!user.email_verified_at && !process.env.SKIP_EMAIL_VERIFICATION) {
       await authAuditLog.log(user.id, 'login_blocked_unverified', undefined, ipAddress);
       return reply.status(403).send({
         success: false,
