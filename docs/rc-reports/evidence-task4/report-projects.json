@@ -1,0 +1,16 @@
+[
+  {
+    "project_id": "b975561c-87ff-43e0-829b-3c208da13b27",
+    "project_name": "Centrio Mall Fiber Migration",
+    "total_hours": "7.38",
+    "entry_count": 5,
+    "technician_count": 2
+  },
+  {
+    "project_id": "fe8bd95d-3a33-4cc8-a3cd-60deead6be3d",
+    "project_name": "ABC Manufacturing Office Network Upgrade",
+    "total_hours": "0.38",
+    "entry_count": 2,
+    "technician_count": 2
+  }
+]

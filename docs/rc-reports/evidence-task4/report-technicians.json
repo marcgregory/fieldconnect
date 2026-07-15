@@ -1,0 +1,14 @@
+[
+  {
+    "technician_id": "d6219193-44f5-46c3-8465-8bb823fc8590",
+    "technician_name": "Goblin",
+    "total_hours": "4.37",
+    "entry_count": 6
+  },
+  {
+    "technician_id": "6942b06c-371b-4728-9e90-644f19e44934",
+    "technician_name": "dodong",
+    "total_hours": "3.50",
+    "entry_count": 3
+  }
+]
