@@ -1,0 +1,45 @@
+=== API Security Headers ===
+HTTP/1.1 200 OK
+Date: Wed, 15 Jul 2026 12:38:17 GMT
+Content-Type: application/json; charset=utf-8
+Connection: keep-alive
+access-control-allow-credentials: true
+access-control-allow-origin: https://fieldconnect-tech.vercel.app
+Cache-Control: no-store
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+origin-agent-cluster: ?1
+permissions-policy: camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self)
+referrer-policy: strict-origin-when-cross-origin
+rndr-id: e12601cb-e909-463a
+Server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains; preload
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-dns-prefetch-control: off
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+CF-RAY: a1b8d2c7be829d21-CEB
+alt-svc: h3=":443"; ma=86400
+
+=== Frontend Security Headers ===
+HTTP/1.1 307 Temporary Redirect
+Age: 0
+Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-dEt7D3I5AEw2i_8wHTDZvQ'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com; connect-src 'self' wss://fieldconnect-backend.onrender.com https://fieldconnect-backend.onrender.com; font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; upgrade-insecure-requests
+Content-Type: text/html; charset=utf-8
+Date: Wed, 15 Jul 2026 12:38:18 GMT
+Location: /login
+Permissions-Policy: camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self)
+Referrer-Policy: strict-origin-when-cross-origin
+Server: Vercel
+Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+Vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch
+X-Content-Type-Options: nosniff
+X-Dns-Prefetch-Control: off
+X-Frame-Options: DENY
+X-Matched-Path: /
+X-Nonce: dEt7D3I5AEw2i_8wHTDZvQ
+X-Vercel-Cache: MISS
+X-Vercel-Id: sin1::iad1::cmg6w-1784119097872-c1157d22a881

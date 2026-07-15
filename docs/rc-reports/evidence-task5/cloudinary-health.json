@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-07-15T12:38:14Z",
+  "host": "res.cloudinary.com",
+  "cloud_name": "dytmv00iq",
+  "checks": {
+    "cloudinary_api_endpoint": {
+      "url": "https://api.cloudinary.com/v1_1/dytmv00iq",
+      "http_status": "400",
+      "interpretation": "400 = endpoint reachable (no auth sent). Expected 401 if auth required or 400 if endpoint exists but params missing."
+    },
+    "stored_asset_accessibility": {
+      "url": "https://res.cloudinary.com/dytmv00iq/image/upload/v1784118457/fieldconnect/jobs/434dec71-87bf-449c-8613-fd907a6b56a8/98fc75f8-3a7a-471b-bde6-f5d7e5b08026.png",
+      "http_status": "200",
+      "latency_ms": 481,
+      "content_type": "image/png",
+      "interpretation": "Stored asset from Task 4 validation still accessible. Cloudinary CDN is operational."
+    }
+  }
+}

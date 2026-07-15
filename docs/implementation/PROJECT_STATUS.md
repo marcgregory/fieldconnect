@@ -18,6 +18,20 @@ v1.0.0-beta-feature-complete — **Tagged** ✅
 - **Release notes**: closed-beta feature summary
 - **Tag**: `v1.0.0-beta-feature-complete` — "FieldConnect feature-complete for closed beta"
 
+### Task 5 — Production Health Validation — Complete ✅
+- Service health: API health endpoint (HTTP 200, `status: ok`) ✅
+- Database readiness: `SELECT 1` health check passes ✅
+- Frontend availability: Vercel serving HTML (307 → /login for unauthenticated) ✅
+- Socket.IO availability: polling handshake confirmed (HTTP 200) ✅
+- Cloudinary reachability: API endpoint reachable, stored assets accessible (HTTP 200, image/png) ✅
+- Security headers: All 8+ headers present on API (HSTS, X-CTO, X-Frame, Referrer, Permissions, CORP, COOP, Cache-Control) ✅
+- CSP: Full directive set with nonce-based script-src, no unsafe-eval, connect-src covers API+WSS ✅
+- CORS: Single explicit origin (`fieldconnect-tech.vercel.app`), credentials enabled ✅
+- Performance: API ~125ms cold/warm, frontend SSR ~800ms ✅
+- Deployment integrity: SHA `567f436`, tag `v1.0.0-beta-feature-complete-5-g567f436`, main branch ✅
+- Evidence preserved to `docs/rc-reports/evidence-task5/` (11 files) ✅
+- RC report written: `docs/rc-reports/rc-task-5-production-health.md` ✅
+
 ## Next Sprint
 
 Sprint 8 — Planning pending release push

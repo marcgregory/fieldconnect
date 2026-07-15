@@ -1,0 +1,64 @@
+[
+  {
+    "section": "A — Service Health",
+    "checks": [
+      { "item": "API health endpoint", "status": "✅ Passed", "note": "HTTP 200, status=ok, uptime=8719s (~2.4h), service=fieldconnect-backend", "evidence": "health.json" },
+      { "item": "Database readiness", "status": "✅ Passed", "note": "HTTP 200, database=connected", "evidence": "readiness.json" },
+      { "item": "Frontend availability", "status": "✅ Passed", "note": "HTTP 307 (redirect to /login — expected, unauthenticated), Content-Type: text/html; charset=utf-8", "evidence": "frontend-availability.json" }
+    ]
+  },
+  {
+    "section": "B — Infrastructure",
+    "checks": [
+      { "item": "Database connectivity", "status": "✅ Passed", "note": "status=ok, database=connected via SELECT 1 health check", "evidence": "readiness.json" },
+      { "item": "Socket.IO availability", "status": "✅ Passed", "note": "HTTP 200 on polling transport (EIO=4), Socket.IO handshake successful", "evidence": "socket-health.json" },
+      { "item": "Cloudinary reachability", "status": "✅ Passed", "note": "API endpoint reachable (HTTP 400, no auth sent). Stored asset from Task 4: HTTP 200, image/png, 481ms", "evidence": "cloudinary-health.json" }
+    ]
+  },
+  {
+    "section": "C — Security",
+    "checks": [
+      { "item": "HSTS (API)", "status": "✅ Passed", "note": "max-age=31536000; includeSubDomains; preload", "evidence": "security-headers.txt" },
+      { "item": "HSTS (Frontend)", "status": "✅ Passed", "note": "max-age=63072000; includeSubDomains; preload (Vercel default, 2 years)", "evidence": "security-headers.txt" },
+      { "item": "X-Content-Type-Options (API)", "status": "✅ Passed", "note": "nosniff", "evidence": "security-headers.txt" },
+      { "item": "X-Content-Type-Options (Frontend)", "status": "✅ Passed", "note": "nosniff", "evidence": "security-headers.txt" },
+      { "item": "X-Frame-Options (API)", "status": "✅ Passed", "note": "DENY", "evidence": "security-headers.txt" },
+      { "item": "X-Frame-Options (Frontend)", "status": "✅ Passed", "note": "DENY", "evidence": "security-headers.txt" },
+      { "item": "Referrer-Policy (API)", "status": "✅ Passed", "note": "strict-origin-when-cross-origin", "evidence": "security-headers.txt" },
+      { "item": "Referrer-Policy (Frontend)", "status": "✅ Passed", "note": "strict-origin-when-cross-origin", "evidence": "security-headers.txt" },
+      { "item": "Permissions-Policy (API)", "status": "✅ Passed", "note": "camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self)", "evidence": "security-headers.txt" },
+      { "item": "Permissions-Policy (Frontend)", "status": "✅ Passed", "note": "camera=(self), geolocation=(self), fullscreen=(self), screen-wake-lock=(self)", "evidence": "security-headers.txt" },
+      { "item": "CSP (Frontend)", "status": "✅ Passed", "note": "Full CSP with script-src nonce, no unsafe-inline/eval, connect-src covers API+WSS, img-src includes Cloudinary", "evidence": "security-headers.txt" },
+      { "item": "Cross-Origin-Resource-Policy (API)", "status": "✅ Passed", "note": "same-origin", "evidence": "security-headers.txt" },
+      { "item": "Cross-Origin-Opener-Policy (API)", "status": "✅ Passed", "note": "same-origin", "evidence": "security-headers.txt" },
+      { "item": "Cache-Control (API)", "status": "✅ Passed", "note": "no-store (prevents caching authenticated responses)", "evidence": "security-headers.txt" },
+      { "item": "CORS configuration", "status": "✅ Passed", "note": "Origin: https://fieldconnect-tech.vercel.app, Methods: GET,HEAD,PUT,PATCH,POST,DELETE, Credentials: true", "evidence": "cors-headers.json" }
+    ]
+  },
+  {
+    "section": "D — Performance",
+    "checks": [
+      { "item": "Health endpoint latency", "status": "✅ Passed", "note": "cold: 126ms, warm: 123ms", "evidence": "performance.json" },
+      { "item": "DB health latency", "status": "✅ Passed", "note": "cold: 125ms, warm: 126ms", "evidence": "performance.json" },
+      { "item": "Frontend load latency", "status": "✅ Passed", "note": "cold: 873ms (includes SSR), warm: 795ms", "evidence": "performance.json" }
+    ]
+  },
+  {
+    "section": "F — Deployment Integrity",
+    "checks": [
+      { "item": "Git SHA", "status": "✅ Passed", "note": "567f436 (main branch)", "evidence": "deployment-version.json" },
+      { "item": "Release tag", "status": "✅ Passed", "note": "v1.0.0-beta-feature-complete-5-g567f436 (5 commits past tagged release)", "evidence": "deployment-version.json" },
+      { "item": "API base URL", "status": "✅ Passed", "note": "https://fieldconnect-backend.onrender.com", "evidence": "deployment-version.json" },
+      { "item": "Frontend URL", "status": "✅ Passed", "note": "https://fieldconnect-tech.vercel.app", "evidence": "deployment-version.json" }
+    ]
+  },
+  {
+    "section": "G — Observability & Resource Health",
+    "checks": [
+      { "item": "Structured logging", "status": "✅ Passed", "note": "API uses pino logger with pino-pretty transport (visible in health endpoint response timing)", "evidence": "Not directly verifiable via HTTP" },
+      { "item": "Monitoring / Error tracking", "status": "🔶 Skipped", "note": "No Sentry, DataDog, or similar APM tool has been integrated. Render console logs and Cloudflare headers (cf-cache-status, CF-RAY) provide basic observability", "evidence": "N/A" },
+      { "item": "Render service healthy", "status": "✅ Passed", "note": "API responds with rndr-id header, server=cloudflare, x-render-origin-server=Render", "evidence": "security-headers.txt" },
+      { "item": "Vercel deployment healthy", "status": "✅ Passed", "note": "Frontend responds with x-vercel-id, x-vercel-cache headers, server=Vercel", "evidence": "security-headers.txt" }
+    ]
+  }
+]

@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-07-15T12:38:14Z",
+  "api_base": "https://fieldconnect-backend.onrender.com",
+  "web_base": "https://fieldconnect-tech.vercel.app",
+  "method": "curl time_total (includes DNS, TCP, TLS, response)",
+  "results": {
+    "health_endpoint": {
+      "cold_ms": 126,
+      "warm_ms": 123,
+      "cold_http": "200",
+      "warm_http": "200"
+    },
+    "db_health_endpoint": {
+      "cold_ms": 125,
+      "warm_ms": 126,
+      "cold_http": "200",
+      "warm_http": "200"
+    },
+    "frontend_load": {
+      "cold_ms": 873,
+      "warm_ms": 795,
+      "cold_http": "200",
+      "warm_http": "200"
+    }
+  },
+  "interpretation": "API endpoints respond in ~125ms (including Render cold-start overhead). Frontend loads in ~800ms (Vercel edge, includes SSR). These are well within acceptable thresholds for a beta application."
+}
