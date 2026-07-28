@@ -5,12 +5,14 @@ import { SignJWT } from 'jose';
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 const PROXY_SECRET = process.env.FIELDCONNECT_PROXY_SECRET || '';
 
-// Validate NEXTAUTH_SECRET at module initialization
-const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
-if (!NEXTAUTH_SECRET || NEXTAUTH_SECRET.trim() === '') {
-  throw new Error('NEXTAUTH_SECRET environment variable is required and must not be empty');
+// Get JWT_SECRET - validate at request time, not build time
+function getJWTSecret(): Uint8Array {
+  const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
+  if (!NEXTAUTH_SECRET || NEXTAUTH_SECRET.trim() === '') {
+    throw new Error('NEXTAUTH_SECRET environment variable is required and must not be empty');
+  }
+  return new TextEncoder().encode(NEXTAUTH_SECRET);
 }
-const JWT_SECRET = new TextEncoder().encode(NEXTAUTH_SECRET);
 
 /**
  * Sign a JWT that the Fastify API can verify.
@@ -21,6 +23,7 @@ async function signBackendJWT(payload: {
   email: string;
   name: string;
 }): Promise<string> {
+  const JWT_SECRET = getJWTSecret();
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
