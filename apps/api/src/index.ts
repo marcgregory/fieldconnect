@@ -26,6 +26,7 @@ import { activityRoutes } from './routes/activity';
 import { registerAuth } from './middleware/auth';
 import { initWebSocket } from './websocket';
 import { assertEmailConfigValid } from './lib/email';
+import { assertSecretsConfigValid } from './lib/env';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -200,6 +201,15 @@ async function main() {
     assertEmailConfigValid();
   } catch (err) {
     console.error('Email configuration is invalid:', (err as Error).message);
+    process.exit(1);
+  }
+
+  // Validate required secrets at boot. Missing DATABASE_URL, NEXTAUTH_SECRET, or JWT_SECRET
+  // would otherwise surface during request handling. Fail fast instead.
+  try {
+    assertSecretsConfigValid();
+  } catch (err) {
+    console.error('Secrets validation failed:', (err as Error).message);
     process.exit(1);
   }
 

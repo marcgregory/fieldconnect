@@ -4,9 +4,13 @@ import { SignJWT } from 'jose';
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 const PROXY_SECRET = process.env.FIELDCONNECT_PROXY_SECRET || '';
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET || 'fallback-secret-do-not-use-in-production',
-);
+
+// Validate NEXTAUTH_SECRET at module initialization
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET;
+if (!NEXTAUTH_SECRET || NEXTAUTH_SECRET.trim() === '') {
+  throw new Error('NEXTAUTH_SECRET environment variable is required and must not be empty');
+}
+const JWT_SECRET = new TextEncoder().encode(NEXTAUTH_SECRET);
 
 /**
  * Sign a JWT that the Fastify API can verify.

@@ -1,6 +1,0 @@
-{
-  "timestamp": "2026-07-15T12:38:14Z",
-  "access_control_allow_origin": "access-control-allow-origin: https://fieldconnect-tech.vercel.app",
-  "access_control_allow_methods": "access-control-allow-methods: GET,HEAD,PUT,PATCH,POST,DELETE",
-  "access_control_allow_credentials": "access-control-allow-credentials: true"
-}
